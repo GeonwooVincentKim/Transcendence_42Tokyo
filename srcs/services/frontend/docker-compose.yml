@@ -1,0 +1,24 @@
+version: '3.8'
+
+services:
+  # This service runs the Tailwind CSS --watch command
+  builder:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: npm run dev
+    stdin_open: true
+    tty: true
+    volumes:
+      - .:/app
+      - /app/node_modules
+
+  # This service runs a simple web server to SERVE your files
+  server:
+    image: nginx:alpine
+    ports:
+      # Expose port 8080 on your machine so you can view the site
+      - "8080:80"
+    volumes:
+      # Mount our project directory to the Nginx web root
+      - .:/usr/share/nginx/html:ro # :ro means read-only

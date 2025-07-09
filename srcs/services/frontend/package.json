@@ -1,0 +1,11 @@
+{
+  "name": "frontend",
+  "version": "1.0.0",
+  "description": "The frontend for the Transcendence project.",
+  "scripts": {
+    "dev": "tailwindcss -i ./src/input.css -o ./dist/output.css --watch"
+  },
+  "devDependencies": {
+    "tailwindcss": "^3.4.1"
+  }
+}
