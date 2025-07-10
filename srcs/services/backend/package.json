@@ -17,6 +17,7 @@
     "typescript": "^5.8.3"
   },
   "dependencies": {
-    "fastify": "^4.29.1"
+    "fastify": "^4.29.1",
+    "@fastify/cors": "^8.4.0"
   }
 }
