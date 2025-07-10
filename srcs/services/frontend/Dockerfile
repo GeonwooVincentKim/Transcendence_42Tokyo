@@ -1,21 +1,32 @@
-# Use the official Long-Term Support (LTS) version of Node.js
-FROM node:lts-alpine
+# Multi-stage build for React frontend
+FROM node:18-alpine AS builder
 
-# Tell Docker to run subsequent commands as the root user.
-# This solves the permission issue for bind mounts during development.
-USER root
-
-# Set the working directory inside the container
+# Set working directory
 WORKDIR /app
 
-# Copy package.json and package-lock.json
+# Copy package files
 COPY package*.json ./
 
-# Install project dependencies
-RUN npm install
+# Install dependencies
+RUN npm ci --only=production
 
-# Copy the rest of your application's source code
+# Copy source code
 COPY . .
 
-# The command to run when the container starts
-CMD [ "npm", "run", "dev" ]
+# Build the application
+RUN npm run build
+
+# Production stage
+FROM nginx:alpine AS production
+
+# Copy built application from builder stage
+COPY --from=builder /app/dist /usr/share/nginx/html
+
+# Copy custom nginx configuration
+COPY nginx.conf /etc/nginx/conf.d/default.conf
+
+# Expose port 80
+EXPOSE 80
+
+# Start nginx
+CMD ["nginx", "-g", "daemon off;"] 

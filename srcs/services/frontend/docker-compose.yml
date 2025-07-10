@@ -1,24 +1,42 @@
 version: '3.8'
 
 services:
-  # This service runs the Tailwind CSS --watch command
-  builder:
+  frontend:
     build:
       context: .
       dockerfile: Dockerfile
-    command: npm run dev
-    stdin_open: true
-    tty: true
-    volumes:
-      - .:/app
-      - /app/node_modules
-
-  # This service runs a simple web server to SERVE your files
-  server:
-    image: nginx:alpine
     ports:
-      # Expose port 8080 on your machine so you can view the site
-      - "8080:80"
+      - "3000:80"
+    environment:
+      - NODE_ENV=production
     volumes:
-      # Mount our project directory to the Nginx web root
-      - .:/usr/share/nginx/html:ro # :ro means read-only
+      # For development, you can mount the source code
+      # - ./src:/app/src
+      # - ./public:/app/public
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf
+    restart: unless-stopped
+    networks:
+      - pong-network
+
+  # Development service (optional)
+  frontend-dev:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    ports:
+      - "3001:3000"
+    environment:
+      - NODE_ENV=development
+    volumes:
+      - ./src:/app/src
+      - ./public:/app/public
+      - ./package.json:/app/package.json
+    command: npm run dev
+    networks:
+      - pong-network
+    profiles:
+      - dev
+
+networks:
+  pong-network:
+    driver: bridge 
