@@ -243,15 +243,61 @@ export const PongGame: React.FC<PongGameProps> = ({
   }, [gameLoop, renderLoop]);
 
   return (
-    <div className="flex flex-col items-center">
+    <div className="flex flex-col items-center" data-testid="game-container">
       <h2 className="text-2xl mb-4">Pong Game</h2>
+      
+      {/* Game Controls */}
+      <div className="mb-4 flex gap-2">
+        <button 
+          data-testid="start-button"
+          onClick={() => setGameState(prev => ({ ...prev, gameRunning: true }))}
+          className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700"
+        >
+          Start
+        </button>
+        <button 
+          data-testid="pause-button"
+          onClick={() => setGameState(prev => ({ ...prev, gameRunning: false }))}
+          className="px-4 py-2 bg-yellow-600 text-white rounded hover:bg-yellow-700"
+        >
+          Pause
+        </button>
+        <button 
+          data-testid="reset-button"
+          onClick={() => setGameState(prev => ({
+            ...prev,
+            leftScore: 0,
+            rightScore: 0,
+            ball: { x: width / 2, y: height / 2, dx: 5, dy: 3 },
+            leftPaddle: { y: height / 2 - 50 },
+            rightPaddle: { y: height / 2 - 50 }
+          }))}
+          className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700"
+        >
+          Reset
+        </button>
+      </div>
+
+      {/* Game Status */}
+      <div data-testid="game-status" className="mb-2 text-sm">
+        {gameState.gameRunning ? 'Playing' : 'Paused'}
+      </div>
+
+      {/* Score Display */}
+      <div data-testid="score" className="mb-2 text-lg font-bold">
+        {gameState.leftScore} - {gameState.rightScore}
+      </div>
+
+      {/* Game Canvas */}
       <canvas
         ref={canvasRef}
         width={width}
         height={height}
         className="border border-white"
         aria-label="Pong game canvas"
+        data-testid="game-board"
       />
+      
       <div className="mt-4 text-sm text-gray-400">
         <p>Controls: W/S (Left Paddle) | Arrow Keys (Right Paddle)</p>
       </div>

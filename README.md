@@ -171,6 +171,40 @@ describe('Feature Name', () => {
 - Keep tests independent and isolated
 - Use custom commands for common operations
 
+## E2E Testing with Cypress
+
+End-to-End (E2E) tests are implemented using Cypress to ensure the entire application workflow works as expected.
+
+### How to Run E2E Tests
+
+1. Start all services using Docker Compose:
+   ```bash
+   cd srcs
+   docker-compose up --build
+   ```
+2. In a new terminal, run Cypress from the frontend directory:
+   ```bash
+   cd srcs/services/frontend
+   npx cypress open
+   ```
+   This will open the Cypress Test Runner. You can run E2E tests interactively in your browser.
+
+   Alternatively, to run all E2E tests in headless mode:
+   ```bash
+   npx cypress run
+   ```
+
+### E2E Test Location
+
+- All E2E test files are located in `srcs/services/frontend/cypress/e2e/`.
+- Example: `pong.cy.js` contains the main E2E tests for the Pong game.
+
+### Notes
+
+- Make sure the application is running (via Docker Compose) before running E2E tests.
+- E2E tests use selectors like `data-testid` for reliable element targeting.
+- Update or add E2E tests as you add new features or user flows.
+
 ## Contributing
 
 1. Follow TypeScript best practices
