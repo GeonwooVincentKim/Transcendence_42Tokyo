@@ -1,5 +1,5 @@
 import request from 'supertest';
-import Fastify from 'fastify';
+import Fastify, { FastifyInstance } from 'fastify';
 import cors from '@fastify/cors';
 import fastifyWebsocket from '@fastify/websocket';
 
@@ -7,7 +7,7 @@ import fastifyWebsocket from '@fastify/websocket';
  * Test suite for Pong Game Backend Server
  */
 describe('Pong Game Backend Server', () => {
-  let server: Fastify.FastifyInstance;
+  let server: FastifyInstance;
 
   /**
    * Setup test server before each test
@@ -25,7 +25,7 @@ describe('Pong Game Backend Server', () => {
     await server.register(fastifyWebsocket);
 
     // Register routes
-    server.get('/', async (request, reply) => {
+    server.get('/', async (request: any, reply: any) => {
       return { 
         status: 'ok', 
         message: 'Pong Game Backend Server',
@@ -33,14 +33,14 @@ describe('Pong Game Backend Server', () => {
       };
     });
 
-    server.get('/api/ping', async (request, reply) => {
+    server.get('/api/ping', async (request: any, reply: any) => {
       return { 
         message: 'pong',
         timestamp: new Date().toISOString()
       };
     });
 
-    server.get('/api/game/state', async (request, reply) => {
+    server.get('/api/game/state', async (request: any, reply: any) => {
       return {
         gameState: {
           leftScore: 0,
