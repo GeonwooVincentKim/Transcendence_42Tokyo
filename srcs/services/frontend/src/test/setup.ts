@@ -1,25 +1,25 @@
 import '@testing-library/jest-dom';
 
 // Mock canvas for PongGame component
-HTMLCanvasElement.prototype.getContext = jest.fn(() => ({
+HTMLCanvasElement.prototype.getContext = vi.fn(() => ({
   fillStyle: '',
-  fillRect: jest.fn(),
-  beginPath: jest.fn(),
-  arc: jest.fn(),
-  fill: jest.fn(),
-  setLineDash: jest.fn(),
-  moveTo: jest.fn(),
-  lineTo: jest.fn(),
+  fillRect: vi.fn(),
+  beginPath: vi.fn(),
+  arc: vi.fn(),
+  fill: vi.fn(),
+  setLineDash: vi.fn(),
+  moveTo: vi.fn(),
+  lineTo: vi.fn(),
   strokeStyle: '',
-  stroke: jest.fn(),
+  stroke: vi.fn(),
   font: '',
-  fillText: jest.fn(),
+  fillText: vi.fn(),
 }));
 
 // Mock requestAnimationFrame
-global.requestAnimationFrame = jest.fn((callback) => {
+global.requestAnimationFrame = vi.fn((callback) => {
   setTimeout(callback, 0);
   return 1;
 });
 
-global.cancelAnimationFrame = jest.fn(); 
+global.cancelAnimationFrame = vi.fn(); 
