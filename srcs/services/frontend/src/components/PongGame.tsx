@@ -18,7 +18,7 @@ interface GameState {
   ball: { x: number; y: number; dx: number; dy: number };
   leftScore: number;
   rightScore: number;
-  status: 'ready' | 'playing' | 'paused'; // 추가
+  status: 'ready' | 'playing' | 'paused'; // Added
 }
 
 /**
@@ -49,7 +49,7 @@ export const PongGame: React.FC<PongGameProps> = ({
     ball: { x: width / 2, y: height / 2, dx: 5, dy: 3 },
     leftScore: 0,
     rightScore: 0,
-    status: 'ready', // 초기값
+    status: 'ready', // Initial value
   });
 
   // Track currently pressed keys

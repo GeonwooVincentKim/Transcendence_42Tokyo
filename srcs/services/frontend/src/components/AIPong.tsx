@@ -1,14 +1,10 @@
 import React, { useEffect, useRef, useState } from 'react';
 
-interface MultiplayerPongProps {
+interface AIPongProps {
   roomId: string;
-  playerSide: 'left' | 'right';
 }
 
-export const MultiplayerPong: React.FC<MultiplayerPongProps> = ({ 
-  roomId, 
-  playerSide 
-}) => {
+export const AIPong: React.FC<AIPongProps> = ({ roomId }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const wsRef = useRef<WebSocket | null>(null);
   const [gameState, setGameState] = useState({
@@ -17,7 +13,7 @@ export const MultiplayerPong: React.FC<MultiplayerPongProps> = ({
     ball: { x: 400, y: 200, dx: 5, dy: 3 },
     leftScore: 0,
     rightScore: 0,
-    status: 'ready' // Added
+    status: 'ready'
   });
   const [connected, setConnected] = useState(false);
   const [keys, setKeys] = useState<Set<string>>(new Set());
@@ -28,7 +24,7 @@ export const MultiplayerPong: React.FC<MultiplayerPongProps> = ({
     wsRef.current = ws;
 
     ws.onopen = () => {
-      console.log('Connected to game server');
+      console.log('Connected to AI game server');
       setConnected(true);
     };
 
@@ -55,25 +51,11 @@ export const MultiplayerPong: React.FC<MultiplayerPongProps> = ({
         case 'game_state_update':
           setGameState(prev => ({ ...data.data, status: prev.status }));
           break;
-        case 'game_pause':
-          setGameState(prev => ({ ...prev, status: 'paused' }));
-          break;
-        case 'game_reset':
-          setGameState(prev => ({
-            ...prev,
-            leftScore: 0,
-            rightScore: 0,
-            ball: { x: 400, y: 200, dx: 5, dy: 3 },
-            leftPaddle: { y: 200 },
-            rightPaddle: { y: 200 },
-            status: 'ready'
-          }));
-          break;
       }
     };
 
     ws.onclose = () => {
-      console.log('Disconnected from game server');
+      console.log('Disconnected from AI game server');
       setConnected(false);
     };
 
@@ -105,33 +87,30 @@ export const MultiplayerPong: React.FC<MultiplayerPongProps> = ({
     };
   }, []);
 
-  // Paddle movement handling
+  // Paddle movement handling (left player only)
   useEffect(() => {
     if (!connected || !wsRef.current) return;
 
     const paddleSpeed = 5;
-    const keysToCheck = playerSide === 'left' ? ['w', 's'] : ['arrowup', 'arrowdown'];
     
-    keysToCheck.forEach(key => {
-      if (keys.has(key)) {
-        const currentY = playerSide === 'left' ? gameState.leftPaddle.y : gameState.rightPaddle.y;
-        let newY = currentY;
-        
-        if ((key === 'w' || key === 'arrowup') && newY > 0) {
-          newY -= paddleSpeed;
-        } else if ((key === 's' || key === 'arrowdown') && newY < 300) {
-          newY += paddleSpeed;
-        }
-        
-        // Send paddle position to server
-        wsRef.current?.send(JSON.stringify({
-          type: 'paddle_move',
-          player: playerSide,
-          y: newY
-        }));
-      }
-    });
-  }, [keys, connected, playerSide, gameState]);
+    if (keys.has('w')) {
+      const newY = Math.max(0, gameState.leftPaddle.y - paddleSpeed);
+      wsRef.current?.send(JSON.stringify({
+        type: 'paddle_move',
+        player: 'left',
+        y: newY
+      }));
+    }
+    
+    if (keys.has('s')) {
+      const newY = Math.min(300, gameState.leftPaddle.y + paddleSpeed);
+      wsRef.current?.send(JSON.stringify({
+        type: 'paddle_move',
+        player: 'left',
+        y: newY
+      }));
+    }
+  }, [keys, connected, gameState.leftPaddle.y]);
 
   // Rendering
   useEffect(() => {
@@ -178,7 +157,7 @@ export const MultiplayerPong: React.FC<MultiplayerPongProps> = ({
 
   return (
     <div className="flex flex-col items-center">
-      <h2 className="text-2xl mb-4">Multiplayer Pong</h2>
+      <h2 className="text-2xl mb-4">AI Pong Game</h2>
       <div className="mb-4">
         <span className={`px-4 py-2 rounded ${connected ? 'bg-green-600' : 'bg-red-600'}`}>
           {connected ? 'Connected' : 'Disconnected'}
@@ -192,8 +171,8 @@ export const MultiplayerPong: React.FC<MultiplayerPongProps> = ({
           : 'Paused'}
       </div>
       <div className="mb-4 text-sm">
-        <p>You are playing as: <strong>{playerSide.toUpperCase()}</strong></p>
-        <p>{playerSide === 'left' ? 'W/S keys' : '↑/↓ keys'}</p>
+        <p>You vs AI</p>
+        <p>Use W/S keys to move your paddle</p>
       </div>
       <canvas
         ref={canvasRef}
