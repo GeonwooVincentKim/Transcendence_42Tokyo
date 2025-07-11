@@ -51,6 +51,20 @@ export const AIPong: React.FC<AIPongProps> = ({ roomId }) => {
         case 'game_state_update':
           setGameState(prev => ({ ...data.data, status: prev.status }));
           break;
+        case 'game_pause':
+          setGameState(prev => ({ ...prev, status: 'paused' }));
+          break;
+        case 'game_reset':
+          setGameState(prev => ({
+            ...prev,
+            leftScore: 0,
+            rightScore: 0,
+            ball: { x: 400, y: 200, dx: 5, dy: 3 },
+            leftPaddle: { y: 200 },
+            rightPaddle: { y: 200 },
+            status: 'ready'
+          }));
+          break;
       }
     };
 
@@ -91,6 +105,9 @@ export const AIPong: React.FC<AIPongProps> = ({ roomId }) => {
   useEffect(() => {
     if (!connected || !wsRef.current) return;
 
+    // Only allow paddle movement when game is playing
+    if (gameState.status !== 'playing') return;
+
     const paddleSpeed = 5;
     
     if (keys.has('w')) {
@@ -110,7 +127,7 @@ export const AIPong: React.FC<AIPongProps> = ({ roomId }) => {
         y: newY
       }));
     }
-  }, [keys, connected, gameState.leftPaddle.y]);
+  }, [keys, connected, gameState.leftPaddle.y, gameState.status]);
 
   // Rendering
   useEffect(() => {
@@ -155,6 +172,23 @@ export const AIPong: React.FC<AIPongProps> = ({ roomId }) => {
     return () => clearInterval(interval);
   }, [gameState]);
 
+  // Game control functions
+  const handlePause = () => {
+    if (wsRef.current) {
+      wsRef.current.send(JSON.stringify({
+        type: 'game_pause'
+      }));
+    }
+  };
+
+  const handleReset = () => {
+    if (wsRef.current) {
+      wsRef.current.send(JSON.stringify({
+        type: 'game_reset'
+      }));
+    }
+  };
+
   return (
     <div className="flex flex-col items-center">
       <h2 className="text-2xl mb-4">AI Pong Game</h2>
@@ -163,12 +197,29 @@ export const AIPong: React.FC<AIPongProps> = ({ roomId }) => {
           {connected ? 'Connected' : 'Disconnected'}
         </span>
       </div>
+      
+      {/* Game Controls */}
+      <div className="mb-4 flex gap-2">
+        <button 
+          onClick={handlePause}
+          className="px-4 py-2 bg-yellow-600 text-white rounded hover:bg-yellow-700"
+        >
+          Pause
+        </button>
+        <button 
+          onClick={handleReset}
+          className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700"
+        >
+          Reset
+        </button>
+      </div>
+      
       <div data-testid="game-status" className="mb-2 text-sm">
         {gameState.status === 'ready'
-          ? 'Ready'
+          ? 'Initial'
           : gameState.status === 'playing'
-          ? 'Playing'
-          : 'Paused'}
+          ? 'Started'
+          : 'Stopped'}
       </div>
       <div className="mb-4 text-sm">
         <p>You vs AI</p>

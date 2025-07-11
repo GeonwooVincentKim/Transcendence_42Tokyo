@@ -109,6 +109,9 @@ export const MultiplayerPong: React.FC<MultiplayerPongProps> = ({
   useEffect(() => {
     if (!connected || !wsRef.current) return;
 
+    // Only allow paddle movement when game is playing
+    if (gameState.status !== 'playing') return;
+
     const paddleSpeed = 5;
     const keysToCheck = playerSide === 'left' ? ['w', 's'] : ['arrowup', 'arrowdown'];
     
@@ -131,7 +134,7 @@ export const MultiplayerPong: React.FC<MultiplayerPongProps> = ({
         }));
       }
     });
-  }, [keys, connected, playerSide, gameState]);
+  }, [keys, connected, playerSide, gameState, gameState.status]);
 
   // Rendering
   useEffect(() => {
@@ -176,6 +179,23 @@ export const MultiplayerPong: React.FC<MultiplayerPongProps> = ({
     return () => clearInterval(interval);
   }, [gameState]);
 
+  // Game control functions
+  const handlePause = () => {
+    if (wsRef.current) {
+      wsRef.current.send(JSON.stringify({
+        type: 'game_pause'
+      }));
+    }
+  };
+
+  const handleReset = () => {
+    if (wsRef.current) {
+      wsRef.current.send(JSON.stringify({
+        type: 'game_reset'
+      }));
+    }
+  };
+
   return (
     <div className="flex flex-col items-center">
       <h2 className="text-2xl mb-4">Multiplayer Pong</h2>
@@ -184,12 +204,29 @@ export const MultiplayerPong: React.FC<MultiplayerPongProps> = ({
           {connected ? 'Connected' : 'Disconnected'}
         </span>
       </div>
+      
+      {/* Game Controls */}
+      <div className="mb-4 flex gap-2">
+        <button 
+          onClick={handlePause}
+          className="px-4 py-2 bg-yellow-600 text-white rounded hover:bg-yellow-700"
+        >
+          Pause
+        </button>
+        <button 
+          onClick={handleReset}
+          className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700"
+        >
+          Reset
+        </button>
+      </div>
+      
       <div data-testid="game-status" className="mb-2 text-sm">
         {gameState.status === 'ready'
-          ? 'Ready'
+          ? 'Initial'
           : gameState.status === 'playing'
-          ? 'Playing'
-          : 'Paused'}
+          ? 'Started'
+          : 'Stopped'}
       </div>
       <div className="mb-4 text-sm">
         <p>You are playing as: <strong>{playerSide.toUpperCase()}</strong></p>

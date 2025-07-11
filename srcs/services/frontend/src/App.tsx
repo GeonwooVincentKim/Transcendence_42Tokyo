@@ -32,6 +32,19 @@ function App() {
     }
   };
 
+  /**
+   * Handles game mode transitions
+   * Resets room ID and player side when switching modes
+   */
+  const handleModeChange = (newMode: 'single' | 'multiplayer' | 'ai') => {
+    setGameMode(newMode);
+    // Reset room ID and player side when switching modes
+    if (newMode === 'single') {
+      setRoomId('');
+      setPlayerSide('left');
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gray-900 text-white flex items-center justify-center">
       <div className="text-center">
@@ -43,7 +56,7 @@ function App() {
             <PongGame />
             <div className="mt-4 space-x-4">
               <button 
-                onClick={() => setGameMode('multiplayer')}
+                onClick={() => handleModeChange('multiplayer')}
                 className="px-4 py-2 bg-blue-600 rounded hover:bg-blue-700"
               >
                 Play Multiplayer
@@ -83,7 +96,7 @@ function App() {
             )}
             
             <button 
-              onClick={() => setGameMode('single')}
+              onClick={() => handleModeChange('single')}
               className="mt-4 px-4 py-2 bg-gray-600 rounded hover:bg-gray-700"
             >
               Back to Single Player
@@ -94,7 +107,7 @@ function App() {
             {/* AI Game Component */}
             {roomId && <AIPong roomId={roomId} />}
             <button 
-              onClick={() => setGameMode('single')}
+              onClick={() => handleModeChange('single')}
               className="mt-4 px-4 py-2 bg-gray-600 rounded hover:bg-gray-700"
             >
               Back to Single Player

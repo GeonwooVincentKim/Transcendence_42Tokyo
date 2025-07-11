@@ -18,7 +18,7 @@ interface GameState {
   ball: { x: number; y: number; dx: number; dy: number };
   leftScore: number;
   rightScore: number;
-  status: 'ready' | 'playing' | 'paused'; // Added
+  status: 'ready' | 'playing' | 'paused';
 }
 
 /**
@@ -84,10 +84,14 @@ export const PongGame: React.FC<PongGameProps> = ({
   }, []);
 
   /**
-   * Game logic loop
-   * Handles ball movement, collision detection, and scoring
+   * Paddle movement logic
+   * Handles paddle movement based on keyboard input
+   * Only active when game status is 'playing'
    */
   useEffect(() => {
+    // Only allow paddle movement when game is playing
+    if (gameState.status !== 'playing') return;
+
     const paddleSpeed = 5;
     
     setGameState(prev => {
@@ -116,7 +120,7 @@ export const PongGame: React.FC<PongGameProps> = ({
         rightPaddle: newRightPaddle
       };
     });
-  }, [keys, height]);
+  }, [keys, height, gameState.status]);
 
   /**
    * Rendering loop
@@ -160,10 +164,14 @@ export const PongGame: React.FC<PongGameProps> = ({
   }, [gameState, width, height]);
 
   /**
-   * Animation loop using requestAnimationFrame
-   * Provides smooth 60 FPS gameplay
+   * Game logic loop
+   * Handles ball movement, collision detection, and scoring
+   * Only active when game status is 'playing'
    */
   useEffect(() => {
+    // Only run game logic when status is 'playing'
+    if (gameState.status !== 'playing') return;
+
     const gameLoop = () => {
       setGameState(prevState => {
         const newBall = {
@@ -214,7 +222,7 @@ export const PongGame: React.FC<PongGameProps> = ({
 
     const interval = setInterval(gameLoop, 16);
     return () => clearInterval(interval);
-  }, [width, height]);
+  }, [gameState.status, width, height]);
 
   return (
     <div className="flex flex-col items-center" data-testid="game-container">
@@ -256,10 +264,10 @@ export const PongGame: React.FC<PongGameProps> = ({
       {/* Game Status */}
       <div data-testid="game-status" className="mb-2 text-sm">
         {gameState.status === 'ready'
-          ? 'Ready'
+          ? 'Initial'
           : gameState.status === 'playing'
-          ? 'Playing'
-          : 'Paused'}
+          ? 'Started'
+          : 'Stopped'}
       </div>
 
       {/* Score Display */}
