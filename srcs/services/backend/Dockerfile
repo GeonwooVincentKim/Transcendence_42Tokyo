@@ -11,4 +11,4 @@ RUN npm run build || cat /app/npm-debug.log
 
 EXPOSE 8000
 
-CMD ["node", "dist/index.js"]
+CMD ["node", "--trace-warnings", "dist/index.js"]
