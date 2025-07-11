@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState, useCallback } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 
 /**
  * PongGame Component Props
@@ -18,7 +18,7 @@ interface GameState {
   ball: { x: number; y: number; dx: number; dy: number };
   leftScore: number;
   rightScore: number;
-  gameRunning: boolean;
+  status: 'ready' | 'playing' | 'paused';
 }
 
 /**
@@ -42,9 +42,6 @@ export const PongGame: React.FC<PongGameProps> = ({
   // Canvas reference for rendering
   const canvasRef = useRef<HTMLCanvasElement>(null);
   
-  // Animation frame reference for cleanup
-  const animationRef = useRef<number | null>(null);
-  
   // Game state management
   const [gameState, setGameState] = useState<GameState>({
     leftPaddle: { y: height / 2 - 50 },
@@ -52,7 +49,7 @@ export const PongGame: React.FC<PongGameProps> = ({
     ball: { x: width / 2, y: height / 2, dx: 5, dy: 3 },
     leftScore: 0,
     rightScore: 0,
-    gameRunning: true
+    status: 'ready', // Initial value
   });
 
   // Track currently pressed keys
@@ -64,13 +61,13 @@ export const PongGame: React.FC<PongGameProps> = ({
    */
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      setKeys(prev => new Set([...prev, e.key]));
+      setKeys(prev => new Set([...prev, e.key.toLowerCase()]));
     };
 
     const handleKeyUp = (e: KeyboardEvent) => {
       setKeys(prev => {
         const newKeys = new Set(prev);
-        newKeys.delete(e.key);
+        newKeys.delete(e.key.toLowerCase());
         return newKeys;
       });
     };
@@ -87,173 +84,210 @@ export const PongGame: React.FC<PongGameProps> = ({
   }, []);
 
   /**
-   * Game logic loop
-   * Handles ball movement, collision detection, and scoring
+   * Paddle movement logic
+   * Handles paddle movement based on keyboard input
+   * Only active when game status is 'playing'
    */
-  const gameLoop = useCallback(() => {
-    setGameState(prevState => {
-      if (!prevState.gameRunning) return prevState;
+  useEffect(() => {
+    // Only allow paddle movement when game is playing
+    if (gameState.status !== 'playing') return;
 
-      // Update paddle positions based on key presses
-      let newLeftPaddleY = prevState.leftPaddle.y;
-      let newRightPaddleY = prevState.rightPaddle.y;
+    const paddleSpeed = 5;
+    
+    setGameState(prev => {
+      let newLeftPaddle = { ...prev.leftPaddle };
+      let newRightPaddle = { ...prev.rightPaddle };
 
-      // Left paddle controls (W/S keys)
-      if (keys.has('w') || keys.has('W')) {
-        newLeftPaddleY = Math.max(0, newLeftPaddleY - 5);
+      // Left paddle (W/S keys)
+      if (keys.has('w') && newLeftPaddle.y > 0) {
+        newLeftPaddle.y -= paddleSpeed;
       }
-      if (keys.has('s') || keys.has('S')) {
-        newLeftPaddleY = Math.min(height - 100, newLeftPaddleY + 5);
-      }
-
-      // Right paddle controls (Arrow keys)
-      if (keys.has('ArrowUp')) {
-        newRightPaddleY = Math.max(0, newRightPaddleY - 5);
-      }
-      if (keys.has('ArrowDown')) {
-        newRightPaddleY = Math.min(height - 100, newRightPaddleY + 5);
+      if (keys.has('s') && newLeftPaddle.y < height - 100) {
+        newLeftPaddle.y += paddleSpeed;
       }
 
-      // Update ball position
-      const newBall = {
-        x: prevState.ball.x + prevState.ball.dx,
-        y: prevState.ball.y + prevState.ball.dy,
-        dx: prevState.ball.dx,
-        dy: prevState.ball.dy
-      };
-
-      // Ball collision with top and bottom walls
-      if (newBall.y <= 5 || newBall.y >= height - 5) {
-        newBall.dy = -newBall.dy;
+      // Right paddle (Arrow Up/Down keys)
+      if (keys.has('arrowup') && newRightPaddle.y > 0) {
+        newRightPaddle.y -= paddleSpeed;
       }
-
-      // Ball collision with paddles
-      if (newBall.x <= 20 && newBall.y >= newLeftPaddleY && 
-          newBall.y <= newLeftPaddleY + 100) {
-        newBall.dx = -newBall.dx;
-        // Add some randomness to ball direction for more dynamic gameplay
-        newBall.dy += (Math.random() - 0.5) * 2;
-      }
-
-      if (newBall.x >= width - 20 && newBall.y >= newRightPaddleY && 
-          newBall.y <= newRightPaddleY + 100) {
-        newBall.dx = -newBall.dx;
-        // Add some randomness to ball direction for more dynamic gameplay
-        newBall.dy += (Math.random() - 0.5) * 2;
-      }
-
-      // Ball out of bounds (scoring)
-      let newLeftScore = prevState.leftScore;
-      let newRightScore = prevState.rightScore;
-
-      if (newBall.x <= 0) {
-        // Right player scores
-        newRightScore++;
-        // Reset ball to center
-        newBall.x = width / 2;
-        newBall.y = height / 2;
-        newBall.dx = 5;
-        newBall.dy = 3;
-      } else if (newBall.x >= width) {
-        // Left player scores
-        newLeftScore++;
-        // Reset ball to center
-        newBall.x = width / 2;
-        newBall.y = height / 2;
-        newBall.dx = -5;
-        newBall.dy = 3;
+      if (keys.has('arrowdown') && newRightPaddle.y < height - 100) {
+        newRightPaddle.y += paddleSpeed;
       }
 
       return {
-        ...prevState,
-        leftPaddle: { y: newLeftPaddleY },
-        rightPaddle: { y: newRightPaddleY },
-        ball: newBall,
-        leftScore: newLeftScore,
-        rightScore: newRightScore
+        ...prev,
+        leftPaddle: newLeftPaddle,
+        rightPaddle: newRightPaddle
       };
     });
-  }, [keys, width, height]);
+  }, [keys, height, gameState.status]);
 
   /**
    * Rendering loop
    * Draws all game elements on the canvas
    */
-  const renderLoop = useCallback(() => {
+  useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
 
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    // Clear canvas with black background
-    ctx.fillStyle = '#000';
-    ctx.fillRect(0, 0, width, height);
+    const renderLoop = () => {
+      ctx.fillStyle = '#000';
+      ctx.fillRect(0, 0, width, height);
 
-    // Draw paddles
-    ctx.fillStyle = '#fff';
-    ctx.fillRect(10, gameState.leftPaddle.y, 10, 100);
-    ctx.fillRect(width - 20, gameState.rightPaddle.y, 10, 100);
+      ctx.fillStyle = '#fff';
+      ctx.fillRect(10, gameState.leftPaddle.y, 10, 100);
+      ctx.fillRect(width - 20, gameState.rightPaddle.y, 10, 100);
 
-    // Draw ball
-    ctx.beginPath();
-    ctx.arc(gameState.ball.x, gameState.ball.y, 5, 0, 2 * Math.PI);
-    ctx.fillStyle = '#fff';
-    ctx.fill();
+      ctx.beginPath();
+      ctx.arc(gameState.ball.x, gameState.ball.y, 5, 0, 2 * Math.PI);
+      ctx.fillStyle = '#fff';
+      ctx.fill();
 
-    // Draw center line (dashed)
-    ctx.setLineDash([5, 15]);
-    ctx.beginPath();
-    ctx.moveTo(width / 2, 0);
-    ctx.lineTo(width / 2, height);
-    ctx.strokeStyle = '#fff';
-    ctx.stroke();
+      ctx.setLineDash([5, 15]);
+      ctx.beginPath();
+      ctx.moveTo(width / 2, 0);
+      ctx.lineTo(width / 2, height);
+      ctx.strokeStyle = '#fff';
+      ctx.stroke();
 
-    // Draw scores
-    ctx.font = '24px Arial';
-    ctx.fillStyle = '#fff';
-    ctx.fillText(gameState.leftScore.toString(), width / 4, 30);
-    ctx.fillText(gameState.rightScore.toString(), 3 * width / 4, 30);
+      ctx.font = '24px Arial';
+      ctx.fillStyle = '#fff';
+      ctx.fillText(gameState.leftScore.toString(), width / 4, 30);
+      ctx.fillText(gameState.rightScore.toString(), 3 * width / 4, 30);
+    };
 
-    // Draw controls hint
-    ctx.font = '16px Arial';
-    ctx.fillStyle = '#666';
-    ctx.fillText('W/S: Left Paddle, Arrow Keys: Right Paddle', 10, height - 10);
+    const interval = setInterval(renderLoop, 16);
+    return () => clearInterval(interval);
   }, [gameState, width, height]);
 
   /**
-   * Animation loop using requestAnimationFrame
-   * Provides smooth 60 FPS gameplay
+   * Game logic loop
+   * Handles ball movement, collision detection, and scoring
+   * Only active when game status is 'playing'
    */
   useEffect(() => {
-    const animate = () => {
-      gameLoop();
-      renderLoop();
-      animationRef.current = requestAnimationFrame(animate);
+    // Only run game logic when status is 'playing'
+    if (gameState.status !== 'playing') return;
+
+    const gameLoop = () => {
+      setGameState(prevState => {
+        const newBall = {
+          x: prevState.ball.x + prevState.ball.dx,
+          y: prevState.ball.y + prevState.ball.dy,
+          dx: prevState.ball.dx,
+          dy: prevState.ball.dy
+        };
+
+        // Wall collision
+        if (newBall.y <= 0 || newBall.y >= height) {
+          newBall.dy = -newBall.dy;
+        }
+
+        // Paddle collision
+        if (newBall.x <= 20 && newBall.y >= prevState.leftPaddle.y && 
+            newBall.y <= prevState.leftPaddle.y + 100) {
+          newBall.dx = -newBall.dx;
+        }
+
+        if (newBall.x >= width - 20 && newBall.y >= prevState.rightPaddle.y && 
+            newBall.y <= prevState.rightPaddle.y + 100) {
+          newBall.dx = -newBall.dx;
+        }
+
+        // Score handling
+        let newLeftScore = prevState.leftScore;
+        let newRightScore = prevState.rightScore;
+
+        if (newBall.x <= 0) {
+          newRightScore++;
+          newBall.x = width / 2;
+          newBall.y = height / 2;
+        } else if (newBall.x >= width) {
+          newLeftScore++;
+          newBall.x = width / 2;
+          newBall.y = height / 2;
+        }
+
+        return {
+          ...prevState,
+          ball: newBall,
+          leftScore: newLeftScore,
+          rightScore: newRightScore
+        };
+      });
     };
 
-    animationRef.current = requestAnimationFrame(animate);
-
-    // Cleanup animation frame on unmount
-    return () => {
-      if (animationRef.current) {
-        cancelAnimationFrame(animationRef.current);
-      }
-    };
-  }, [gameLoop, renderLoop]);
+    const interval = setInterval(gameLoop, 16);
+    return () => clearInterval(interval);
+  }, [gameState.status, width, height]);
 
   return (
-    <div className="flex flex-col items-center">
+    <div className="flex flex-col items-center" data-testid="game-container">
       <h2 className="text-2xl mb-4">Pong Game</h2>
+      
+      {/* Game Controls */}
+      <div className="mb-4 flex gap-2">
+        <button 
+          data-testid="start-button"
+          onClick={() => setGameState(prev => ({ ...prev, status: 'playing' }))}
+          className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700"
+        >
+          Start
+        </button>
+        <button 
+          data-testid="pause-button"
+          onClick={() => setGameState(prev => ({ ...prev, status: 'paused' }))}
+          className="px-4 py-2 bg-yellow-600 text-white rounded hover:bg-yellow-700"
+        >
+          Pause
+        </button>
+        <button 
+          data-testid="reset-button"
+          onClick={() => setGameState(prev => ({
+            ...prev,
+            leftScore: 0,
+            rightScore: 0,
+            ball: { x: width / 2, y: height / 2, dx: 5, dy: 3 },
+            leftPaddle: { y: height / 2 - 50 },
+            rightPaddle: { y: height / 2 - 50 },
+            status: 'ready', // Set to ready on reset
+          }))}
+          className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700"
+        >
+          Reset
+        </button>
+      </div>
+
+      {/* Game Status */}
+      <div data-testid="game-status" className="mb-2 text-sm">
+        {gameState.status === 'ready'
+          ? 'Initial'
+          : gameState.status === 'playing'
+          ? 'Started'
+          : 'Stopped'}
+      </div>
+
+      {/* Score Display */}
+      <div data-testid="score" className="mb-2 text-lg font-bold">
+        {gameState.leftScore} - {gameState.rightScore}
+      </div>
+
+      {/* Game Canvas */}
       <canvas
         ref={canvasRef}
         width={width}
         height={height}
         className="border border-white"
         aria-label="Pong game canvas"
+        data-testid="game-board"
       />
+      
       <div className="mt-4 text-sm text-gray-400">
-        <p>Controls: W/S (Left Paddle) | Arrow Keys (Right Paddle)</p>
+        <p>Left Player: W (up) / S (down)</p>
+        <p>Right Player: ↑ (up) / ↓ (down)</p>
       </div>
     </div>
   );

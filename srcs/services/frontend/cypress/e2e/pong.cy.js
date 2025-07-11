@@ -13,6 +13,29 @@ describe('Pong Game E2E', () => {
     cy.contains(/pong|game/i).should('be.visible')
   })
 
+  it('should debug page structure', () => {
+    // Debug: Log the entire page HTML
+    cy.get('body').then(($body) => {
+      cy.log('Page HTML:', $body.html())
+    })
+    
+    // Debug: Check for any elements with data-testid
+    cy.get('[data-testid]').then(($elements) => {
+      cy.log('Found elements with data-testid:', $elements.length)
+      $elements.each((index, element) => {
+        cy.log(`Element ${index}:`, element.getAttribute('data-testid'))
+      })
+    })
+    
+    // Debug: Check for buttons
+    cy.get('button').then(($buttons) => {
+      cy.log('Found buttons:', $buttons.length)
+      $buttons.each((index, element) => {
+        cy.log(`Button ${index}:`, element.textContent)
+      })
+    })
+  })
+
   it('should have proper game container structure', () => {
     // Check if game container exists
     cy.get('[data-testid="game-container"]').should('exist')
