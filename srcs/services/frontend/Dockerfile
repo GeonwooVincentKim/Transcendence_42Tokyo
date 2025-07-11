@@ -7,8 +7,12 @@ WORKDIR /app
 # Copy package files
 COPY package*.json ./
 
-# Install dependencies
-RUN npm ci --only=production
+# Clear npm cache and install dependencies with proper platform detection
+RUN npm cache clean --force && \
+    rm -rf node_modules && \
+    npm install && \
+    npm rebuild esbuild && \
+    npx esbuild --version
 
 # Copy source code
 COPY . .

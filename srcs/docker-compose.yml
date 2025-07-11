@@ -1,6 +1,17 @@
 version: '3.8'
 
 services:
+  frontend:
+    build: ./services/frontend
+    ports:
+      - "3000:80"
+    environment:
+      - NODE_ENV=production
+    depends_on:
+      - backend
+    networks:
+      - pong-network
+
   backend:
     build: ./services/backend
     ports:
