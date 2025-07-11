@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState, useCallback } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 
 /**
  * PongGame Component Props
@@ -42,9 +42,6 @@ export const PongGame: React.FC<PongGameProps> = ({
   // Canvas reference for rendering
   const canvasRef = useRef<HTMLCanvasElement>(null);
   
-  // Animation frame reference for cleanup
-  const animationRef = useRef<number | null>(null);
-  
   // Game state management
   const [gameState, setGameState] = useState<GameState>({
     leftPaddle: { y: height / 2 - 50 },
@@ -64,13 +61,13 @@ export const PongGame: React.FC<PongGameProps> = ({
    */
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      setKeys(prev => new Set([...prev, e.key]));
+      setKeys(prev => new Set([...prev, e.key.toLowerCase()]));
     };
 
     const handleKeyUp = (e: KeyboardEvent) => {
       setKeys(prev => {
         const newKeys = new Set(prev);
-        newKeys.delete(e.key);
+        newKeys.delete(e.key.toLowerCase());
         return newKeys;
       });
     };
@@ -90,135 +87,76 @@ export const PongGame: React.FC<PongGameProps> = ({
    * Game logic loop
    * Handles ball movement, collision detection, and scoring
    */
-  const gameLoop = useCallback(() => {
-    setGameState(prevState => {
-      if (!prevState.gameRunning) return prevState;
+  useEffect(() => {
+    const paddleSpeed = 5;
+    
+    setGameState(prev => {
+      let newLeftPaddle = { ...prev.leftPaddle };
+      let newRightPaddle = { ...prev.rightPaddle };
 
-      // Update paddle positions based on key presses
-      let newLeftPaddleY = prevState.leftPaddle.y;
-      let newRightPaddleY = prevState.rightPaddle.y;
-
-      // Left paddle controls (W/S keys)
-      if (keys.has('w') || keys.has('W')) {
-        newLeftPaddleY = Math.max(0, newLeftPaddleY - 5);
+      // 왼쪽 패들 (W/S 키)
+      if (keys.has('w') && newLeftPaddle.y > 0) {
+        newLeftPaddle.y -= paddleSpeed;
       }
-      if (keys.has('s') || keys.has('S')) {
-        newLeftPaddleY = Math.min(height - 100, newLeftPaddleY + 5);
-      }
-
-      // Right paddle controls (Arrow keys)
-      if (keys.has('ArrowUp')) {
-        newRightPaddleY = Math.max(0, newRightPaddleY - 5);
-      }
-      if (keys.has('ArrowDown')) {
-        newRightPaddleY = Math.min(height - 100, newRightPaddleY + 5);
+      if (keys.has('s') && newLeftPaddle.y < height - 100) {
+        newLeftPaddle.y += paddleSpeed;
       }
 
-      // Update ball position
-      const newBall = {
-        x: prevState.ball.x + prevState.ball.dx,
-        y: prevState.ball.y + prevState.ball.dy,
-        dx: prevState.ball.dx,
-        dy: prevState.ball.dy
-      };
-
-      // Ball collision with top and bottom walls
-      if (newBall.y <= 5 || newBall.y >= height - 5) {
-        newBall.dy = -newBall.dy;
+      // 오른쪽 패들 (Arrow Up/Down 키)
+      if (keys.has('arrowup') && newRightPaddle.y > 0) {
+        newRightPaddle.y -= paddleSpeed;
       }
-
-      // Ball collision with paddles
-      if (newBall.x <= 20 && newBall.y >= newLeftPaddleY && 
-          newBall.y <= newLeftPaddleY + 100) {
-        newBall.dx = -newBall.dx;
-        // Add some randomness to ball direction for more dynamic gameplay
-        newBall.dy += (Math.random() - 0.5) * 2;
-      }
-
-      if (newBall.x >= width - 20 && newBall.y >= newRightPaddleY && 
-          newBall.y <= newRightPaddleY + 100) {
-        newBall.dx = -newBall.dx;
-        // Add some randomness to ball direction for more dynamic gameplay
-        newBall.dy += (Math.random() - 0.5) * 2;
-      }
-
-      // Ball out of bounds (scoring)
-      let newLeftScore = prevState.leftScore;
-      let newRightScore = prevState.rightScore;
-
-      if (newBall.x <= 0) {
-        // Right player scores
-        newRightScore++;
-        // Reset ball to center
-        newBall.x = width / 2;
-        newBall.y = height / 2;
-        newBall.dx = 5;
-        newBall.dy = 3;
-      } else if (newBall.x >= width) {
-        // Left player scores
-        newLeftScore++;
-        // Reset ball to center
-        newBall.x = width / 2;
-        newBall.y = height / 2;
-        newBall.dx = -5;
-        newBall.dy = 3;
+      if (keys.has('arrowdown') && newRightPaddle.y < height - 100) {
+        newRightPaddle.y += paddleSpeed;
       }
 
       return {
-        ...prevState,
-        leftPaddle: { y: newLeftPaddleY },
-        rightPaddle: { y: newRightPaddleY },
-        ball: newBall,
-        leftScore: newLeftScore,
-        rightScore: newRightScore
+        ...prev,
+        leftPaddle: newLeftPaddle,
+        rightPaddle: newRightPaddle
       };
     });
-  }, [keys, width, height]);
+  }, [keys, height]);
 
   /**
    * Rendering loop
    * Draws all game elements on the canvas
    */
-  const renderLoop = useCallback(() => {
+  useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
 
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    // Clear canvas with black background
-    ctx.fillStyle = '#000';
-    ctx.fillRect(0, 0, width, height);
+    const renderLoop = () => {
+      ctx.fillStyle = '#000';
+      ctx.fillRect(0, 0, width, height);
 
-    // Draw paddles
-    ctx.fillStyle = '#fff';
-    ctx.fillRect(10, gameState.leftPaddle.y, 10, 100);
-    ctx.fillRect(width - 20, gameState.rightPaddle.y, 10, 100);
+      ctx.fillStyle = '#fff';
+      ctx.fillRect(10, gameState.leftPaddle.y, 10, 100);
+      ctx.fillRect(width - 20, gameState.rightPaddle.y, 10, 100);
 
-    // Draw ball
-    ctx.beginPath();
-    ctx.arc(gameState.ball.x, gameState.ball.y, 5, 0, 2 * Math.PI);
-    ctx.fillStyle = '#fff';
-    ctx.fill();
+      ctx.beginPath();
+      ctx.arc(gameState.ball.x, gameState.ball.y, 5, 0, 2 * Math.PI);
+      ctx.fillStyle = '#fff';
+      ctx.fill();
 
-    // Draw center line (dashed)
-    ctx.setLineDash([5, 15]);
-    ctx.beginPath();
-    ctx.moveTo(width / 2, 0);
-    ctx.lineTo(width / 2, height);
-    ctx.strokeStyle = '#fff';
-    ctx.stroke();
+      ctx.setLineDash([5, 15]);
+      ctx.beginPath();
+      ctx.moveTo(width / 2, 0);
+      ctx.lineTo(width / 2, height);
+      ctx.strokeStyle = '#fff';
+      ctx.stroke();
 
-    // Draw scores
-    ctx.font = '24px Arial';
-    ctx.fillStyle = '#fff';
-    ctx.fillText(gameState.leftScore.toString(), width / 4, 30);
-    ctx.fillText(gameState.rightScore.toString(), 3 * width / 4, 30);
+      ctx.font = '24px Arial';
+      ctx.fillStyle = '#fff';
+      ctx.fillText(gameState.leftScore.toString(), width / 4, 30);
+      ctx.fillText(gameState.rightScore.toString(), 3 * width / 4, 30);
+    };
 
-    // Draw controls hint
-    ctx.font = '16px Arial';
-    ctx.fillStyle = '#666';
-    ctx.fillText('W/S: Left Paddle, Arrow Keys: Right Paddle', 10, height - 10);
+    const interval = setInterval(renderLoop, 16);
+    return () => clearInterval(interval);
   }, [gameState, width, height]);
 
   /**
@@ -226,21 +164,57 @@ export const PongGame: React.FC<PongGameProps> = ({
    * Provides smooth 60 FPS gameplay
    */
   useEffect(() => {
-    const animate = () => {
-      gameLoop();
-      renderLoop();
-      animationRef.current = requestAnimationFrame(animate);
+    const gameLoop = () => {
+      setGameState(prevState => {
+        const newBall = {
+          x: prevState.ball.x + prevState.ball.dx,
+          y: prevState.ball.y + prevState.ball.dy,
+          dx: prevState.ball.dx,
+          dy: prevState.ball.dy
+        };
+
+        // 벽 충돌
+        if (newBall.y <= 0 || newBall.y >= height) {
+          newBall.dy = -newBall.dy;
+        }
+
+        // 패들 충돌
+        if (newBall.x <= 20 && newBall.y >= prevState.leftPaddle.y && 
+            newBall.y <= prevState.leftPaddle.y + 100) {
+          newBall.dx = -newBall.dx;
+        }
+
+        if (newBall.x >= width - 20 && newBall.y >= prevState.rightPaddle.y && 
+            newBall.y <= prevState.rightPaddle.y + 100) {
+          newBall.dx = -newBall.dx;
+        }
+
+        // 점수 처리
+        let newLeftScore = prevState.leftScore;
+        let newRightScore = prevState.rightScore;
+
+        if (newBall.x <= 0) {
+          newRightScore++;
+          newBall.x = width / 2;
+          newBall.y = height / 2;
+        } else if (newBall.x >= width) {
+          newLeftScore++;
+          newBall.x = width / 2;
+          newBall.y = height / 2;
+        }
+
+        return {
+          ...prevState,
+          ball: newBall,
+          leftScore: newLeftScore,
+          rightScore: newRightScore
+        };
+      });
     };
 
-    animationRef.current = requestAnimationFrame(animate);
-
-    // Cleanup animation frame on unmount
-    return () => {
-      if (animationRef.current) {
-        cancelAnimationFrame(animationRef.current);
-      }
-    };
-  }, [gameLoop, renderLoop]);
+    const interval = setInterval(gameLoop, 16);
+    return () => clearInterval(interval);
+  }, [width, height]);
 
   return (
     <div className="flex flex-col items-center" data-testid="game-container">
@@ -299,7 +273,8 @@ export const PongGame: React.FC<PongGameProps> = ({
       />
       
       <div className="mt-4 text-sm text-gray-400">
-        <p>Controls: W/S (Left Paddle) | Arrow Keys (Right Paddle)</p>
+        <p>Left Player: W (up) / S (down)</p>
+        <p>Right Player: ↑ (up) / ↓ (down)</p>
       </div>
     </div>
   );
