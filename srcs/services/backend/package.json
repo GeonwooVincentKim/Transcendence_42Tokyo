@@ -1,24 +1,39 @@
 {
   "name": "backend",
   "version": "1.0.0",
-  "description": "",
+  "description": "Pong Game Backend Server",
   "main": "index.js",
   "scripts": {
     "dev": "ts-node src/index.ts",
     "build": "tsc",
-    "start": "node dist/index.js"
+    "start": "node dist/index.js",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage"
   },
-  "keywords": [],
+  "keywords": [
+    "pong",
+    "game",
+    "backend",
+    "fastify",
+    "websocket"
+  ],
   "author": "",
   "license": "ISC",
   "devDependencies": {
+    "@types/jest": "^29.5.0",
     "@types/node": "^24.0.12",
+    "@types/supertest": "^2.0.12",
+    "jest": "^29.5.0",
+    "supertest": "^6.3.0",
+    "ts-jest": "^29.1.0",
     "ts-node": "^10.9.2",
     "typescript": "^5.8.3"
   },
   "dependencies": {
     "@fastify/cors": "^8.4.0",
-    "@fastify/websocket": "^8.3.1",
-    "fastify": "^4.29.1"
+    "@fastify/websocket": "^8.0.0",
+    "fastify": "^4.29.1",
+    "pino-pretty": "^13.0.0"
   }
 }

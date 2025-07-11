@@ -1,10 +1,17 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 
+/**
+ * PongGame Component Props
+ */
 interface PongGameProps {
   width?: number;
   height?: number;
 }
 
+/**
+ * Game State Interface
+ * Defines the structure of the game state
+ */
 interface GameState {
   leftPaddle: { y: number };
   rightPaddle: { y: number };
@@ -14,12 +21,31 @@ interface GameState {
   gameRunning: boolean;
 }
 
+/**
+ * Pong Game Component
+ * 
+ * A classic Pong game implementation using HTML5 Canvas
+ * Features:
+ * - Real-time ball physics
+ * - Keyboard controls for both paddles
+ * - Score tracking
+ * - Collision detection
+ * - Smooth 60 FPS animation
+ * 
+ * @param width - Canvas width (default: 800)
+ * @param height - Canvas height (default: 400)
+ */
 export const PongGame: React.FC<PongGameProps> = ({ 
   width = 800, 
   height = 400 
 }) => {
+  // Canvas reference for rendering
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  
+  // Animation frame reference for cleanup
   const animationRef = useRef<number | null>(null);
+  
+  // Game state management
   const [gameState, setGameState] = useState<GameState>({
     leftPaddle: { y: height / 2 - 50 },
     rightPaddle: { y: height / 2 - 50 },
@@ -29,10 +55,13 @@ export const PongGame: React.FC<PongGameProps> = ({
     gameRunning: true
   });
 
-  const emptySet: Set<string> = new Set();
-  const [keys, setKeys] = useState(emptySet);
+  // Track currently pressed keys
+  const [keys, setKeys] = useState<Set<string>>(new Set());
 
-  // Keyboard event handlers
+  /**
+   * Keyboard event handlers
+   * Manages key press and release events for paddle movement
+   */
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       setKeys(prev => new Set([...prev, e.key]));
@@ -46,30 +75,38 @@ export const PongGame: React.FC<PongGameProps> = ({
       });
     };
 
+    // Add event listeners
     window.addEventListener('keydown', handleKeyDown);
     window.addEventListener('keyup', handleKeyUp);
 
+    // Cleanup event listeners
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('keyup', handleKeyUp);
     };
   }, []);
 
-  // Game loop
+  /**
+   * Game logic loop
+   * Handles ball movement, collision detection, and scoring
+   */
   const gameLoop = useCallback(() => {
     setGameState(prevState => {
       if (!prevState.gameRunning) return prevState;
 
-      // Update paddle positions based on keys
+      // Update paddle positions based on key presses
       let newLeftPaddleY = prevState.leftPaddle.y;
       let newRightPaddleY = prevState.rightPaddle.y;
 
+      // Left paddle controls (W/S keys)
       if (keys.has('w') || keys.has('W')) {
         newLeftPaddleY = Math.max(0, newLeftPaddleY - 5);
       }
       if (keys.has('s') || keys.has('S')) {
         newLeftPaddleY = Math.min(height - 100, newLeftPaddleY + 5);
       }
+
+      // Right paddle controls (Arrow keys)
       if (keys.has('ArrowUp')) {
         newRightPaddleY = Math.max(0, newRightPaddleY - 5);
       }
@@ -94,14 +131,14 @@ export const PongGame: React.FC<PongGameProps> = ({
       if (newBall.x <= 20 && newBall.y >= newLeftPaddleY && 
           newBall.y <= newLeftPaddleY + 100) {
         newBall.dx = -newBall.dx;
-        // Add some randomness to ball direction
+        // Add some randomness to ball direction for more dynamic gameplay
         newBall.dy += (Math.random() - 0.5) * 2;
       }
 
       if (newBall.x >= width - 20 && newBall.y >= newRightPaddleY && 
           newBall.y <= newRightPaddleY + 100) {
         newBall.dx = -newBall.dx;
-        // Add some randomness to ball direction
+        // Add some randomness to ball direction for more dynamic gameplay
         newBall.dy += (Math.random() - 0.5) * 2;
       }
 
@@ -110,13 +147,17 @@ export const PongGame: React.FC<PongGameProps> = ({
       let newRightScore = prevState.rightScore;
 
       if (newBall.x <= 0) {
+        // Right player scores
         newRightScore++;
+        // Reset ball to center
         newBall.x = width / 2;
         newBall.y = height / 2;
         newBall.dx = 5;
         newBall.dy = 3;
       } else if (newBall.x >= width) {
+        // Left player scores
         newLeftScore++;
+        // Reset ball to center
         newBall.x = width / 2;
         newBall.y = height / 2;
         newBall.dx = -5;
@@ -134,7 +175,10 @@ export const PongGame: React.FC<PongGameProps> = ({
     });
   }, [keys, width, height]);
 
-  // Render loop
+  /**
+   * Rendering loop
+   * Draws all game elements on the canvas
+   */
   const renderLoop = useCallback(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -142,7 +186,7 @@ export const PongGame: React.FC<PongGameProps> = ({
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    // Clear canvas
+    // Clear canvas with black background
     ctx.fillStyle = '#000';
     ctx.fillRect(0, 0, width, height);
 
@@ -157,7 +201,7 @@ export const PongGame: React.FC<PongGameProps> = ({
     ctx.fillStyle = '#fff';
     ctx.fill();
 
-    // Draw center line
+    // Draw center line (dashed)
     ctx.setLineDash([5, 15]);
     ctx.beginPath();
     ctx.moveTo(width / 2, 0);
@@ -177,7 +221,10 @@ export const PongGame: React.FC<PongGameProps> = ({
     ctx.fillText('W/S: Left Paddle, Arrow Keys: Right Paddle', 10, height - 10);
   }, [gameState, width, height]);
 
-  // Animation loop
+  /**
+   * Animation loop using requestAnimationFrame
+   * Provides smooth 60 FPS gameplay
+   */
   useEffect(() => {
     const animate = () => {
       gameLoop();
@@ -187,6 +234,7 @@ export const PongGame: React.FC<PongGameProps> = ({
 
     animationRef.current = requestAnimationFrame(animate);
 
+    // Cleanup animation frame on unmount
     return () => {
       if (animationRef.current) {
         cancelAnimationFrame(animationRef.current);
@@ -202,6 +250,7 @@ export const PongGame: React.FC<PongGameProps> = ({
         width={width}
         height={height}
         className="border border-white"
+        aria-label="Pong game canvas"
       />
       <div className="mt-4 text-sm text-gray-400">
         <p>Controls: W/S (Left Paddle) | Arrow Keys (Right Paddle)</p>
