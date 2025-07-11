@@ -16,12 +16,13 @@ export const MultiplayerPong: React.FC<MultiplayerPongProps> = ({
     rightPaddle: { y: 200 },
     ball: { x: 400, y: 200, dx: 5, dy: 3 },
     leftScore: 0,
-    rightScore: 0
+    rightScore: 0,
+    status: 'ready' // 추가
   });
   const [connected, setConnected] = useState(false);
   const [keys, setKeys] = useState<Set<string>>(new Set());
 
-  // WebSocket 연결
+  // WebSocket connection
   useEffect(() => {
     const ws = new WebSocket(`ws://localhost:8000/ws/game/${roomId}`);
     wsRef.current = ws;
@@ -36,7 +37,7 @@ export const MultiplayerPong: React.FC<MultiplayerPongProps> = ({
       
       switch (data.type) {
         case 'game_start':
-          setGameState(data.data);
+          setGameState({ ...data.data, status: 'playing' });
           break;
         case 'paddle_update':
           if (data.data.player === 'left') {
@@ -52,7 +53,21 @@ export const MultiplayerPong: React.FC<MultiplayerPongProps> = ({
           }
           break;
         case 'game_state_update':
-          setGameState(data.data);
+          setGameState(prev => ({ ...data.data, status: prev.status }));
+          break;
+        case 'game_pause':
+          setGameState(prev => ({ ...prev, status: 'paused' }));
+          break;
+        case 'game_reset':
+          setGameState(prev => ({
+            ...prev,
+            leftScore: 0,
+            rightScore: 0,
+            ball: { x: 400, y: 200, dx: 5, dy: 3 },
+            leftPaddle: { y: 200 },
+            rightPaddle: { y: 200 },
+            status: 'ready'
+          }));
           break;
       }
     };
@@ -67,7 +82,7 @@ export const MultiplayerPong: React.FC<MultiplayerPongProps> = ({
     };
   }, [roomId]);
 
-  // 키보드 입력 처리
+  // Keyboard input handling
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       setKeys(prev => new Set([...prev, e.key.toLowerCase()]));
@@ -90,7 +105,7 @@ export const MultiplayerPong: React.FC<MultiplayerPongProps> = ({
     };
   }, []);
 
-  // 패들 이동 처리
+  // Paddle movement handling
   useEffect(() => {
     if (!connected || !wsRef.current) return;
 
@@ -108,7 +123,7 @@ export const MultiplayerPong: React.FC<MultiplayerPongProps> = ({
           newY += paddleSpeed;
         }
         
-        // 서버에 패들 위치 전송
+        // Send paddle position to server
         wsRef.current?.send(JSON.stringify({
           type: 'paddle_move',
           player: playerSide,
@@ -118,7 +133,7 @@ export const MultiplayerPong: React.FC<MultiplayerPongProps> = ({
     });
   }, [keys, connected, playerSide, gameState]);
 
-  // 렌더링
+  // Rendering
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -168,6 +183,13 @@ export const MultiplayerPong: React.FC<MultiplayerPongProps> = ({
         <span className={`px-4 py-2 rounded ${connected ? 'bg-green-600' : 'bg-red-600'}`}>
           {connected ? 'Connected' : 'Disconnected'}
         </span>
+      </div>
+      <div data-testid="game-status" className="mb-2 text-sm">
+        {gameState.status === 'ready'
+          ? 'Ready'
+          : gameState.status === 'playing'
+          ? 'Playing'
+          : 'Paused'}
       </div>
       <div className="mb-4 text-sm">
         <p>You are playing as: <strong>{playerSide.toUpperCase()}</strong></p>

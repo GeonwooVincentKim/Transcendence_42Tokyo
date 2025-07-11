@@ -18,7 +18,7 @@ interface GameState {
   ball: { x: number; y: number; dx: number; dy: number };
   leftScore: number;
   rightScore: number;
-  gameRunning: boolean;
+  status: 'ready' | 'playing' | 'paused'; // 추가
 }
 
 /**
@@ -49,7 +49,7 @@ export const PongGame: React.FC<PongGameProps> = ({
     ball: { x: width / 2, y: height / 2, dx: 5, dy: 3 },
     leftScore: 0,
     rightScore: 0,
-    gameRunning: true
+    status: 'ready', // 초기값
   });
 
   // Track currently pressed keys
@@ -94,7 +94,7 @@ export const PongGame: React.FC<PongGameProps> = ({
       let newLeftPaddle = { ...prev.leftPaddle };
       let newRightPaddle = { ...prev.rightPaddle };
 
-      // 왼쪽 패들 (W/S 키)
+      // Left paddle (W/S keys)
       if (keys.has('w') && newLeftPaddle.y > 0) {
         newLeftPaddle.y -= paddleSpeed;
       }
@@ -102,7 +102,7 @@ export const PongGame: React.FC<PongGameProps> = ({
         newLeftPaddle.y += paddleSpeed;
       }
 
-      // 오른쪽 패들 (Arrow Up/Down 키)
+      // Right paddle (Arrow Up/Down keys)
       if (keys.has('arrowup') && newRightPaddle.y > 0) {
         newRightPaddle.y -= paddleSpeed;
       }
@@ -173,12 +173,12 @@ export const PongGame: React.FC<PongGameProps> = ({
           dy: prevState.ball.dy
         };
 
-        // 벽 충돌
+        // Wall collision
         if (newBall.y <= 0 || newBall.y >= height) {
           newBall.dy = -newBall.dy;
         }
 
-        // 패들 충돌
+        // Paddle collision
         if (newBall.x <= 20 && newBall.y >= prevState.leftPaddle.y && 
             newBall.y <= prevState.leftPaddle.y + 100) {
           newBall.dx = -newBall.dx;
@@ -189,7 +189,7 @@ export const PongGame: React.FC<PongGameProps> = ({
           newBall.dx = -newBall.dx;
         }
 
-        // 점수 처리
+        // Score handling
         let newLeftScore = prevState.leftScore;
         let newRightScore = prevState.rightScore;
 
@@ -224,14 +224,14 @@ export const PongGame: React.FC<PongGameProps> = ({
       <div className="mb-4 flex gap-2">
         <button 
           data-testid="start-button"
-          onClick={() => setGameState(prev => ({ ...prev, gameRunning: true }))}
+          onClick={() => setGameState(prev => ({ ...prev, status: 'playing' }))}
           className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700"
         >
           Start
         </button>
         <button 
           data-testid="pause-button"
-          onClick={() => setGameState(prev => ({ ...prev, gameRunning: false }))}
+          onClick={() => setGameState(prev => ({ ...prev, status: 'paused' }))}
           className="px-4 py-2 bg-yellow-600 text-white rounded hover:bg-yellow-700"
         >
           Pause
@@ -244,7 +244,8 @@ export const PongGame: React.FC<PongGameProps> = ({
             rightScore: 0,
             ball: { x: width / 2, y: height / 2, dx: 5, dy: 3 },
             leftPaddle: { y: height / 2 - 50 },
-            rightPaddle: { y: height / 2 - 50 }
+            rightPaddle: { y: height / 2 - 50 },
+            status: 'ready', // Set to ready on reset
           }))}
           className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700"
         >
@@ -254,7 +255,11 @@ export const PongGame: React.FC<PongGameProps> = ({
 
       {/* Game Status */}
       <div data-testid="game-status" className="mb-2 text-sm">
-        {gameState.gameRunning ? 'Playing' : 'Paused'}
+        {gameState.status === 'ready'
+          ? 'Ready'
+          : gameState.status === 'playing'
+          ? 'Playing'
+          : 'Paused'}
       </div>
 
       {/* Score Display */}
