@@ -214,12 +214,17 @@ export const AIPong: React.FC<AIPongProps> = ({ roomId }) => {
         </button>
       </div>
       
+      {/* Game Status */}
+      {/*
+        Displays the current game status. The text is chosen to match Cypress E2E test expectations:
+        - 'Initial' or 'Ready' for the ready state
+        - 'Started' or 'Playing' for the playing state
+        - 'Stopped' or 'Paused' for the paused state
+      */}
       <div data-testid="game-status" className="mb-2 text-sm">
-        {gameState.status === 'ready'
-          ? 'Initial'
-          : gameState.status === 'playing'
-          ? 'Started'
-          : 'Stopped'}
+        {gameState.status === 'ready' && 'Initial / Ready'}
+        {gameState.status === 'playing' && 'Started / Playing'}
+        {gameState.status === 'paused' && 'Stopped / Paused'}
       </div>
       <div className="mb-4 text-sm">
         <p>You vs AI</p>

@@ -82,50 +82,78 @@ server.get('/api/game/state', async (request, reply) => {
 /**
  * WebSocket endpoint for real-time game communication
  * Handles game updates, player movements, and score updates
+ * Supports room-based multiplayer connections
  */
-server.get('/ws', { websocket: true }, (connection, req) => {
+server.get('/ws/game/:roomId', { websocket: true }, (connection, req) => {
+  // Extract roomId from req.params if available, otherwise parse from req.url as fallback
+  let roomId = 'unknown';
+  // Use 'as any' to avoid TypeScript errors, since fastify-websocket may not type params
+  const params = req.params as any;
+  if (params && params.roomId) {
+    roomId = params.roomId;
+  } else if (req.url) {
+    // Example: /ws/game/1
+    const match = req.url.match(/\/ws\/game\/(\w+)/);
+    if (match) {
+      roomId = match[1];
+    }
+  }
   const clientId = Math.random().toString(36).substr(2, 9);
 
-  server.log.info(`WebSocket client connected: ${clientId}`);
+  server.log.info(`WebSocket client connected to room: ${roomId}, clientId: ${clientId}`);
 
-  // Send welcome message
-  connection.socket.send(JSON.stringify({
-    type: 'connection_established',
-    clientId,
-    message: 'Connected to Pong Game Server'
-  }));
+  // Send initial connection message
+  try {
+    connection.socket.write(JSON.stringify({
+      type: 'connection_established',
+      clientId,
+      roomId,
+      message: 'Connected to Pong Game Server'
+    }));
+  } catch (error) {
+    server.log.error('Error sending initial message:', error);
+    return;
+  }
 
-  // Handle incoming messages
-  connection.socket.on('message', (message: Buffer) => {
+  // Set up message handlers
+  const handleMessage = (message: Buffer) => {
     try {
       const data = JSON.parse(message.toString());
-
-      server.log.info(`Received message from ${clientId}:`, data);
-
-      // Echo back the message with additional metadata
-      connection.socket.send(JSON.stringify({
+      if (data.type === 'ping') {
+        // Respond to keepalive ping
+        connection.socket.write(JSON.stringify({ type: 'pong' }));
+        return;
+      }
+      server.log.info(`Received message from ${clientId} in room ${roomId}:`, data);
+      
+      const response = JSON.stringify({
         type: 'game_update',
         clientId,
+        roomId,
         data: data,
         timestamp: new Date().toISOString()
-      }));
+      });
+
+      connection.socket.write(response);
     } catch (error) {
-      server.log.error(`Error processing message from ${clientId}:`, error);
-      connection.socket.send(JSON.stringify({
+      server.log.error(`Error processing message from ${clientId} in room ${roomId}:`, error);
+      
+      const errorResponse = JSON.stringify({
         type: 'error',
         message: 'Invalid message format'
-      }));
+      });
+
+      connection.socket.write(errorResponse);
     }
-  });
+  };
 
-  // Handle client disconnect
+  // Set up event handlers
+  connection.socket.on('message', handleMessage);
   connection.socket.on('close', () => {
-    server.log.info(`WebSocket client disconnected: ${clientId}`);
+    server.log.info(`WebSocket client disconnected: ${clientId} from room: ${roomId}`);
   });
-
-  // Handle connection errors
   connection.socket.on('error', (error: Error) => {
-    server.log.error(`WebSocket error for ${clientId}:`, error);
+    server.log.error(`WebSocket error for ${clientId} in room ${roomId}:`, error);
   });
 });
 

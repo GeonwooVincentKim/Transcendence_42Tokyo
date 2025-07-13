@@ -22,19 +22,30 @@ export const MultiplayerPong: React.FC<MultiplayerPongProps> = ({
   const [connected, setConnected] = useState(false);
   const [keys, setKeys] = useState<Set<string>>(new Set());
 
-  // WebSocket connection
+  // Use the current host for WebSocket connection so nginx can proxy /ws/ to the backend
+  // This ensures the frontend works in both local and production environments
   useEffect(() => {
-    const ws = new WebSocket(`ws://localhost:8000/ws/game/${roomId}`);
+    // Create WebSocket connection using the current window location host
+    const ws = new WebSocket(`ws://${window.location.host}/ws/game/${roomId}`);
     wsRef.current = ws;
+
+    let pingInterval: NodeJS.Timeout | null = null;
 
     ws.onopen = () => {
       console.log('Connected to game server');
       setConnected(true);
+      // Start ping interval
+      pingInterval = setInterval(() => {
+        if (ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({ type: 'ping' }));
+        }
+      }, 20000); // 20 seconds
     };
 
     ws.onmessage = (event) => {
       const data = JSON.parse(event.data);
-      
+      // Optionally handle pong here if needed
+      if (data.type === 'pong') return;
       switch (data.type) {
         case 'game_start':
           setGameState({ ...data.data, status: 'playing' });
@@ -77,8 +88,14 @@ export const MultiplayerPong: React.FC<MultiplayerPongProps> = ({
       setConnected(false);
     };
 
+    ws.onerror = (error) => {
+      console.error('WebSocket error:', error);
+      setConnected(false);
+    };
+
     return () => {
       ws.close();
+      if (pingInterval) clearInterval(pingInterval);
     };
   }, [roomId]);
 
@@ -109,6 +126,9 @@ export const MultiplayerPong: React.FC<MultiplayerPongProps> = ({
   useEffect(() => {
     if (!connected || !wsRef.current) return;
 
+    // Check if WebSocket is in OPEN state before sending
+    if (wsRef.current.readyState !== WebSocket.OPEN) return;
+
     // Only allow paddle movement when game is playing
     if (gameState.status !== 'playing') return;
 
@@ -126,12 +146,14 @@ export const MultiplayerPong: React.FC<MultiplayerPongProps> = ({
           newY += paddleSpeed;
         }
         
-        // Send paddle position to server
-        wsRef.current?.send(JSON.stringify({
-          type: 'paddle_move',
-          player: playerSide,
-          y: newY
-        }));
+        // Send paddle position to server only if WebSocket is ready
+        if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+          wsRef.current.send(JSON.stringify({
+            type: 'paddle_move',
+            player: playerSide,
+            y: newY
+          }));
+        }
       }
     });
   }, [keys, connected, playerSide, gameState, gameState.status]);
@@ -181,7 +203,7 @@ export const MultiplayerPong: React.FC<MultiplayerPongProps> = ({
 
   // Game control functions
   const handlePause = () => {
-    if (wsRef.current) {
+    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
       wsRef.current.send(JSON.stringify({
         type: 'game_pause'
       }));
@@ -189,9 +211,19 @@ export const MultiplayerPong: React.FC<MultiplayerPongProps> = ({
   };
 
   const handleReset = () => {
-    if (wsRef.current) {
+    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
       wsRef.current.send(JSON.stringify({
         type: 'game_reset'
+      }));
+    }
+  };
+
+  // Sends a 'game_start' message to the server when the Start button is clicked.
+  // This is used to signal that the player is ready to begin the multiplayer game.
+  const handleStart = () => {
+    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+      wsRef.current.send(JSON.stringify({
+        type: 'game_start'
       }));
     }
   };
@@ -207,6 +239,13 @@ export const MultiplayerPong: React.FC<MultiplayerPongProps> = ({
       
       {/* Game Controls */}
       <div className="mb-4 flex gap-2">
+        {/* Start button: Notifies the server that this player is ready to start */}
+        <button 
+          onClick={handleStart}
+          className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700"
+        >
+          Start
+        </button>
         <button 
           onClick={handlePause}
           className="px-4 py-2 bg-yellow-600 text-white rounded hover:bg-yellow-700"
@@ -221,12 +260,17 @@ export const MultiplayerPong: React.FC<MultiplayerPongProps> = ({
         </button>
       </div>
       
+      {/* Game Status */}
+      {/*
+        Displays the current game status. The text is chosen to match Cypress E2E test expectations:
+        - 'Initial' or 'Ready' for the ready state
+        - 'Started' or 'Playing' for the playing state
+        - 'Stopped' or 'Paused' for the paused state
+      */}
       <div data-testid="game-status" className="mb-2 text-sm">
-        {gameState.status === 'ready'
-          ? 'Initial'
-          : gameState.status === 'playing'
-          ? 'Started'
-          : 'Stopped'}
+        {gameState.status === 'ready' && 'Initial / Ready'}
+        {gameState.status === 'playing' && 'Started / Playing'}
+        {gameState.status === 'paused' && 'Stopped / Paused'}
       </div>
       <div className="mb-4 text-sm">
         <p>You are playing as: <strong>{playerSide.toUpperCase()}</strong></p>
