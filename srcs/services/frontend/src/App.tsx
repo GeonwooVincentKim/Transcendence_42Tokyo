@@ -1,7 +1,12 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { PongGame } from './components/PongGame'
 import { MultiplayerPong } from './components/MultiPlayerPong'
 import { AIPong } from './components/AIPong'
+import { LoginForm } from './components/LoginForm'
+import { RegisterForm } from './components/RegisterForm'
+import { UserProfile } from './components/UserProfile'
+import { AuthService } from './services/authService'
+import { AuthResponse, User } from './types/auth'
 
 /**
  * Main App Component
@@ -12,10 +17,52 @@ import { AIPong } from './components/AIPong'
  * - AI Game: Player vs AI Pong game
  */
 function App() {
+  // Authentication state management
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [user, setUser] = useState<User | null>(null);
+  const [showLogin, setShowLogin] = useState(true);
+  const [isLoading, setIsLoading] = useState(true);
+
   // Game mode state management
   const [gameMode, setGameMode] = useState<'single' | 'multiplayer' | 'ai'>('single');
   const [roomId, setRoomId] = useState('');
   const [playerSide, setPlayerSide] = useState<'left' | 'right'>('left');
+
+  /**
+   * Check authentication status on component mount
+   * Verifies if user has valid stored authentication data
+   */
+  useEffect(() => {
+    const checkAuth = () => {
+      const storedAuth = AuthService.getStoredAuthData();
+      if (storedAuth) {
+        setUser(storedAuth.user);
+        setIsAuthenticated(true);
+      }
+      setIsLoading(false);
+    };
+
+    checkAuth();
+  }, []);
+
+  /**
+   * Handle successful authentication
+   * @param authData - Authentication response data
+   */
+  const handleAuthSuccess = (authData: AuthResponse) => {
+    setUser(authData.user);
+    setIsAuthenticated(true);
+  };
+
+  /**
+   * Handle logout
+   * Clears authentication state and shows login form
+   */
+  const handleLogout = () => {
+    setUser(null);
+    setIsAuthenticated(false);
+    setShowLogin(true);
+  };
 
   /**
    * Creates an AI game room
@@ -44,6 +91,53 @@ function App() {
       setPlayerSide('left');
     }
   };
+
+  // Show loading screen while checking authentication
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-gray-900 text-white flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white mx-auto mb-4"></div>
+          <p>Loading...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Show authentication forms if not authenticated
+  if (!isAuthenticated) {
+    return (
+      <div className="min-h-screen bg-gray-900 text-white flex items-center justify-center">
+        <div className="text-center">
+          <h1 className="text-4xl mb-8">Pong Game</h1>
+          
+          {showLogin ? (
+            <LoginForm 
+              onLoginSuccess={handleAuthSuccess}
+              onSwitchToRegister={() => setShowLogin(false)}
+            />
+          ) : (
+            <RegisterForm 
+              onRegisterSuccess={handleAuthSuccess}
+              onSwitchToLogin={() => setShowLogin(true)}
+            />
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  // Show user profile if authenticated
+  if (user) {
+    return (
+      <div className="min-h-screen bg-gray-900 text-white flex items-center justify-center">
+        <div className="text-center">
+          <h1 className="text-4xl mb-8">Pong Game</h1>
+          <UserProfile user={user} onLogout={handleLogout} />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gray-900 text-white flex items-center justify-center">

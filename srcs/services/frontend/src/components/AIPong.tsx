@@ -20,7 +20,7 @@ export const AIPong: React.FC<AIPongProps> = ({ roomId }) => {
 
   // WebSocket connection
   useEffect(() => {
-    const ws = new WebSocket(`ws://localhost:8000/ws/game/${roomId}`);
+    const ws = new WebSocket(`ws://127.0.0.1:8000/ws/game/${roomId}`);
     wsRef.current = ws;
 
     ws.onopen = () => {

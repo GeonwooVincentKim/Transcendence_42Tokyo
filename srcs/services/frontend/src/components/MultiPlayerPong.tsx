@@ -25,14 +25,14 @@ export const MultiplayerPong: React.FC<MultiplayerPongProps> = ({
   // Use the current host for WebSocket connection so nginx can proxy /ws/ to the backend
   // This ensures the frontend works in both local and production environments
   useEffect(() => {
-    // Create WebSocket connection using the current window location host
-    const ws = new WebSocket(`ws://${window.location.host}/ws/game/${roomId}`);
+    const ws = new WebSocket(`ws://${window.location.host}/ws/game/` + roomId);
     wsRef.current = ws;
 
     let pingInterval: NodeJS.Timeout | null = null;
 
+    console.log('WebSocket connection established!!!!!!');
     ws.onopen = () => {
-      console.log('Connected to game server');
+      console.log('WebSocket OPEN');
       setConnected(true);
       // Start ping interval
       pingInterval = setInterval(() => {
@@ -43,6 +43,7 @@ export const MultiplayerPong: React.FC<MultiplayerPongProps> = ({
     };
 
     ws.onmessage = (event) => {
+      console.log('WebSocket MESSAGE:', event.data);
       const data = JSON.parse(event.data);
       // Optionally handle pong here if needed
       if (data.type === 'pong') return;
@@ -84,12 +85,12 @@ export const MultiplayerPong: React.FC<MultiplayerPongProps> = ({
     };
 
     ws.onclose = () => {
-      console.log('Disconnected from game server');
+      console.log('WebSocket CLOSE');
       setConnected(false);
     };
 
     ws.onerror = (error) => {
-      console.error('WebSocket error:', error);
+      console.error('WebSocket ERROR:', error);
       setConnected(false);
     };
 

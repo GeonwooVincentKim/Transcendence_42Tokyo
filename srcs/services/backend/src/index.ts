@@ -1,6 +1,7 @@
 import Fastify from 'fastify';
 import cors from '@fastify/cors';
 import fastifyWebsocket from '@fastify/websocket';
+import { authRoutes } from './routes/auth';
 
 /**
  * Pong Game Backend Server
@@ -110,6 +111,7 @@ server.get('/ws/game/:roomId', { websocket: true }, (connection, req) => {
       roomId,
       message: 'Connected to Pong Game Server'
     }));
+    server.log.info('Sent connection_established message to client');
   } catch (error) {
     server.log.error('Error sending initial message:', error);
     return;
@@ -167,6 +169,10 @@ const start = async () => {
     const host = process.env.HOST || '0.0.0.0';
 
     server.log.info('Starting Pong Game Backend Server...');
+    
+    // Register authentication routes
+    await server.register(authRoutes);
+    
     await server.listen({ port, host });
 
     server.log.info(`Server listening on http://${host}:${port}`);
@@ -174,9 +180,15 @@ const start = async () => {
     server.log.info(`  - GET  / (health check)`);
     server.log.info(`  - GET  /api/ping (connectivity test)`);
     server.log.info(`  - GET  /api/game/state (game state)`);
+    server.log.info(`  - POST /api/auth/register (user registration)`);
+    server.log.info(`  - POST /api/auth/login (user login)`);
+    server.log.info(`  - GET  /api/auth/profile (user profile)`);
+    server.log.info(`  - POST /api/auth/refresh (token refresh)`);
+    server.log.info(`  - GET  /api/auth/users (list all users)`);
     server.log.info(`  - WS   /ws (WebSocket for real-time game)`);
   } catch (err) {
     server.log.error('Failed to start server:', err);
+    console.error('Detailed error:', err);
     process.exit(1);
   }
 };
