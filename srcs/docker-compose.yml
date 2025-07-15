@@ -18,6 +18,7 @@ services:
       - "8000:8000"
     environment:
       - NODE_ENV=production
+      - JWT_SECRET=changeme-super-secret-key
     restart: unless-stopped
     networks:
       - pong-network

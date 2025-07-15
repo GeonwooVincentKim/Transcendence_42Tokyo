@@ -12,9 +12,16 @@ import { LoginRequest, AuthResponse } from '../types/auth';
 interface LoginFormProps {
   onLoginSuccess: (authData: AuthResponse) => void;
   onSwitchToRegister: () => void;
+  onSwitchToForgotUsername: () => void;
+  onSwitchToForgotPassword: () => void;
 }
 
-export const LoginForm: React.FC<LoginFormProps> = ({ onLoginSuccess, onSwitchToRegister }) => {
+export const LoginForm: React.FC<LoginFormProps> = ({ 
+  onLoginSuccess, 
+  onSwitchToRegister, 
+  onSwitchToForgotUsername, 
+  onSwitchToForgotPassword 
+}) => {
   const [formData, setFormData] = useState<LoginRequest>({
     username: '',
     password: ''
@@ -127,19 +134,40 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onLoginSuccess, onSwitchTo
         </button>
       </form>
 
-      {/* Switch to Register */}
-      <div className="mt-4 text-center">
-        <p className="text-gray-600">
-          Don't have an account?{' '}
-          <button
-            type="button"
-            onClick={onSwitchToRegister}
-            className="text-blue-600 hover:text-blue-800 font-medium"
-          >
-            Register here
-          </button>
-        </p>
-      </div>
+              {/* Switch to Register */}
+        <div className="mt-4 text-center">
+          <p className="text-gray-600">
+            Don't have an account?{' '}
+            <button
+              type="button"
+              onClick={onSwitchToRegister}
+              className="text-blue-600 hover:text-blue-800 font-medium"
+            >
+              Register here
+            </button>
+          </p>
+        </div>
+
+        {/* Forgot Username/Password Links */}
+        <div className="mt-2 text-center space-y-1">
+          <p className="text-sm text-gray-600">
+            <button
+              type="button"
+              onClick={onSwitchToForgotUsername}
+              className="text-blue-600 hover:text-blue-800 font-medium"
+            >
+              Forgot Username?
+            </button>
+            {' • '}
+            <button
+              type="button"
+              onClick={onSwitchToForgotPassword}
+              className="text-blue-600 hover:text-blue-800 font-medium"
+            >
+              Forgot Password?
+            </button>
+          </p>
+        </div>
     </div>
   );
 }; 

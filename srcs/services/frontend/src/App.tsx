@@ -5,8 +5,11 @@ import { AIPong } from './components/AIPong'
 import { LoginForm } from './components/LoginForm'
 import { RegisterForm } from './components/RegisterForm'
 import { UserProfile } from './components/UserProfile'
+import { ForgotUsername } from './components/ForgotUsername'
+import { ForgotPassword } from './components/ForgotPassword'
 import { AuthService } from './services/authService'
 import { AuthResponse, User } from './types/auth'
+import { DeleteAccountPage } from './components/DeleteAccountPage'; // (to be created)
 
 /**
  * Main App Component
@@ -20,13 +23,16 @@ function App() {
   // Authentication state management
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [user, setUser] = useState<User | null>(null);
-  const [showLogin, setShowLogin] = useState(true);
+  const [authMode, setAuthMode] = useState<'login' | 'register' | 'forgot-username' | 'forgot-password'>('login');
   const [isLoading, setIsLoading] = useState(true);
 
   // Game mode state management
   const [gameMode, setGameMode] = useState<'single' | 'multiplayer' | 'ai'>('single');
   const [roomId, setRoomId] = useState('');
   const [playerSide, setPlayerSide] = useState<'left' | 'right'>('left');
+
+  // Add view state to control profile/game/accountDeleted
+  const [view, setView] = useState<'game' | 'profile' | 'deleteAccount'>('game');
 
   /**
    * Check authentication status on component mount
@@ -52,6 +58,7 @@ function App() {
   const handleAuthSuccess = (authData: AuthResponse) => {
     setUser(authData.user);
     setIsAuthenticated(true);
+    setView('game'); // Always go to game after login/register
   };
 
   /**
@@ -61,7 +68,8 @@ function App() {
   const handleLogout = () => {
     setUser(null);
     setIsAuthenticated(false);
-    setShowLogin(true);
+    setAuthMode('login');
+    setView('game');
   };
 
   /**
@@ -92,6 +100,13 @@ function App() {
     }
   };
 
+  const handleAccountDeleted = () => {
+    setUser(null);
+    setIsAuthenticated(false);
+    setAuthMode('login');
+    setView('game');
+  };
+
   // Show loading screen while checking authentication
   if (isLoading) {
     return (
@@ -111,15 +126,31 @@ function App() {
         <div className="text-center">
           <h1 className="text-4xl mb-8">Pong Game</h1>
           
-          {showLogin ? (
+          {authMode === 'login' && (
             <LoginForm 
               onLoginSuccess={handleAuthSuccess}
-              onSwitchToRegister={() => setShowLogin(false)}
+              onSwitchToRegister={() => setAuthMode('register')}
+              onSwitchToForgotUsername={() => setAuthMode('forgot-username')}
+              onSwitchToForgotPassword={() => setAuthMode('forgot-password')}
             />
-          ) : (
+          )}
+          
+          {authMode === 'register' && (
             <RegisterForm 
               onRegisterSuccess={handleAuthSuccess}
-              onSwitchToLogin={() => setShowLogin(true)}
+              onSwitchToLogin={() => setAuthMode('login')}
+            />
+          )}
+          
+          {authMode === 'forgot-username' && (
+            <ForgotUsername 
+              onBackToLogin={() => setAuthMode('login')}
+            />
+          )}
+          
+          {authMode === 'forgot-password' && (
+            <ForgotPassword 
+              onBackToLogin={() => setAuthMode('login')}
             />
           )}
         </div>
@@ -127,23 +158,47 @@ function App() {
     );
   }
 
-  // Show user profile if authenticated
-  if (user) {
+  // Show user profile if authenticated and view is profile
+  if (user && view === 'profile') {
     return (
       <div className="min-h-screen bg-gray-900 text-white flex items-center justify-center">
         <div className="text-center">
           <h1 className="text-4xl mb-8">Pong Game</h1>
-          <UserProfile user={user} onLogout={handleLogout} />
+          <UserProfile 
+            user={user} 
+            onLogout={handleLogout} 
+            onBackToGame={() => setView('game')} 
+            onDeleteAccount={() => setView('deleteAccount')}
+          />
         </div>
       </div>
     );
   }
 
+  if (user && view === 'deleteAccount') {
+    return (
+      <DeleteAccountPage
+        user={user}
+        onBackToProfile={() => setView('profile')}
+        onAccountDeleted={handleAccountDeleted}
+      />
+    );
+  }
+
+  // Main game view (authenticated, not profile)
   return (
     <div className="min-h-screen bg-gray-900 text-white flex items-center justify-center">
       <div className="text-center">
         <h1 className="text-4xl mb-8">Pong Game</h1>
-        
+        {/* Button to go to profile */}
+        {user && (
+          <button 
+            onClick={() => setView('profile')} 
+            className="mb-4 px-4 py-2 bg-blue-800 rounded hover:bg-blue-900"
+          >
+            My Profile
+          </button>
+        )}
         {/* Single Player Game Mode */}
         {gameMode === 'single' ? (
           <>
@@ -183,12 +238,10 @@ function App() {
                 <option value="right">Right Player</option>
               </select>
             </div>
-            
             {/* Multiplayer Game Component */}
             {roomId && (
               <MultiplayerPong roomId={roomId} playerSide={playerSide} />
             )}
-            
             <button 
               onClick={() => handleModeChange('single')}
               className="mt-4 px-4 py-2 bg-gray-600 rounded hover:bg-gray-700"

@@ -180,6 +180,97 @@ export class AuthService {
   }
 
   /**
+   * Find username by email
+   * @param email - User's email address
+   * @returns Promise<string> - Username if found
+   */
+  static async findUsernameByEmail(email: string): Promise<string> {
+    const response = await fetch(`${API_BASE_URL}/api/auth/forgot-username`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ email }),
+    });
+
+    if (!response.ok) {
+      const error: ErrorResponse = await response.json();
+      throw new Error(error.message || 'Failed to find username');
+    }
+
+    const data = await response.json();
+    return data.username;
+  }
+
+  /**
+   * Request password reset token
+   * @param email - User's email address
+   * @returns Promise<{ resetToken: string; expiresIn: string }> - Reset token and expiration
+   */
+  static async requestPasswordReset(email: string): Promise<{ resetToken: string; expiresIn: string }> {
+    const response = await fetch(`${API_BASE_URL}/api/auth/forgot-password`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ email }),
+    });
+
+    if (!response.ok) {
+      const error: ErrorResponse = await response.json();
+      throw new Error(error.message || 'Failed to request password reset');
+    }
+
+    return response.json();
+  }
+
+  /**
+   * Reset password using reset token
+   * @param resetToken - Password reset token
+   * @param newPassword - New password
+   * @returns Promise<User> - Updated user data
+   */
+  static async resetPassword(resetToken: string, newPassword: string): Promise<User> {
+    const response = await fetch(`${API_BASE_URL}/api/auth/reset-password`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ resetToken, newPassword }),
+    });
+
+    if (!response.ok) {
+      const error: ErrorResponse = await response.json();
+      throw new Error(error.message || 'Failed to reset password');
+    }
+
+    const data = await response.json();
+    return data.user;
+  }
+
+  /**
+   * Delete user account
+   * @param token - JWT authentication token
+   * @returns Promise<boolean> - True if account was deleted successfully
+   */
+  static async deleteAccount(token: string): Promise<boolean> {
+    const response = await fetch(`${API_BASE_URL}/api/auth/account`, {
+      method: 'DELETE',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      const error: ErrorResponse = await response.json();
+      throw new Error(error.message || 'Failed to delete account');
+    }
+
+    return true;
+  }
+
+  /**
    * Get stored user data
    * @returns User | null - Stored user data or null if not found
    */

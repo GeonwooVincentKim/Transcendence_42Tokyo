@@ -12,9 +12,13 @@ import { User } from '../types/auth';
 interface UserProfileProps {
   user: User;
   onLogout: () => void;
+  onBackToGame: () => void; // Added prop
+  onDeleteAccount: () => void; // Add this prop
 }
 
-export const UserProfile: React.FC<UserProfileProps> = ({ user, onLogout }) => {
+export const UserProfile: React.FC<UserProfileProps> = ({ user, onLogout, onBackToGame, onDeleteAccount }) => {
+  // const [showDeleteModal, setShowDeleteModal] = useState(false); // Removed state
+
   /**
    * Handle logout action
    * Clears stored authentication data and calls logout callback
@@ -113,12 +117,22 @@ export const UserProfile: React.FC<UserProfileProps> = ({ user, onLogout }) => {
         </button>
         
         <button
-          onClick={() => window.location.reload()}
+          onClick={onBackToGame}
           className="w-full bg-gray-600 text-white py-2 px-4 rounded-md hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2"
         >
           Back to Game
         </button>
+
+        <button
+          onClick={onDeleteAccount}
+          className="w-full bg-red-800 text-white py-2 px-4 rounded-md hover:bg-red-900 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2"
+        >
+          Delete Account
+        </button>
       </div>
+
+      {/* Delete Account Modal */}
+      {/* Removed DeleteAccountModal component */}
     </div>
   );
 }; 

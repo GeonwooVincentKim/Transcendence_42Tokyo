@@ -28,6 +28,7 @@ export const DeleteAccountModal: React.FC<DeleteAccountModalProps> = ({
   const [confirmText, setConfirmText] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState(false);
 
   /**
    * Handle form submission
@@ -48,22 +49,34 @@ export const DeleteAccountModal: React.FC<DeleteAccountModalProps> = ({
 
     setIsLoading(true);
     setError(null);
+    setSuccess(false);
 
     try {
       const token = AuthService.getToken();
       if (!token) {
         throw new Error('Authentication token not found');
       }
-
-      await AuthService.deleteAccount(token);
-      
-      // Clear stored auth data
-      AuthService.clearAuthData();
-      
-      // Call success callback
-      onConfirm();
+      const response = await fetch('http://localhost:8000/api/auth/account', {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({ password }), // send password if backend expects it
+      });
+      if (response.status === 204) {
+        setSuccess(true);
+        AuthService.clearAuthData();
+        setTimeout(() => {
+          onConfirm();
+        }, 1200);
+      } else {
+        let data = null;
+        try { data = await response.json(); } catch {}
+        setError((data && data.message) || 'Failed to delete account');
+      }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to delete account');
+      setError('Failed to fetch');
     } finally {
       setIsLoading(false);
     }
@@ -98,90 +111,112 @@ export const DeleteAccountModal: React.FC<DeleteAccountModalProps> = ({
             This action cannot be undone. All your data will be permanently deleted.
           </p>
         </div>
-
-        <form onSubmit={handleSubmit} className="space-y-4">
-          {/* Account Info */}
-          <div className="bg-gray-50 rounded-lg p-4 mb-4">
-            <h3 className="font-semibold text-gray-800 mb-2">Account to be deleted:</h3>
-            <p className="text-sm text-gray-600">
-              <strong>Username:</strong> {user.username}
-            </p>
-            <p className="text-sm text-gray-600">
-              <strong>Email:</strong> {user.email}
-            </p>
-          </div>
-
-          {/* Password Field */}
-          <div>
-            <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1">
-              Password
-            </label>
-            <input
-              type="password"
-              id="password"
-              name="password"
-              value={password}
-              onChange={handleInputChange}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent"
-              placeholder="Enter your password to confirm"
-              disabled={isLoading}
-              required
-            />
-          </div>
-
-          {/* Confirmation Text */}
-          <div>
-            <label htmlFor="confirmText" className="block text-sm font-medium text-gray-700 mb-1">
-              Type DELETE to confirm
-            </label>
-            <input
-              type="text"
-              id="confirmText"
-              name="confirmText"
-              value={confirmText}
-              onChange={handleInputChange}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent"
-              placeholder="Type DELETE"
-              disabled={isLoading}
-              required
-            />
-          </div>
-
-          {/* Warning */}
-          <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">
-            <p className="text-sm font-medium">⚠️ Warning</p>
-            <p className="text-sm mt-1">
-              This will permanently delete your account and all associated data. 
-              This action cannot be undone.
-            </p>
-          </div>
-
-          {/* Error Message */}
-          {error && (
-            <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">
-              {error}
+        {success ? (
+          <div className="flex flex-col items-center justify-center">
+            <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded text-center">
+              Account deleted successfully
             </div>
-          )}
-
-          {/* Action Buttons */}
-          <div className="flex space-x-3">
             <button
               type="button"
-              onClick={onClose}
-              disabled={isLoading}
-              className="flex-1 bg-gray-600 text-white py-2 px-4 rounded-md hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
+              onClick={onConfirm}
+              className="mt-6 bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
             >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={isLoading}
-              className="flex-1 bg-red-600 text-white py-2 px-4 rounded-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {isLoading ? 'Deleting...' : 'Delete Account'}
+              Back to Login
             </button>
           </div>
-        </form>
+        ) : (
+          <form onSubmit={handleSubmit} className="space-y-4">
+            {/* Account Info */}
+            <div className="bg-gray-50 rounded-lg p-4 mb-4">
+              <h3 className="font-semibold text-gray-800 mb-2">Account to be deleted:</h3>
+              <p className="text-sm text-gray-600">
+                <strong>Username:</strong> {user.username}
+              </p>
+              <p className="text-sm text-gray-600">
+                <strong>Email:</strong> {user.email}
+              </p>
+            </div>
+
+            {/* Password Field */}
+            <div>
+              <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1">
+                Password
+              </label>
+              <input
+                type="password"
+                id="password"
+                name="password"
+                value={password}
+                onChange={handleInputChange}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                placeholder="Enter your password to confirm"
+                disabled={isLoading}
+                required
+              />
+            </div>
+
+            {/* Confirmation Text */}
+            <div>
+              <label htmlFor="confirmText" className="block text-sm font-medium text-gray-700 mb-1">
+                Type DELETE to confirm
+              </label>
+              <input
+                type="text"
+                id="confirmText"
+                name="confirmText"
+                value={confirmText}
+                onChange={handleInputChange}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                placeholder="Type DELETE"
+                disabled={isLoading}
+                required
+              />
+            </div>
+
+            {/* Warning */}
+            <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">
+              <p className="text-sm font-medium">⚠️ Warning</p>
+              <p className="text-sm mt-1">
+                This will permanently delete your account and all associated data. 
+                This action cannot be undone.
+              </p>
+            </div>
+
+            {/* Error Message */}
+            {!success && error && (
+              <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">
+                {error}
+              </div>
+            )}
+
+            {/* Action Buttons */}
+            <div className="flex space-x-3">
+              <button
+                type="button"
+                onClick={onClose}
+                disabled={isLoading || success}
+                className={`flex-1 bg-gray-600 text-white py-2 px-4 rounded-md hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed${success ? ' opacity-50 cursor-not-allowed' : ''}`}
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={isLoading || success}
+                className={`flex-1 bg-red-600 text-white py-2 px-4 rounded-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed${success ? ' opacity-50 cursor-not-allowed' : ''}`}
+              >
+                {isLoading ? 'Deleting...' : 'Delete Account'}
+              </button>
+              <button
+                type="button"
+                onClick={onConfirm}
+                disabled={!success}
+                className={`flex-1 bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2${!success ? ' opacity-50 cursor-not-allowed' : ''}`}
+              >
+                Back to Login
+              </button>
+            </div>
+          </form>
+        )}
       </div>
     </div>
   );

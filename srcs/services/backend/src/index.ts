@@ -33,7 +33,9 @@ server.register(cors, {
   origin: process.env.NODE_ENV === 'production'
     ? ['http://localhost:3000', 'http://localhost:80']
     : '*',
-  credentials: true
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'], // Ensure Authorization is allowed
 });
 
 /**

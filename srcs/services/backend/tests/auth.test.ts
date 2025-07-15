@@ -95,4 +95,104 @@ describe('Auth API', () => {
     expect(res.status).toBe(401);
     expect(res.body).toHaveProperty('error');
   });
+
+  it('should find username by email', async () => {
+    await request(app.server)
+      .post('/api/auth/register')
+      .send({ username: 'finduser', email: 'find@example.com', password: 'password123' });
+
+    const res = await request(app.server)
+      .post('/api/auth/forgot-username')
+      .send({ email: 'find@example.com' });
+
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveProperty('username');
+    expect(res.body.username).toBe('finduser');
+  });
+
+  it('should not find username for non-existent email', async () => {
+    const res = await request(app.server)
+      .post('/api/auth/forgot-username')
+      .send({ email: 'nonexistent@example.com' });
+
+    expect(res.status).toBe(404);
+    expect(res.body).toHaveProperty('error');
+  });
+
+  it('should generate password reset token', async () => {
+    await request(app.server)
+      .post('/api/auth/register')
+      .send({ username: 'resetuser', email: 'reset@example.com', password: 'password123' });
+
+    const res = await request(app.server)
+      .post('/api/auth/forgot-password')
+      .send({ email: 'reset@example.com' });
+
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveProperty('resetToken');
+    expect(res.body).toHaveProperty('expiresIn');
+  });
+
+  it('should reset password with valid token', async () => {
+    await request(app.server)
+      .post('/api/auth/register')
+      .send({ username: 'newpassuser', email: 'newpass@example.com', password: 'password123' });
+
+    const tokenRes = await request(app.server)
+      .post('/api/auth/forgot-password')
+      .send({ email: 'newpass@example.com' });
+
+    const resetToken = tokenRes.body.resetToken;
+
+    const res = await request(app.server)
+      .post('/api/auth/reset-password')
+      .send({ resetToken, newPassword: 'newpassword123' });
+
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveProperty('message');
+    expect(res.body.message).toBe('Password reset successful');
+  });
+
+  it('should not reset password with invalid token', async () => {
+    const res = await request(app.server)
+      .post('/api/auth/reset-password')
+      .send({ resetToken: 'invalidtoken', newPassword: 'newpassword123' });
+
+    expect(res.status).toBe(400);
+    expect(res.body).toHaveProperty('error');
+  });
+
+  it('should delete user account with valid JWT', async () => {
+    const regRes = await request(app.server)
+      .post('/api/auth/register')
+      .send({ username: 'deleteuser', email: 'delete@example.com', password: 'password123' });
+
+    const token = regRes.body.token;
+
+    const res = await request(app.server)
+      .delete('/api/auth/account')
+      .set('Authorization', `Bearer ${token}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveProperty('message');
+    expect(res.body.message).toBe('Account deleted successfully');
+  });
+
+  it('should not delete account without valid JWT', async () => {
+    const res = await request(app.server)
+      .delete('/api/auth/account')
+      .set('Authorization', 'Bearer invalidtoken');
+
+    expect(res.status).toBe(401);
+    expect(res.body).toHaveProperty('error');
+  });
+
+  it('should not delete non-existent account', async () => {
+    const res = await request(app.server)
+      .delete('/api/auth/account')
+      .set('Authorization', 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiJub25leGlzdGVudCIsInVzZXJuYW1lIjoiZmFrZSIsImlhdCI6MTYzNzQ5NjAwMCwiZXhwIjoxNjM3NTgyNDAwfQ.invalid');
+
+    expect(res.status).toBe(401);
+    expect(res.body).toHaveProperty('error');
+  });
 });
