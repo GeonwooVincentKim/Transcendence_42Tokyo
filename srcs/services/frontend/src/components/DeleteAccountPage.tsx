@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { AuthService } from '../services/authService';
 
 interface DeleteAccountPageProps {
@@ -13,6 +13,31 @@ export const DeleteAccountPage: React.FC<DeleteAccountPageProps> = ({ user, onBa
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
+
+  // Render debug log
+  console.log('[DeleteAccountPage] render, success:', success, 'user:', user);
+
+  // 상태 변화 추적
+  useEffect(() => {
+    console.log('[DeleteAccountPage] useEffect success:', success);
+    console.log('[DeleteAccountPage] useEffect user:', user);
+  }, [success, user]);
+
+  // Auto redirect after 5 seconds when success is true
+  useEffect(() => {
+    console.log('[DeleteAccountPage] Auto redirect useEffect triggered, success:', success);
+    if (success) {
+      console.log('[DeleteAccountPage] Setting 5 second timer for auto redirect');
+      const timer = setTimeout(() => {
+        console.log('[DeleteAccountPage] 5 second timer fired, calling onAccountDeleted');
+        onAccountDeleted();
+      }, 5000);
+      return () => {
+        console.log('[DeleteAccountPage] Clearing timer');
+        clearTimeout(timer);
+      };
+    }
+  }, [success, onAccountDeleted]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -38,9 +63,12 @@ export const DeleteAccountPage: React.FC<DeleteAccountPageProps> = ({ user, onBa
         },
         body: JSON.stringify({ password }),
       });
-      if (response.status === 204) {
+      console.log('[DeleteAccountPage] Response status:', response.status);
+      if (response.status === 200 || response.status === 204) {
+        console.log('[DeleteAccountPage] Account deletion successful, status:', response.status);
         setSuccess(true);
         AuthService.clearAuthData();
+        // Do NOT call onAccountDeleted here; only call when user clicks the button
       } else {
         let data = null;
         try { data = await response.json(); } catch {}
@@ -68,20 +96,18 @@ export const DeleteAccountPage: React.FC<DeleteAccountPageProps> = ({ user, onBa
           <p className="text-gray-600">This action cannot be undone. All your data will be permanently deleted.</p>
         </div>
         {success ? (
-          <>
+          <div className="flex flex-col items-center justify-center">
             <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded text-center mb-6">
               Account deleted successfully
             </div>
-            <div className="flex space-x-3">
-              <button
-                type="button"
-                onClick={onAccountDeleted}
-                className="flex-1 bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
-              >
-                Back to Login
-              </button>
-            </div>
-          </>
+            <button
+              type="button"
+              onClick={onAccountDeleted}
+              className="bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+            >
+              Back to Login Page
+            </button>
+          </div>
         ) : (
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="bg-gray-50 rounded-lg p-4 mb-4">

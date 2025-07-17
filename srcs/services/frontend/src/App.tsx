@@ -100,13 +100,6 @@ function App() {
     }
   };
 
-  const handleAccountDeleted = () => {
-    setUser(null);
-    setIsAuthenticated(false);
-    setAuthMode('login');
-    setView('game');
-  };
-
   // Show loading screen while checking authentication
   if (isLoading) {
     return (
@@ -168,7 +161,10 @@ function App() {
             user={user} 
             onLogout={handleLogout} 
             onBackToGame={() => setView('game')} 
-            onDeleteAccount={() => setView('deleteAccount')}
+            onDeleteAccount={() => {
+              console.log('[App] onDeleteAccount called, setting view to deleteAccount');
+              setView('deleteAccount');
+            }}
           />
         </div>
       </div>
@@ -176,11 +172,18 @@ function App() {
   }
 
   if (user && view === 'deleteAccount') {
+    console.log('[App] Rendering DeleteAccountPage, user:', user, 'view:', view);
     return (
       <DeleteAccountPage
         user={user}
         onBackToProfile={() => setView('profile')}
-        onAccountDeleted={handleAccountDeleted}
+        onAccountDeleted={() => {
+          console.log('[App] onAccountDeleted called, clearing user state');
+          setUser(null);
+          setIsAuthenticated(false);
+          setAuthMode('login');
+          setView('game');
+        }}
       />
     );
   }
