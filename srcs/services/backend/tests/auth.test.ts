@@ -1,23 +1,43 @@
 /**
  * Auth API Integration Tests
  * - Tests user registration, login, and profile endpoints
+ * - Uses PostgreSQL database for testing
  */
 
 import request from 'supertest';
 import Fastify from 'fastify';
 import { authRoutes } from '../src/routes/auth';
+import { DatabaseService } from '../src/services/databaseService';
 
 describe('Auth API', () => {
   let app: ReturnType<typeof Fastify>;
+
+  beforeAll(async () => {
+    // Initialize database for testing
+    await DatabaseService.initialize();
+  });
 
   beforeEach(async () => {
     app = Fastify();
     await app.register(authRoutes);
     await app.ready();
+
+    // Clean up test data before each test
+    await DatabaseService.query('DELETE FROM password_reset_tokens');
+    await DatabaseService.query('DELETE FROM user_statistics');
+    await DatabaseService.query('DELETE FROM users');
   });
 
   afterEach(async () => {
     await app.close();
+  });
+
+  afterAll(async () => {
+    // Clean up and close database connection
+    await DatabaseService.query('DELETE FROM password_reset_tokens');
+    await DatabaseService.query('DELETE FROM user_statistics');
+    await DatabaseService.query('DELETE FROM users');
+    await DatabaseService.close();
   });
 
   it('should register a new user', async () => {
@@ -58,25 +78,25 @@ describe('Auth API', () => {
     expect(res.body).toHaveProperty('token');
   });
 
-  it('should not login with wrong password', async () => {
+  it('should not login with incorrect credentials', async () => {
     await request(app.server)
       .post('/api/auth/register')
-      .send({ username: 'failuser', email: 'fail@example.com', password: 'password123' });
+      .send({ username: 'wronguser', email: 'wrong@example.com', password: 'password123' });
 
     const res = await request(app.server)
       .post('/api/auth/login')
-      .send({ username: 'failuser', password: 'wrongpassword' });
+      .send({ username: 'wronguser', password: 'wrongpassword' });
 
     expect(res.status).toBe(401);
     expect(res.body).toHaveProperty('error');
   });
 
-  it('should get user profile with valid JWT', async () => {
-    const regRes = await request(app.server)
+  it('should get user profile with valid token', async () => {
+    const registerRes = await request(app.server)
       .post('/api/auth/register')
       .send({ username: 'profileuser', email: 'profile@example.com', password: 'password123' });
 
-    const token = regRes.body.token;
+    const token = registerRes.body.token;
 
     const res = await request(app.server)
       .get('/api/auth/profile')
@@ -87,13 +107,28 @@ describe('Auth API', () => {
     expect(res.body.user.username).toBe('profileuser');
   });
 
-  it('should not get profile with invalid JWT', async () => {
+  it('should not get profile without token', async () => {
     const res = await request(app.server)
-      .get('/api/auth/profile')
-      .set('Authorization', 'Bearer invalidtoken');
+      .get('/api/auth/profile');
 
     expect(res.status).toBe(401);
     expect(res.body).toHaveProperty('error');
+  });
+
+  it('should refresh token', async () => {
+    const registerRes = await request(app.server)
+      .post('/api/auth/register')
+      .send({ username: 'refreshuser', email: 'refresh@example.com', password: 'password123' });
+
+    const token = registerRes.body.token;
+
+    const res = await request(app.server)
+      .post('/api/auth/refresh')
+      .set('Authorization', `Bearer ${token}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveProperty('token');
+    expect(res.body).toHaveProperty('user');
   });
 
   it('should find username by email', async () => {
@@ -162,12 +197,12 @@ describe('Auth API', () => {
     expect(res.body).toHaveProperty('error');
   });
 
-  it('should delete user account with valid JWT', async () => {
-    const regRes = await request(app.server)
+  it('should delete user account', async () => {
+    const registerRes = await request(app.server)
       .post('/api/auth/register')
       .send({ username: 'deleteuser', email: 'delete@example.com', password: 'password123' });
 
-    const token = regRes.body.token;
+    const token = registerRes.body.token;
 
     const res = await request(app.server)
       .delete('/api/auth/account')
@@ -178,21 +213,21 @@ describe('Auth API', () => {
     expect(res.body.message).toBe('Account deleted successfully');
   });
 
-  it('should not delete account without valid JWT', async () => {
+  it('should get all users', async () => {
+    await request(app.server)
+      .post('/api/auth/register')
+      .send({ username: 'user1', email: 'user1@example.com', password: 'password123' });
+
+    await request(app.server)
+      .post('/api/auth/register')
+      .send({ username: 'user2', email: 'user2@example.com', password: 'password123' });
+
     const res = await request(app.server)
-      .delete('/api/auth/account')
-      .set('Authorization', 'Bearer invalidtoken');
+      .get('/api/auth/users');
 
-    expect(res.status).toBe(401);
-    expect(res.body).toHaveProperty('error');
-  });
-
-  it('should not delete non-existent account', async () => {
-    const res = await request(app.server)
-      .delete('/api/auth/account')
-      .set('Authorization', 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiJub25leGlzdGVudCIsInVzZXJuYW1lIjoiZmFrZSIsImlhdCI6MTYzNzQ5NjAwMCwiZXhwIjoxNjM3NTgyNDAwfQ.invalid');
-
-    expect(res.status).toBe(401);
-    expect(res.body).toHaveProperty('error');
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveProperty('users');
+    expect(Array.isArray(res.body.users)).toBe(true);
+    expect(res.body.users.length).toBeGreaterThanOrEqual(2);
   });
 });

@@ -2,17 +2,12 @@
  * User Service
  * 
  * Handles user data management, password hashing, and user validation.
- * In a real application, this would typically connect to a database.
+ * Uses PostgreSQL database for persistent storage.
  */
 
 import bcrypt from 'bcryptjs';
+import { DatabaseService } from './databaseService';
 import { User, UserWithoutPassword } from '../types/auth';
-
-// In-memory user storage (replace with database in production)
-const users: Map<string, User & { password: string }> = new Map();
-
-// Password reset tokens (in production, use database with expiration)
-const resetTokens: Map<string, { userId: string; expiresAt: Date }> = new Map();
 
 /**
  * User Service Class
@@ -27,12 +22,13 @@ export class UserService {
    * @returns Promise<UserWithoutPassword> - User data without password
    */
   static async registerUser(username: string, email: string, password: string): Promise<UserWithoutPassword> {
-    // Check if username already exists
-    const existingUser = Array.from(users.values()).find(
-      user => user.username === username || user.email === email
+    // Check if username or email already exists
+    const existingUser = await DatabaseService.query(
+      'SELECT id FROM users WHERE username = $1 OR email = $2',
+      [username, email]
     );
     
-    if (existingUser) {
+    if (existingUser.rows.length > 0) {
       throw new Error('Username or email already exists');
     }
 
@@ -41,21 +37,28 @@ export class UserService {
     const hashedPassword = await bcrypt.hash(password, saltRounds);
 
     // Create new user
-    const newUser: User & { password: string } = {
-      id: Math.random().toString(36).substr(2, 9),
-      username,
-      email,
-      password: hashedPassword,
-      createdAt: new Date(),
-      updatedAt: new Date()
+    const result = await DatabaseService.query(
+      `INSERT INTO users (username, email, password_hash, created_at, updated_at)
+       VALUES ($1, $2, $3, NOW(), NOW())
+       RETURNING id, username, email, created_at, updated_at`,
+      [username, email, hashedPassword]
+    );
+
+    const newUser = result.rows[0];
+    
+    // Create initial user statistics
+    await DatabaseService.query(
+      'INSERT INTO user_statistics (user_id) VALUES ($1)',
+      [newUser.id]
+    );
+
+    return {
+      id: newUser.id.toString(),
+      username: newUser.username,
+      email: newUser.email,
+      createdAt: newUser.created_at,
+      updatedAt: newUser.updated_at
     };
-
-    // Store user
-    users.set(newUser.id, newUser);
-
-    // Return user without password
-    const { password: _, ...userWithoutPassword } = newUser;
-    return userWithoutPassword;
   }
 
   /**
@@ -66,22 +69,62 @@ export class UserService {
    */
   static async authenticateUser(username: string, password: string): Promise<UserWithoutPassword> {
     // Find user by username
-    const user = Array.from(users.values()).find(u => u.username === username);
+    const result = await DatabaseService.query(
+      'SELECT id, username, email, password_hash, created_at, updated_at FROM users WHERE username = $1 AND is_active = true',
+      [username]
+    );
     
-    if (!user) {
+    if (result.rows.length === 0) {
       throw new Error('Invalid username or password');
     }
 
+    const user = result.rows[0];
+
     // Verify password
-    const isPasswordValid = await bcrypt.compare(password, user.password);
+    const isPasswordValid = await bcrypt.compare(password, user.password_hash);
     
     if (!isPasswordValid) {
       throw new Error('Invalid username or password');
     }
 
-    // Return user without password
-    const { password: _, ...userWithoutPassword } = user;
-    return userWithoutPassword;
+    // Update last login
+    await DatabaseService.query(
+      'UPDATE users SET last_login = NOW() WHERE id = $1',
+      [user.id]
+    );
+
+    return {
+      id: user.id.toString(),
+      username: user.username,
+      email: user.email,
+      createdAt: user.created_at,
+      updatedAt: user.updated_at
+    };
+  }
+
+  /**
+   * Get user by ID
+   * @param userId - User's unique ID
+   * @returns Promise<UserWithoutPassword | null> - User data without password
+   */
+  static async getUserById(userId: string): Promise<UserWithoutPassword | null> {
+    const result = await DatabaseService.query(
+      'SELECT id, username, email, created_at, updated_at, last_login FROM users WHERE id = $1 AND is_active = true',
+      [userId]
+    );
+
+    if (result.rows.length === 0) {
+      return null;
+    }
+
+    const user = result.rows[0];
+    return {
+      id: user.id.toString(),
+      username: user.username,
+      email: user.email,
+      createdAt: user.created_at,
+      updatedAt: user.updated_at
+    };
   }
 
   /**
@@ -90,8 +133,12 @@ export class UserService {
    * @returns Promise<string | null> - Username if found, null otherwise
    */
   static async findUsernameByEmail(email: string): Promise<string | null> {
-    const user = Array.from(users.values()).find(u => u.email === email);
-    return user ? user.username : null;
+    const result = await DatabaseService.query(
+      'SELECT username FROM users WHERE email = $1 AND is_active = true',
+      [email]
+    );
+
+    return result.rows.length > 0 ? result.rows[0].username : null;
   }
 
   /**
@@ -100,21 +147,26 @@ export class UserService {
    * @returns Promise<string> - Reset token
    */
   static async generatePasswordResetToken(email: string): Promise<string> {
-    const user = Array.from(users.values()).find(u => u.email === email);
-    
-    if (!user) {
-      throw new Error('User not found with this email');
+    // Find user by email
+    const userResult = await DatabaseService.query(
+      'SELECT id FROM users WHERE email = $1 AND is_active = true',
+      [email]
+    );
+
+    if (userResult.rows.length === 0) {
+      throw new Error('User not found');
     }
 
-    // Generate reset token
+    const userId = userResult.rows[0].id;
     const resetToken = Math.random().toString(36).substr(2, 15);
-    const expiresAt = new Date(Date.now() + 30 * 60 * 1000); // 30 minutes
+    const expiresAt = new Date(Date.now() + 30 * 60 * 1000); // 30 minutes from now
 
     // Store reset token
-    resetTokens.set(resetToken, {
-      userId: user.id,
-      expiresAt
-    });
+    await DatabaseService.query(
+      `INSERT INTO password_reset_tokens (user_id, token, expires_at)
+       VALUES ($1, $2, $3)`,
+      [userId, resetToken, expiresAt]
+    );
 
     return resetToken;
   }
@@ -126,85 +178,81 @@ export class UserService {
    * @returns Promise<UserWithoutPassword> - Updated user data
    */
   static async resetPassword(resetToken: string, newPassword: string): Promise<UserWithoutPassword> {
-    const resetData = resetTokens.get(resetToken);
-    
-    if (!resetData) {
+    // Find reset token
+    const tokenResult = await DatabaseService.query(
+      'SELECT user_id, expires_at FROM password_reset_tokens WHERE token = $1 AND used_at IS NULL',
+      [resetToken]
+    );
+
+    if (tokenResult.rows.length === 0) {
       throw new Error('Invalid reset token');
     }
 
-    if (new Date() > resetData.expiresAt) {
-      resetTokens.delete(resetToken);
-      throw new Error('Reset token has expired');
-    }
+    const tokenData = tokenResult.rows[0];
 
-    const user = users.get(resetData.userId);
-    
-    if (!user) {
-      throw new Error('User not found');
+    if (new Date() > tokenData.expires_at) {
+      throw new Error('Reset token has expired');
     }
 
     // Hash new password
     const saltRounds = 10;
     const hashedPassword = await bcrypt.hash(newPassword, saltRounds);
 
-    // Update user password
-    user.password = hashedPassword;
-    user.updatedAt = new Date();
-    users.set(user.id, user);
+    // Update user password and mark token as used
+    await DatabaseService.transaction([
+      {
+        text: 'UPDATE users SET password_hash = $1, updated_at = NOW() WHERE id = $2',
+        params: [hashedPassword, tokenData.user_id]
+      },
+      {
+        text: 'UPDATE password_reset_tokens SET used_at = NOW() WHERE token = $1',
+        params: [resetToken]
+      }
+    ]);
 
-    // Remove used reset token
-    resetTokens.delete(resetToken);
+    // Get updated user data
+    const userResult = await DatabaseService.query(
+      'SELECT id, username, email, created_at, updated_at FROM users WHERE id = $1',
+      [tokenData.user_id]
+    );
 
-    // Return user without password
-    const { password: _, ...userWithoutPassword } = user;
-    return userWithoutPassword;
+    const user = userResult.rows[0];
+    return {
+      id: user.id.toString(),
+      username: user.username,
+      email: user.email,
+      createdAt: user.created_at,
+      updatedAt: user.updated_at
+    };
   }
 
   /**
-   * Get user by ID
-   * @param userId - User's unique ID
-   * @returns Promise<UserWithoutPassword | null> - User data or null if not found
-   */
-  static async getUserById(userId: string): Promise<UserWithoutPassword | null> {
-    const user = users.get(userId);
-    
-    if (!user) {
-      return null;
-    }
-
-    // Return user without password
-    const { password: _, ...userWithoutPassword } = user;
-    return userWithoutPassword;
-  }
-
-  /**
-   * Get user by username
-   * @param username - User's username
-   * @returns Promise<UserWithoutPassword | null> - User data or null if not found
-   */
-  static async getUserByUsername(username: string): Promise<UserWithoutPassword | null> {
-    const user = Array.from(users.values()).find(u => u.username === username);
-    
-    if (!user) {
-      return null;
-    }
-
-    // Return user without password
-    const { password: _, ...userWithoutPassword } = user;
-    return userWithoutPassword;
-  }
-
-  /**
-   * Update user's last activity
+   * Update user activity (last login)
    * @param userId - User's unique ID
    */
   static async updateUserActivity(userId: string): Promise<void> {
-    const user = users.get(userId);
-    
-    if (user) {
-      user.updatedAt = new Date();
-      users.set(userId, user);
-    }
+    await DatabaseService.query(
+      'UPDATE users SET last_login = NOW() WHERE id = $1',
+      [userId]
+    );
+  }
+
+  /**
+   * Get all users (for admin purposes)
+   * @returns Promise<UserWithoutPassword[]> - Array of users without passwords
+   */
+  static async getAllUsers(): Promise<UserWithoutPassword[]> {
+    const result = await DatabaseService.query(
+      'SELECT id, username, email, created_at, updated_at, last_login FROM users WHERE is_active = true ORDER BY created_at DESC'
+    );
+
+    return result.rows.map(user => ({
+      id: user.id.toString(),
+      username: user.username,
+      email: user.email,
+      createdAt: user.created_at,
+      updatedAt: user.updated_at
+    }));
   }
 
   /**
@@ -213,33 +261,44 @@ export class UserService {
    * @returns Promise<boolean> - True if user was deleted successfully
    */
   static async deleteUser(userId: string): Promise<boolean> {
-    const user = users.get(userId);
-    
-    if (!user) {
-      throw new Error('User not found');
-    }
+    const result = await DatabaseService.query(
+      'UPDATE users SET is_active = false WHERE id = $1 RETURNING id',
+      [userId]
+    );
 
-    // Remove user from storage
-    users.delete(userId);
-    
-    // Remove any associated reset tokens
-    for (const [token, data] of resetTokens.entries()) {
-      if (data.userId === userId) {
-        resetTokens.delete(token);
-      }
-    }
-
-    return true;
+    return result.rows.length > 0;
   }
 
   /**
-   * Get all users (for admin purposes)
-   * @returns Promise<UserWithoutPassword[]> - Array of users without passwords
+   * Get user statistics
+   * @param userId - User's unique ID
+   * @returns Promise<object | null> - User statistics
    */
-  static async getAllUsers(): Promise<UserWithoutPassword[]> {
-    return Array.from(users.values()).map(user => {
-      const { password: _, ...userWithoutPassword } = user;
-      return userWithoutPassword;
-    });
+  static async getUserStatistics(userId: string): Promise<object | null> {
+    const result = await DatabaseService.query(
+      `SELECT 
+        total_games, games_won, games_lost, 
+        total_score, highest_score, average_score,
+        created_at, updated_at
+       FROM user_statistics 
+       WHERE user_id = $1`,
+      [userId]
+    );
+
+    return result.rows.length > 0 ? result.rows[0] : null;
+  }
+
+  /**
+   * Update user statistics after game completion
+   * @param userId - User's unique ID
+   * @param score - Game score
+   * @param won - Whether the user won the game
+   */
+  static async updateUserStatistics(userId: string, score: number, won: boolean): Promise<void> {
+    // Call the database function to recalculate statistics
+    await DatabaseService.query(
+      'SELECT calculate_user_statistics($1)',
+      [userId]
+    );
   }
 } 
