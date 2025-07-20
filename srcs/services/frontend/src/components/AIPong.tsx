@@ -108,7 +108,7 @@ export const AIPong: React.FC<AIPongProps> = ({ roomId }) => {
     // Only allow paddle movement when game is playing
     if (gameState.status !== 'playing') return;
 
-    const paddleSpeed = 5;
+    const paddleSpeed = 8;
     
     if (keys.has('w')) {
       const newY = Math.max(0, gameState.leftPaddle.y - paddleSpeed);

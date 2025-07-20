@@ -1,6 +1,7 @@
 import React from 'react';
 import { render, screen } from '@testing-library/react';
 import { PongGame } from './PongGame';
+import { GameSettingsProvider } from '../contexts/GameSettingsContext';
 
 /**
  * Test suite for PongGame component
@@ -10,7 +11,11 @@ describe('PongGame Component', () => {
    * Test that the component renders without crashing
    */
   it('should render the game title', () => {
-    render(<PongGame />);
+    render(
+      <GameSettingsProvider>
+        <PongGame />
+      </GameSettingsProvider>
+    );
     expect(screen.getByText('Pong Game')).toBeInTheDocument();
   });
 
@@ -18,7 +23,11 @@ describe('PongGame Component', () => {
    * Test that the canvas is rendered
    */
   it('should render the game canvas', () => {
-    render(<PongGame />);
+    render(
+      <GameSettingsProvider>
+        <PongGame />
+      </GameSettingsProvider>
+    );
     const canvas = screen.getByLabelText('Pong game canvas');
     expect(canvas).toBeInTheDocument();
   });
@@ -27,9 +36,13 @@ describe('PongGame Component', () => {
    * Test that controls instructions are displayed
    */
   it('should display control instructions', () => {
-    render(<PongGame />);
-    expect(screen.getByText(/Controls: W\/S \(Left Paddle\)/)).toBeInTheDocument();
-    expect(screen.getByText(/Arrow Keys \(Right Paddle\)/)).toBeInTheDocument();
+    render(
+      <GameSettingsProvider>
+        <PongGame />
+      </GameSettingsProvider>
+    );
+    expect(screen.getByText(/Left Player: W \(up\) \/ S \(down\)/)).toBeInTheDocument();
+    expect(screen.getByText(/Right Player: ARROWUP \(up\) \/ ARROWDOWN \(down\)/)).toBeInTheDocument();
   });
 
   /**
@@ -39,7 +52,11 @@ describe('PongGame Component', () => {
     const customWidth = 1000;
     const customHeight = 600;
     
-    render(<PongGame width={customWidth} height={customHeight} />);
+    render(
+      <GameSettingsProvider>
+        <PongGame width={customWidth} height={customHeight} />
+      </GameSettingsProvider>
+    );
     const canvas = screen.getByLabelText('Pong game canvas');
     
     expect(canvas).toHaveAttribute('width', customWidth.toString());
@@ -50,7 +67,11 @@ describe('PongGame Component', () => {
    * Test default dimensions
    */
   it('should render with default dimensions', () => {
-    render(<PongGame />);
+    render(
+      <GameSettingsProvider>
+        <PongGame />
+      </GameSettingsProvider>
+    );
     const canvas = screen.getByLabelText('Pong game canvas');
     
     expect(canvas).toHaveAttribute('width', '800');
@@ -61,7 +82,11 @@ describe('PongGame Component', () => {
    * Test component structure
    */
   it('should have proper component structure', () => {
-    render(<PongGame />);
+    render(
+      <GameSettingsProvider>
+        <PongGame />
+      </GameSettingsProvider>
+    );
     
     // Check for main container
     const container = screen.getByText('Pong Game').closest('div');

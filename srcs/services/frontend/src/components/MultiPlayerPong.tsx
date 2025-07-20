@@ -133,7 +133,7 @@ export const MultiplayerPong: React.FC<MultiplayerPongProps> = ({
     // Only allow paddle movement when game is playing
     if (gameState.status !== 'playing') return;
 
-    const paddleSpeed = 5;
+    const paddleSpeed = 8;
     const keysToCheck = playerSide === 'left' ? ['w', 's'] : ['arrowup', 'arrowdown'];
     
     keysToCheck.forEach(key => {

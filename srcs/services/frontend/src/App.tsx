@@ -10,6 +10,8 @@ import { ForgotPassword } from './components/ForgotPassword'
 import { AuthService } from './services/authService'
 import { AuthResponse, User } from './types/auth'
 import { DeleteAccountPage } from './components/DeleteAccountPage'; // (to be created)
+import { GameSettingsProvider } from './contexts/GameSettingsContext'
+import { GameSettings } from './components/GameSettings'
 
 /**
  * Main App Component
@@ -33,6 +35,7 @@ function App() {
 
   // Add view state to control profile/game/accountDeleted
   const [view, setView] = useState<'game' | 'profile' | 'deleteAccount'>('game');
+  const [showSettings, setShowSettings] = useState(false);
 
   /**
    * Check authentication status on component mount
@@ -190,83 +193,98 @@ function App() {
 
   // Main game view (authenticated, not profile)
   return (
-    <div className="min-h-screen bg-gray-900 text-white flex items-center justify-center">
-      <div className="text-center">
-        <h1 className="text-4xl mb-8">Pong Game</h1>
-        {/* Button to go to profile */}
-        {user && (
+    <GameSettingsProvider>
+      <div className="min-h-screen bg-gray-900 text-white flex items-center justify-center">
+        <div className="text-center">
+          <h1 className="text-4xl mb-8">Pong Game</h1>
+          {/* Button to go to profile */}
+          {user && (
+            <button 
+              onClick={() => setView('profile')} 
+              className="mb-4 px-4 py-2 bg-blue-800 rounded hover:bg-blue-900"
+            >
+              My Profile
+            </button>
+          )}
+          {/* Settings button */}
           <button 
-            onClick={() => setView('profile')} 
-            className="mb-4 px-4 py-2 bg-blue-800 rounded hover:bg-blue-900"
+            onClick={() => setShowSettings(true)} 
+            className="mb-4 ml-2 px-4 py-2 bg-purple-800 rounded hover:bg-purple-900"
           >
-            My Profile
+            Settings
           </button>
-        )}
-        {/* Single Player Game Mode */}
-        {gameMode === 'single' ? (
-          <>
-            <PongGame />
-            <div className="mt-4 space-x-4">
+          {/* Single Player Game Mode */}
+          {gameMode === 'single' ? (
+            <>
+              <PongGame />
+              <div className="mt-4 space-x-4">
+                <button 
+                  onClick={() => handleModeChange('multiplayer')}
+                  className="px-4 py-2 bg-blue-600 rounded hover:bg-blue-700"
+                >
+                  Play Multiplayer
+                </button>
+                <button 
+                  onClick={createAIGame}
+                  className="px-4 py-2 bg-green-600 rounded hover:bg-green-700"
+                >
+                  Play vs AI
+                </button>
+              </div>
+            </>
+          ) : gameMode === 'multiplayer' ? (
+            <>
+              {/* Multiplayer Game Setup */}
+              <div className="mb-4">
+                <input
+                  type="text"
+                  placeholder="Enter Room ID"
+                  value={roomId}
+                  onChange={(e) => setRoomId(e.target.value)}
+                  className="px-4 py-2 text-black rounded mr-2"
+                />
+                <select
+                  value={playerSide}
+                  onChange={(e) => setPlayerSide(e.target.value as 'left' | 'right')}
+                  className="px-4 py-2 text-black rounded"
+                >
+                  <option value="left">Left Player</option>
+                  <option value="right">Right Player</option>
+                </select>
+              </div>
+              {/* Multiplayer Game Component */}
+              {roomId && (
+                <MultiplayerPong roomId={roomId} playerSide={playerSide} />
+              )}
               <button 
-                onClick={() => handleModeChange('multiplayer')}
-                className="px-4 py-2 bg-blue-600 rounded hover:bg-blue-700"
+                onClick={() => handleModeChange('single')}
+                className="mt-4 px-4 py-2 bg-gray-600 rounded hover:bg-gray-700"
               >
-                Play Multiplayer
+                Back to Single Player
               </button>
+            </>
+          ) : (
+            <>
+              {/* AI Game Component */}
+              {roomId && <AIPong roomId={roomId} />}
               <button 
-                onClick={createAIGame}
-                className="px-4 py-2 bg-green-600 rounded hover:bg-green-700"
+                onClick={() => handleModeChange('single')}
+                className="mt-4 px-4 py-2 bg-gray-600 rounded hover:bg-gray-700"
               >
-                Play vs AI
+                Back to Single Player
               </button>
-            </div>
-          </>
-        ) : gameMode === 'multiplayer' ? (
-          <>
-            {/* Multiplayer Game Setup */}
-            <div className="mb-4">
-              <input
-                type="text"
-                placeholder="Enter Room ID"
-                value={roomId}
-                onChange={(e) => setRoomId(e.target.value)}
-                className="px-4 py-2 text-black rounded mr-2"
-              />
-              <select
-                value={playerSide}
-                onChange={(e) => setPlayerSide(e.target.value as 'left' | 'right')}
-                className="px-4 py-2 text-black rounded"
-              >
-                <option value="left">Left Player</option>
-                <option value="right">Right Player</option>
-              </select>
-            </div>
-            {/* Multiplayer Game Component */}
-            {roomId && (
-              <MultiplayerPong roomId={roomId} playerSide={playerSide} />
-            )}
-            <button 
-              onClick={() => handleModeChange('single')}
-              className="mt-4 px-4 py-2 bg-gray-600 rounded hover:bg-gray-700"
-            >
-              Back to Single Player
-            </button>
-          </>
-        ) : (
-          <>
-            {/* AI Game Component */}
-            {roomId && <AIPong roomId={roomId} />}
-            <button 
-              onClick={() => handleModeChange('single')}
-              className="mt-4 px-4 py-2 bg-gray-600 rounded hover:bg-gray-700"
-            >
-              Back to Single Player
-            </button>
-          </>
-        )}
+            </>
+          )}
+          
+          {/* Game Settings Modal */}
+          <GameSettings 
+            isOpen={showSettings} 
+            onClose={() => setShowSettings(false)} 
+          />
+        </div>
       </div>
-    </div>
-  )
+    </GameSettingsProvider>
+  );
 }
 
 export default App

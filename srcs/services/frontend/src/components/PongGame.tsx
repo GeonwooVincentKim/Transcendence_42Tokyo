@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { useGameSettings } from '../contexts/GameSettingsContext';
 
 /**
  * PongGame Component Props
@@ -41,12 +42,13 @@ export const PongGame: React.FC<PongGameProps> = ({
 }) => {
   // Canvas reference for rendering
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const { settings } = useGameSettings();
   
   // Game state management
   const [gameState, setGameState] = useState<GameState>({
-    leftPaddle: { y: height / 2 - 50 },
-    rightPaddle: { y: height / 2 - 50 },
-    ball: { x: width / 2, y: height / 2, dx: 5, dy: 3 },
+    leftPaddle: { y: height / 2 - (settings.paddleHeight / 2) },
+    rightPaddle: { y: height / 2 - (settings.paddleHeight / 2) },
+    ball: { x: width / 2, y: height / 2, dx: settings.ballSpeed, dy: settings.ballSpeed * 0.6 },
     leftScore: 0,
     rightScore: 0,
     status: 'ready', // Initial value
@@ -54,6 +56,19 @@ export const PongGame: React.FC<PongGameProps> = ({
 
   // Track currently pressed keys
   const [keys, setKeys] = useState<Set<string>>(new Set());
+
+  // Reset game state when settings change
+  useEffect(() => {
+    setGameState(prev => ({
+      ...prev,
+      leftPaddle: { y: height / 2 - (settings.paddleHeight / 2) },
+      rightPaddle: { y: height / 2 - (settings.paddleHeight / 2) },
+      ball: { x: width / 2, y: height / 2, dx: settings.ballSpeed, dy: settings.ballSpeed * 0.6 },
+      leftScore: 0,
+      rightScore: 0,
+      status: 'ready'
+    }));
+  }, [settings.paddleHeight, settings.ballSpeed, width, height]);
 
   /**
    * Keyboard event handlers
@@ -92,25 +107,25 @@ export const PongGame: React.FC<PongGameProps> = ({
     // Only allow paddle movement when game is playing
     if (gameState.status !== 'playing') return;
 
-    const paddleSpeed = 5;
+    const paddleSpeed = settings.paddleSpeed;
     
     setGameState(prev => {
       let newLeftPaddle = { ...prev.leftPaddle };
       let newRightPaddle = { ...prev.rightPaddle };
 
-      // Left paddle (W/S keys)
-      if (keys.has('w') && newLeftPaddle.y > 0) {
+      // Left paddle (customizable keys)
+      if (keys.has(settings.leftPaddleUp.toLowerCase()) && newLeftPaddle.y > 0) {
         newLeftPaddle.y -= paddleSpeed;
       }
-      if (keys.has('s') && newLeftPaddle.y < height - 100) {
+      if (keys.has(settings.leftPaddleDown.toLowerCase()) && newLeftPaddle.y < height - settings.paddleHeight) {
         newLeftPaddle.y += paddleSpeed;
       }
 
-      // Right paddle (Arrow Up/Down keys)
-      if (keys.has('arrowup') && newRightPaddle.y > 0) {
+      // Right paddle (customizable keys)
+      if (keys.has(settings.rightPaddleUp.toLowerCase()) && newRightPaddle.y > 0) {
         newRightPaddle.y -= paddleSpeed;
       }
-      if (keys.has('arrowdown') && newRightPaddle.y < height - 100) {
+      if (keys.has(settings.rightPaddleDown.toLowerCase()) && newRightPaddle.y < height - settings.paddleHeight) {
         newRightPaddle.y += paddleSpeed;
       }
 
@@ -120,7 +135,7 @@ export const PongGame: React.FC<PongGameProps> = ({
         rightPaddle: newRightPaddle
       };
     });
-  }, [keys, height, gameState.status]);
+  }, [keys, height, gameState.status, settings.paddleSpeed, settings.leftPaddleUp, settings.leftPaddleDown, settings.rightPaddleUp, settings.rightPaddleDown, settings.paddleHeight]);
 
   /**
    * Rendering loop
@@ -138,11 +153,11 @@ export const PongGame: React.FC<PongGameProps> = ({
       ctx.fillRect(0, 0, width, height);
 
       ctx.fillStyle = '#fff';
-      ctx.fillRect(10, gameState.leftPaddle.y, 10, 100);
-      ctx.fillRect(width - 20, gameState.rightPaddle.y, 10, 100);
+      ctx.fillRect(10, gameState.leftPaddle.y, 10, settings.paddleHeight);
+      ctx.fillRect(width - 20, gameState.rightPaddle.y, 10, settings.paddleHeight);
 
       ctx.beginPath();
-      ctx.arc(gameState.ball.x, gameState.ball.y, 5, 0, 2 * Math.PI);
+      ctx.arc(gameState.ball.x, gameState.ball.y, settings.ballSize, 0, 2 * Math.PI);
       ctx.fillStyle = '#fff';
       ctx.fill();
 
@@ -153,15 +168,17 @@ export const PongGame: React.FC<PongGameProps> = ({
       ctx.strokeStyle = '#fff';
       ctx.stroke();
 
-      ctx.font = '24px Arial';
-      ctx.fillStyle = '#fff';
-      ctx.fillText(gameState.leftScore.toString(), width / 4, 30);
-      ctx.fillText(gameState.rightScore.toString(), 3 * width / 4, 30);
+      if (settings.showScore) {
+        ctx.font = '24px Arial';
+        ctx.fillStyle = '#fff';
+        ctx.fillText(gameState.leftScore.toString(), width / 4, 30);
+        ctx.fillText(gameState.rightScore.toString(), 3 * width / 4, 30);
+      }
     };
 
     const interval = setInterval(renderLoop, 16);
     return () => clearInterval(interval);
-  }, [gameState, width, height]);
+  }, [gameState, width, height, settings.paddleHeight, settings.ballSize, settings.showScore]);
 
   /**
    * Game logic loop
@@ -188,12 +205,12 @@ export const PongGame: React.FC<PongGameProps> = ({
 
         // Paddle collision
         if (newBall.x <= 20 && newBall.y >= prevState.leftPaddle.y && 
-            newBall.y <= prevState.leftPaddle.y + 100) {
+            newBall.y <= prevState.leftPaddle.y + settings.paddleHeight) {
           newBall.dx = -newBall.dx;
         }
 
         if (newBall.x >= width - 20 && newBall.y >= prevState.rightPaddle.y && 
-            newBall.y <= prevState.rightPaddle.y + 100) {
+            newBall.y <= prevState.rightPaddle.y + settings.paddleHeight) {
           newBall.dx = -newBall.dx;
         }
 
@@ -205,10 +222,30 @@ export const PongGame: React.FC<PongGameProps> = ({
           newRightScore++;
           newBall.x = width / 2;
           newBall.y = height / 2;
+          // Check for game end
+          if (newRightScore >= settings.maxScore) {
+            return {
+              ...prevState,
+              ball: newBall,
+              leftScore: newLeftScore,
+              rightScore: newRightScore,
+              status: 'ready'
+            };
+          }
         } else if (newBall.x >= width) {
           newLeftScore++;
           newBall.x = width / 2;
           newBall.y = height / 2;
+          // Check for game end
+          if (newLeftScore >= settings.maxScore) {
+            return {
+              ...prevState,
+              ball: newBall,
+              leftScore: newLeftScore,
+              rightScore: newRightScore,
+              status: 'ready'
+            };
+          }
         }
 
         return {
@@ -222,7 +259,7 @@ export const PongGame: React.FC<PongGameProps> = ({
 
     const interval = setInterval(gameLoop, 16);
     return () => clearInterval(interval);
-  }, [gameState.status, width, height]);
+  }, [gameState.status, width, height, settings.paddleHeight, settings.maxScore]);
 
   return (
     <div className="flex flex-col items-center" data-testid="game-container">
@@ -250,9 +287,9 @@ export const PongGame: React.FC<PongGameProps> = ({
             ...prev,
             leftScore: 0,
             rightScore: 0,
-            ball: { x: width / 2, y: height / 2, dx: 5, dy: 3 },
-            leftPaddle: { y: height / 2 - 50 },
-            rightPaddle: { y: height / 2 - 50 },
+            ball: { x: width / 2, y: height / 2, dx: settings.ballSpeed, dy: settings.ballSpeed * 0.6 },
+            leftPaddle: { y: height / 2 - (settings.paddleHeight / 2) },
+            rightPaddle: { y: height / 2 - (settings.paddleHeight / 2) },
             status: 'ready', // Set to ready on reset
           }))}
           className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700"
@@ -290,8 +327,8 @@ export const PongGame: React.FC<PongGameProps> = ({
       />
       
       <div className="mt-4 text-sm text-gray-400">
-        <p>Left Player: W (up) / S (down)</p>
-        <p>Right Player: ↑ (up) / ↓ (down)</p>
+        <p>Left Player: {settings.leftPaddleUp.toUpperCase()} (up) / {settings.leftPaddleDown.toUpperCase()} (down)</p>
+        <p>Right Player: {settings.rightPaddleUp.toUpperCase()} (up) / {settings.rightPaddleDown.toUpperCase()} (down)</p>
       </div>
     </div>
   );
