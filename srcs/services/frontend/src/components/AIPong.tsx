@@ -1,241 +1,59 @@
-import React, { useEffect, useRef, useState } from 'react';
 
-interface AIPongProps {
-  roomId: string;
-}
+import React from 'react';
+import { usePongEngine } from '../hooks/usePongEngine';
+import { useHumanController } from '../hooks/useHumanController';
+import { useAIController } from '../hooks/useAIController';
 
-export const AIPong: React.FC<AIPongProps> = ({ roomId }) => {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const wsRef = useRef<WebSocket | null>(null);
-  const [gameState, setGameState] = useState({
-    leftPaddle: { y: 200 },
-    rightPaddle: { y: 200 },
-    ball: { x: 400, y: 200, dx: 5, dy: 3 },
-    leftScore: 0,
-    rightScore: 0,
-    status: 'ready'
-  });
-  const [connected, setConnected] = useState(false);
-  const [keys, setKeys] = useState<Set<string>>(new Set());
+/**
+ * The Player vs. AI Pong game component.
+ * It assembles the core game engine with one human controller and one AI controller.
+ */
+export const AIPong: React.FC = () => {
+  // 1. Initialize the core game engine. This is IDENTICAL to the other game mode.
+  const { canvasRef, gameState, controls } = usePongEngine();
+  
+  // 2. Initialize a controller for the LEFT paddle (the human player).
+  useHumanController(controls.setPaddleMovement, 'left');
 
-  // WebSocket connection
-  useEffect(() => {
-    const ws = new WebSocket(`ws://localhost:8000/ws/game/${roomId}`);
-    wsRef.current = ws;
+  // 3. Initialize a controller for the RIGHT paddle (the AI).
+  //    This is the ONLY functional difference from PongGame.tsx.
+  //    We pass it the engine's control function and the gameState so it can "see" the ball.
+  useAIController(controls.setPaddleMovement, gameState);
 
-    ws.onopen = () => {
-      console.log('Connected to AI game server');
-      setConnected(true);
-    };
-
-    ws.onmessage = (event) => {
-      const data = JSON.parse(event.data);
-      
-      switch (data.type) {
-        case 'game_start':
-          setGameState({ ...data.data, status: 'playing' });
-          break;
-        case 'paddle_update':
-          if (data.data.player === 'left') {
-            setGameState(prev => ({
-              ...prev,
-              leftPaddle: { y: data.data.y }
-            }));
-          } else {
-            setGameState(prev => ({
-              ...prev,
-              rightPaddle: { y: data.data.y }
-            }));
-          }
-          break;
-        case 'game_state_update':
-          setGameState(prev => ({ ...data.data, status: prev.status }));
-          break;
-        case 'game_pause':
-          setGameState(prev => ({ ...prev, status: 'paused' }));
-          break;
-        case 'game_reset':
-          setGameState(prev => ({
-            ...prev,
-            leftScore: 0,
-            rightScore: 0,
-            ball: { x: 400, y: 200, dx: 5, dy: 3 },
-            leftPaddle: { y: 200 },
-            rightPaddle: { y: 200 },
-            status: 'ready'
-          }));
-          break;
-      }
-    };
-
-    ws.onclose = () => {
-      console.log('Disconnected from AI game server');
-      setConnected(false);
-    };
-
-    return () => {
-      ws.close();
-    };
-  }, [roomId]);
-
-  // Keyboard input handling
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      setKeys(prev => new Set([...prev, e.key.toLowerCase()]));
-    };
-
-    const handleKeyUp = (e: KeyboardEvent) => {
-      setKeys(prev => {
-        const newKeys = new Set(prev);
-        newKeys.delete(e.key.toLowerCase());
-        return newKeys;
-      });
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    window.addEventListener('keyup', handleKeyUp);
-
-    return () => {
-      window.removeEventListener('keydown', handleKeyDown);
-      window.removeEventListener('keyup', handleKeyUp);
-    };
-  }, []);
-
-  // Paddle movement handling (left player only)
-  useEffect(() => {
-    if (!connected || !wsRef.current) return;
-
-    // Only allow paddle movement when game is playing
-    if (gameState.status !== 'playing') return;
-
-    const paddleSpeed = 5;
-    
-    if (keys.has('w')) {
-      const newY = Math.max(0, gameState.leftPaddle.y - paddleSpeed);
-      wsRef.current?.send(JSON.stringify({
-        type: 'paddle_move',
-        player: 'left',
-        y: newY
-      }));
-    }
-    
-    if (keys.has('s')) {
-      const newY = Math.min(300, gameState.leftPaddle.y + paddleSpeed);
-      wsRef.current?.send(JSON.stringify({
-        type: 'paddle_move',
-        player: 'left',
-        y: newY
-      }));
-    }
-  }, [keys, connected, gameState.leftPaddle.y, gameState.status]);
-
-  // Rendering
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-
-    const renderLoop = () => {
-      // Clear canvas
-      ctx.fillStyle = '#000';
-      ctx.fillRect(0, 0, 800, 400);
-
-      // Draw paddles
-      ctx.fillStyle = '#fff';
-      ctx.fillRect(10, gameState.leftPaddle.y, 10, 100);
-      ctx.fillRect(780, gameState.rightPaddle.y, 10, 100);
-
-      // Draw ball
-      ctx.beginPath();
-      ctx.arc(gameState.ball.x, gameState.ball.y, 5, 0, 2 * Math.PI);
-      ctx.fillStyle = '#fff';
-      ctx.fill();
-
-      // Draw center line
-      ctx.setLineDash([5, 15]);
-      ctx.beginPath();
-      ctx.moveTo(400, 0);
-      ctx.lineTo(400, 400);
-      ctx.strokeStyle = '#fff';
-      ctx.stroke();
-
-      // Draw scores
-      ctx.font = '24px Arial';
-      ctx.fillStyle = '#fff';
-      ctx.fillText(gameState.leftScore.toString(), 200, 30);
-      ctx.fillText(gameState.rightScore.toString(), 600, 30);
-    };
-
-    const interval = setInterval(renderLoop, 16);
-    return () => clearInterval(interval);
-  }, [gameState]);
-
-  // Game control functions
-  const handlePause = () => {
-    if (wsRef.current) {
-      wsRef.current.send(JSON.stringify({
-        type: 'game_pause'
-      }));
-    }
-  };
-
-  const handleReset = () => {
-    if (wsRef.current) {
-      wsRef.current.send(JSON.stringify({
-        type: 'game_reset'
-      }));
-    }
-  };
-
+  // 4. Render the UI. This is almost identical to the other game mode,
+  //    with only minor text changes for clarity.
   return (
-    <div className="flex flex-col items-center">
-      <h2 className="text-2xl mb-4">AI Pong Game</h2>
-      <div className="mb-4">
-        <span className={`px-4 py-2 rounded ${connected ? 'bg-green-600' : 'bg-red-600'}`}>
-          {connected ? 'Connected' : 'Disconnected'}
-        </span>
-      </div>
+    <div className="flex flex-col items-center" data-testid="game-container">
+      <h2 className="text-2xl mb-4">Player vs. AI</h2>
       
-      {/* Game Controls */}
+      {/* The buttons are identical, calling the same engine controls */}
       <div className="mb-4 flex gap-2">
-        <button 
-          onClick={handlePause}
-          className="px-4 py-2 bg-yellow-600 text-white rounded hover:bg-yellow-700"
-        >
-          Pause
-        </button>
-        <button 
-          onClick={handleReset}
-          className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700"
-        >
-          Reset
-        </button>
+        <button onClick={controls.start}>Start</button>
+        <button onClick={controls.pause}>Pause</button>
+        <button onClick={controls.reset}>Reset</button>
+      </div>
+
+      <div data-testid="game-status" className="mb-2 text-sm">
+        Status: {gameState.status}
       </div>
       
-      {/* Game Status */}
-      {/*
-        Displays the current game status. The text is chosen to match Cypress E2E test expectations:
-        - 'Initial' or 'Ready' for the ready state
-        - 'Started' or 'Playing' for the playing state
-        - 'Stopped' or 'Paused' for the paused state
-      */}
-      <div data-testid="game-status" className="mb-2 text-sm">
-        {gameState.status === 'ready' && 'Initial / Ready'}
-        {gameState.status === 'playing' && 'Started / Playing'}
-        {gameState.status === 'paused' && 'Stopped / Paused'}
+      {/* The score text is customized for this game mode */}
+      <div data-testid="score" className="mb-2 text-lg font-bold">
+        Player: {gameState.leftScore} - AI: {gameState.rightScore}
       </div>
-      <div className="mb-4 text-sm">
-        <p>You vs AI</p>
-        <p>Use W/S keys to move your paddle</p>
-      </div>
+
       <canvas
         ref={canvasRef}
         width={800}
         height={400}
         className="border border-white"
+        aria-label="AI Pong game canvas"
       />
+      
+      {/* Instructions are simplified for a single human player */}
+      <div className="mt-4 text-sm text-gray-400">
+        <p>Use W (up) / S (down) to move your paddle.</p>
+      </div>
     </div>
   );
 };

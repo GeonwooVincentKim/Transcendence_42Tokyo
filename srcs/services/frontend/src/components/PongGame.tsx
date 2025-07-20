@@ -1,294 +1,513 @@
-import React, { useEffect, useRef, useState } from 'react';
 
-/**
- * PongGame Component Props
- */
-interface PongGameProps {
-  width?: number;
-  height?: number;
-}
+// // src/components/PongGame.tsx
+// import React, { useEffect, useRef, useState } from 'react';
 
-/**
- * Game State Interface
- * Defines the structure of the game state
- */
-interface GameState {
-  leftPaddle: { y: number };
-  rightPaddle: { y: number };
-  ball: { x: number; y: number; dx: number; dy: number };
-  leftScore: number;
-  rightScore: number;
-  status: 'ready' | 'playing' | 'paused';
-}
+// // Props interface remains the same
+// interface PongGameProps {
+//   width?: number;
+//   height?: number;
+// }
 
-/**
- * Pong Game Component
- * 
- * A classic Pong game implementation using HTML5 Canvas
- * Features:
- * - Real-time ball physics
- * - Keyboard controls for both paddles
- * - Score tracking
- * - Collision detection
- * - Smooth 60 FPS animation
- * 
- * @param width - Canvas width (default: 800)
- * @param height - Canvas height (default: 400)
- */
-export const PongGame: React.FC<PongGameProps> = ({ 
-  width = 800, 
-  height = 400 
-}) => {
-  // Canvas reference for rendering
-  const canvasRef = useRef<HTMLCanvasElement>(null);
+// // State for things that should trigger a re-render (UI elements)
+// interface GameUIState {
+//   leftScore: number;
+//   rightScore: number;
+//   status: 'ready' | 'playing' | 'paused';
+// }
+
+// /**
+//  * Optimized Pong Game Component
+//  */
+// export const PongGame: React.FC<PongGameProps> = ({ 
+//   width = 800, 
+//   height = 400 
+// }) => {
+//   const canvasRef = useRef<HTMLCanvasElement>(null);
   
-  // Game state management
-  const [gameState, setGameState] = useState<GameState>({
-    leftPaddle: { y: height / 2 - 50 },
-    rightPaddle: { y: height / 2 - 50 },
-    ball: { x: width / 2, y: height / 2, dx: 5, dy: 3 },
-    leftScore: 0,
-    rightScore: 0,
-    status: 'ready', // Initial value
-  });
+//   // *** CHANGE #1: Use state ONLY for UI data that needs to re-render the component ***
+//   const [uiState, setUiState] = useState<GameUIState>({
+//     leftScore: 0,
+//     rightScore: 0,
+//     status: 'ready',
+//   });
 
-  // Track currently pressed keys
-  const [keys, setKeys] = useState<Set<string>>(new Set());
+//   // *** CHANGE #2: Use a ref for all high-frequency game data (physics) ***
+//   // This data can be updated 60 times/sec without causing any re-renders.
+//   const gameStateRef = useRef({
+//     leftPaddle: { y: height / 2 - 50 },
+//     rightPaddle: { y: height / 2 - 50 },
+//     ball: { x: width / 2, y: height / 2, dx: 0, dy: 0 },
+//     scoreResetCountdown: 0, //a new timer
+//     lastScorer: 1,
+//   });
 
-  /**
-   * Keyboard event handlers
-   * Manages key press and release events for paddle movement
-   */
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      setKeys(prev => new Set([...prev, e.key.toLowerCase()]));
-    };
+//   // Keep track of pressed keys. Using a ref is also efficient here.
+//   const keysPressed = useRef<Set<string>>(new Set());
 
-    const handleKeyUp = (e: KeyboardEvent) => {
-      setKeys(prev => {
-        const newKeys = new Set(prev);
-        newKeys.delete(e.key.toLowerCase());
-        return newKeys;
-      });
-    };
+// useEffect(() => {
+//   // Define the keys we are using for the game
+//   const gameKeys = ['w', 's', 'arrowup', 'arrowdown'];
 
-    // Add event listeners
-    window.addEventListener('keydown', handleKeyDown);
-    window.addEventListener('keyup', handleKeyUp);
+//   const handleKeyDown = (e: KeyboardEvent) => {
+//     const key = e.key.toLowerCase();
+//     // Check if the pressed key is one of our game keys
+//     if (gameKeys.includes(key)) {
+//       // The magic line! Prevent the browser's default action (e.g., scrolling)
+//       e.preventDefault();
+//     }
+//     // Add the key to our set of pressed keys
+//     keysPressed.current.add(key);
+//   };
 
-    // Cleanup event listeners
-    return () => {
-      window.removeEventListener('keydown', handleKeyDown);
-      window.removeEventListener('keyup', handleKeyUp);
-    };
-  }, []);
+//   const handleKeyUp = (e: KeyboardEvent) => {
+//     keysPressed.current.delete(e.key.toLowerCase());
+//   };
 
-  /**
-   * Paddle movement logic
-   * Handles paddle movement based on keyboard input
-   * Only active when game status is 'playing'
-   */
-  useEffect(() => {
-    // Only allow paddle movement when game is playing
-    if (gameState.status !== 'playing') return;
+//   window.addEventListener('keydown', handleKeyDown);
+//   window.addEventListener('keyup', handleKeyUp);
+//   return () => {
+//     window.removeEventListener('keydown', handleKeyDown);
+//     window.removeEventListener('keyup', handleKeyUp);
+//   };
+// }, []); // The empty dependency array is correct, this should only run once.
 
-    const paddleSpeed = 5;
-    
-    setGameState(prev => {
-      let newLeftPaddle = { ...prev.leftPaddle };
-      let newRightPaddle = { ...prev.rightPaddle };
+//   /**
+//    * *** CHANGE #3: A single, unified game loop using requestAnimationFrame ***
+//    * This is much smoother and more efficient than setInterval.
+//    */
+//   useEffect(() => {
+//     const canvas = canvasRef.current;
+//     if (!canvas) return;
+//     const ctx = canvas.getContext('2d');
+//     if (!ctx) return;
 
-      // Left paddle (W/S keys)
-      if (keys.has('w') && newLeftPaddle.y > 0) {
-        newLeftPaddle.y -= paddleSpeed;
-      }
-      if (keys.has('s') && newLeftPaddle.y < height - 100) {
-        newLeftPaddle.y += paddleSpeed;
-      }
+//     let animationFrameId: number;
 
-      // Right paddle (Arrow Up/Down keys)
-      if (keys.has('arrowup') && newRightPaddle.y > 0) {
-        newRightPaddle.y -= paddleSpeed;
-      }
-      if (keys.has('arrowdown') && newRightPaddle.y < height - 100) {
-        newRightPaddle.y += paddleSpeed;
-      }
+//     const gameLoop = () => {
+//       // 1. Get current state from the ref
+//       const gameState = gameStateRef.current;
 
-      return {
-        ...prev,
-        leftPaddle: newLeftPaddle,
-        rightPaddle: newRightPaddle
-      };
-    });
-  }, [keys, height, gameState.status]);
+//       // --- PADDLE MOVEMENT LOGIC ---
+//       const paddleSpeed = 5;
+//       if (keysPressed.current.has('w') && gameState.leftPaddle.y > 0) {
+//         gameState.leftPaddle.y -= paddleSpeed;
+//       }
+//       if (keysPressed.current.has('s') && gameState.leftPaddle.y < height - 100) {
+//         gameState.leftPaddle.y += paddleSpeed;
+//       }
+//       if (keysPressed.current.has('arrowup') && gameState.rightPaddle.y > 0) {
+//         gameState.rightPaddle.y -= paddleSpeed;
+//       }
+//       if (keysPressed.current.has('arrowdown') && gameState.rightPaddle.y < height - 100) {
+//         gameState.rightPaddle.y += paddleSpeed;
+//       }
 
-  /**
-   * Rendering loop
-   * Draws all game elements on the canvas
-   */
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
+//       if (gameState.scoreResetCountdown > 0) {
+//         // If the timer is active, just count it down.
+//         gameState.scoreResetCountdown--;
+//         // When the timer hits zero, serve the ball.
+//         if (gameState.scoreResetCountdown === 0) {
+//           // Serve towards the loser. lastScorer is the WINNER.
+//           // So we multiply by lastScorer to get the direction.
+//           gameState.ball.dx = 5 * gameState.lastScorer;
+//           // Always serve downwards as requested.
+//           gameState.ball.dy = 3; 
+//         }
+//       } else {
+//         // --- BALL MOVEMENT & COLLISION LOGIC ---
+//         gameState.ball.x += gameState.ball.dx;
+//         gameState.ball.y += gameState.ball.dy;
 
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
+//         // Wall collision
+//         if (gameState.ball.y <= 0 || gameState.ball.y >= height) {
+//           gameState.ball.dy *= -1;
+//         }
 
-    const renderLoop = () => {
-      ctx.fillStyle = '#000';
-      ctx.fillRect(0, 0, width, height);
+//         // Paddle collision
+//         if (gameState.ball.x <= 20 && gameState.ball.x > 10 && gameState.ball.y >= gameState.leftPaddle.y && gameState.ball.y <= gameState.leftPaddle.y + 100) {
+//           gameState.ball.dx *= -1;
+//         }
+//         if (gameState.ball.x >= width - 20 && gameState.ball.x < width - 10 && gameState.ball.y >= gameState.rightPaddle.y && gameState.ball.y <= gameState.rightPaddle.y + 100) {
+//           gameState.ball.dx *= -1;
+//         }
 
-      ctx.fillStyle = '#fff';
-      ctx.fillRect(10, gameState.leftPaddle.y, 10, 100);
-      ctx.fillRect(width - 20, gameState.rightPaddle.y, 10, 100);
+//         // Score handling
+//         let scoreChanged = false;
+//         if (gameState.ball.x <= 0) { // Right player scored
+//           setUiState(prev => ({...prev, rightScore: prev.rightScore + 1}));
+//           gameState.lastScorer = 1; // Set right player as the last scorer
+//           scoreChanged = true;
+//         } else if (gameState.ball.x >= width) { // Left player scored
+//           setUiState(prev => ({...prev, leftScore: prev.leftScore + 1}));
+//           gameState.lastScorer = -1; // Set left player as the last scorer
+//           scoreChanged = true;
+//         }
 
-      ctx.beginPath();
-      ctx.arc(gameState.ball.x, gameState.ball.y, 5, 0, 2 * Math.PI);
-      ctx.fillStyle = '#fff';
-      ctx.fill();
+//         if (scoreChanged) {
+//           // --- START THE COUNTDOWN ---
+//           // 1. Stop the ball immediately
+//           gameState.ball.dx = 0;
+//           gameState.ball.dy = 0;
+//           // 2. Reset its position
+//           gameState.ball.x = width / 2;
+//           gameState.ball.y = height / 2;
+//           // 3. Start the countdown timer (120 frames = 2 seconds)
+//           gameState.scoreResetCountdown = 120;
+//         }
+//       }
+//       // --- DRAWING LOGIC ---
+//       // Clear canvas
+//       ctx.fillStyle = '#000';
+//       ctx.fillRect(0, 0, width, height);
 
-      ctx.setLineDash([5, 15]);
-      ctx.beginPath();
-      ctx.moveTo(width / 2, 0);
-      ctx.lineTo(width / 2, height);
-      ctx.strokeStyle = '#fff';
-      ctx.stroke();
+//       // Draw paddles and ball from the ref's data
+//       ctx.fillStyle = '#fff';
+//       ctx.fillRect(10, gameState.leftPaddle.y, 10, 100);
+//       ctx.fillRect(width - 20, gameState.rightPaddle.y, 10, 100);
+//       ctx.beginPath();
+//       ctx.arc(gameState.ball.x, gameState.ball.y, 5, 0, 2 * Math.PI);
+//       ctx.fill();
 
-      ctx.font = '24px Arial';
-      ctx.fillStyle = '#fff';
-      ctx.fillText(gameState.leftScore.toString(), width / 4, 30);
-      ctx.fillText(gameState.rightScore.toString(), 3 * width / 4, 30);
-    };
+//       // Draw dashed line (this is static, but needs to be redrawn)
+//       ctx.setLineDash([5, 15]);
+//       ctx.beginPath();
+//       ctx.moveTo(width / 2, 0);
+//       ctx.lineTo(width / 2, height);
+//       ctx.strokeStyle = '#fff';
+//       ctx.stroke();
 
-    const interval = setInterval(renderLoop, 16);
-    return () => clearInterval(interval);
-  }, [gameState, width, height]);
+//       // Loop
+//       animationFrameId = requestAnimationFrame(gameLoop);
+//     };
 
-  /**
-   * Game logic loop
-   * Handles ball movement, collision detection, and scoring
-   * Only active when game status is 'playing'
-   */
-  useEffect(() => {
-    // Only run game logic when status is 'playing'
-    if (gameState.status !== 'playing') return;
+// // Start or stop the loop based on game status
+//     if (uiState.status === 'playing') {
+//       if (gameStateRef.current.ball.dx === 0 && gameStateRef.current.ball.dy === 0) {
+//           gameStateRef.current.scoreResetCountdown = 60; // 1-second delay for the first serve
+//       }
+      
+//       animationFrameId = requestAnimationFrame(gameLoop);
+//     }
 
-    const gameLoop = () => {
-      setGameState(prevState => {
-        const newBall = {
-          x: prevState.ball.x + prevState.ball.dx,
-          y: prevState.ball.y + prevState.ball.dy,
-          dx: prevState.ball.dx,
-          dy: prevState.ball.dy
-        };
+//     // Cleanup function to cancel the loop when component unmounts or status changes
+//     return () => {
+//       cancelAnimationFrame(animationFrameId);
+//     };
+//   }, [uiState.status, width, height]); // Re-run this effect only when status changes
 
-        // Wall collision
-        if (newBall.y <= 0 || newBall.y >= height) {
-          newBall.dy = -newBall.dy;
-        }
+//   // Function to handle resetting the game
+//   const handleReset = () => {
+//     // Reset the ref's data
+//     gameStateRef.current = {
+//       leftPaddle: { y: height / 2 - 50 },
+//       rightPaddle: { y: height / 2 - 50 },
+//       ball: { x: width / 2, y: height / 2, dx: 0, dy: 0 },
+//       scoreResetCountdown: 0, 
+//       lastScorer: 1,
+//     };
+//     // Reset the UI state
+//     setUiState({
+//       leftScore: 0,
+//       rightScore: 0,
+//       status: 'ready',
+//     });
+//   };
 
-        // Paddle collision
-        if (newBall.x <= 20 && newBall.y >= prevState.leftPaddle.y && 
-            newBall.y <= prevState.leftPaddle.y + 100) {
-          newBall.dx = -newBall.dx;
-        }
+//   return (
+//     <div className="flex flex-col items-center" data-testid="game-container">
+//       <h2 className="text-2xl mb-4">Pong Game</h2>
+      
+//       {/* Game Controls */}
+//       <div className="mb-4 flex gap-2">
+//         <button onClick={() => setUiState(prev => ({ ...prev, status: 'playing' }))}>Start</button>
+//         <button onClick={() => setUiState(prev => ({ ...prev, status: 'paused' }))}>Pause</button>
+//         <button onClick={handleReset}>Reset</button>
+//       </div>
 
-        if (newBall.x >= width - 20 && newBall.y >= prevState.rightPaddle.y && 
-            newBall.y <= prevState.rightPaddle.y + 100) {
-          newBall.dx = -newBall.dx;
-        }
+//       {/* Status and Score read from the UI state */}
+//       <div data-testid="game-status" className="mb-2 text-sm">
+//         {uiState.status === 'ready' && 'Ready'}
+//         {uiState.status === 'playing' && 'Playing'}
+//         {uiState.status === 'paused' && 'Paused'}
+//       </div>
+//       <div data-testid="score" className="mb-2 text-lg font-bold">
+//         {uiState.leftScore} - {uiState.rightScore}
+//       </div>
 
-        // Score handling
-        let newLeftScore = prevState.leftScore;
-        let newRightScore = prevState.rightScore;
+//       {/* The canvas only needs to re-render if its size changes */}
+//       <canvas
+//         ref={canvasRef}
+//         width={width}
+//         height={height}
+//         className="border border-white"
+//         aria-label="Pong game canvas"
+//       />
+      
+//       <div className="mt-4 text-sm text-gray-400">
+//         <p>Left Player: W (up) / S (down)</p>
+//         <p>Right Player: ↑ (up) / ↓ (down)</p>
+//       </div>
+//     </div>
+//   );
+// };
 
-        if (newBall.x <= 0) {
-          newRightScore++;
-          newBall.x = width / 2;
-          newBall.y = height / 2;
-        } else if (newBall.x >= width) {
-          newLeftScore++;
-          newBall.x = width / 2;
-          newBall.y = height / 2;
-        }
 
-        return {
-          ...prevState,
-          ball: newBall,
-          leftScore: newLeftScore,
-          rightScore: newRightScore
-        };
-      });
-    };
+// import React, { useEffect, useRef, useState } from 'react';
 
-    const interval = setInterval(gameLoop, 16);
-    return () => clearInterval(interval);
-  }, [gameState.status, width, height]);
+// // Props and State interfaces are correct
+// interface PongGameProps {
+//   width?: number;
+//   height?: number;
+// }
+// interface GameUIState {
+//   leftScore: number;
+//   rightScore: number;
+//   status: 'ready' | 'playing' | 'paused';
+// }
 
+// /**
+//  * Optimized and Corrected Pong Game Component
+//  */
+// export const PongGame: React.FC<PongGameProps> = ({ 
+//   width = 800, 
+//   height = 400 
+// }) => {
+//   const canvasRef = useRef<HTMLCanvasElement>(null);
+  
+//   const [uiState, setUiState] = useState<GameUIState>({
+//     leftScore: 0,
+//     rightScore: 0,
+//     status: 'ready',
+//   });
+
+//   // The state of the game physics. Ball starts with ZERO speed.
+//   const gameStateRef = useRef({
+//     leftPaddle: { y: height / 2 - 50 },
+//     rightPaddle: { y: height / 2 - 50 },
+//     ball: { x: width / 2, y: height / 2, dx: 0, dy: 0 },
+//     scoreResetCountdown: 60,
+//     lastScorer: 1,
+//   });
+
+//   const keysPressed = useRef<Set<string>>(new Set());
+
+//   // Keyboard handler is correct.
+//   useEffect(() => {
+//     const gameKeys = ['w', 's', 'arrowup', 'arrowdown'];
+//     const handleKeyDown = (e: KeyboardEvent) => {
+//       const key = e.key.toLowerCase();
+//       if (gameKeys.includes(key)) e.preventDefault();
+//       keysPressed.current.add(key);
+//     };
+//     const handleKeyUp = (e: KeyboardEvent) => {
+//       keysPressed.current.delete(e.key.toLowerCase());
+//     };
+//     window.addEventListener('keydown', handleKeyDown);
+//     window.addEventListener('keyup', handleKeyUp);
+//     return () => {
+//       window.removeEventListener('keydown', handleKeyDown);
+//       window.removeEventListener('keyup', handleKeyUp);
+//     };
+//   }, []);
+
+//   // The main game loop and logic driver.
+//   useEffect(() => {
+//     const canvas = canvasRef.current;
+//     if (!canvas) return;
+//     const ctx = canvas.getContext('2d');
+//     if (!ctx) return;
+
+//     let animationFrameId: number;
+
+//     const gameLoop = () => {
+//       const gameState = gameStateRef.current;
+
+//       // Paddle Movement
+//       const paddleSpeed = 5;
+//       if (keysPressed.current.has('w') && gameState.leftPaddle.y > 0) gameState.leftPaddle.y -= paddleSpeed;
+//       if (keysPressed.current.has('s') && gameState.leftPaddle.y < height - 100) gameState.leftPaddle.y += paddleSpeed;
+//       if (keysPressed.current.has('arrowup') && gameState.rightPaddle.y > 0) gameState.rightPaddle.y -= paddleSpeed;
+//       if (keysPressed.current.has('arrowdown') && gameState.rightPaddle.y < height - 100) gameState.rightPaddle.y += paddleSpeed;
+
+//       // This is the "gatekeeper". If the countdown is active, it runs this block and skips the rest.
+//       if (gameState.scoreResetCountdown > 0) {
+//         gameState.scoreResetCountdown--;
+//         // When the timer hits zero, we SERVE THE BALL.
+//         if (gameState.scoreResetCountdown === 0) {
+//           // Serve towards the loser (`lastScorer` is the winner)
+//           gameState.ball.dx = 5 * gameState.lastScorer;
+//           // UNAMBIGUOUSLY serve downwards. `dy = 3` is always down.
+//           gameState.ball.dy = 3;
+//         }
+//       } else {
+//         // This block only runs when the game is in active play (no countdown).
+//         gameState.ball.x += gameState.ball.dx;
+//         gameState.ball.y += gameState.ball.dy;
+
+//         // Wall and Paddle collision logic
+//         if (gameState.ball.y <= 0 || gameState.ball.y >= height) gameState.ball.dy *= -1;
+//         if (gameState.ball.x <= 20 && gameState.ball.x > 10 && gameState.ball.y >= gameState.leftPaddle.y && gameState.ball.y <= gameState.leftPaddle.y + 100) gameState.ball.dx *= -1;
+//         if (gameState.ball.x >= width - 20 && gameState.ball.x < width - 10 && gameState.ball.y >= gameState.rightPaddle.y && gameState.ball.y <= gameState.rightPaddle.y + 100) gameState.ball.dx *= -1;
+        
+//         // Score detection
+//         let scoreChanged = false;
+//         if (gameState.ball.x <= 0) { // Right player scored
+//           setUiState(prev => ({...prev, rightScore: prev.rightScore + 1}));
+//           gameState.lastScorer = 1;
+//           scoreChanged = true;
+//         } else if (gameState.ball.x >= width) { // Left player scored
+//           setUiState(prev => ({...prev, leftScore: prev.leftScore + 1}));
+//           gameState.lastScorer = -1;
+//           scoreChanged = true;
+//         }
+
+//         // If a score happened, we STOP the ball and START the countdown.
+//         if (scoreChanged) {
+//           gameState.ball.dx = 0;
+//           gameState.ball.dy = 0;
+//           gameState.ball.x = width / 2;
+//           gameState.ball.y = height / 2;
+//           gameState.scoreResetCountdown = 120; // This starts the 2-second delay.
+//         }
+//       }
+      
+//       // Drawing logic always runs
+//       ctx.fillStyle = '#000';
+//       ctx.fillRect(0, 0, width, height);
+//       ctx.fillStyle = '#fff';
+//       ctx.fillRect(10, gameState.leftPaddle.y, 10, 100);
+//       ctx.fillRect(width - 20, gameState.rightPaddle.y, 10, 100);
+//       ctx.beginPath();
+//       ctx.arc(gameState.ball.x, gameState.ball.y, 5, 0, 2 * Math.PI);
+//       ctx.fill();
+//       ctx.setLineDash([5, 15]);
+//       ctx.beginPath();
+//       ctx.moveTo(width / 2, 0);
+//       ctx.lineTo(width / 2, height);
+//       ctx.strokeStyle = '#fff';
+//       ctx.stroke();
+
+//       animationFrameId = requestAnimationFrame(gameLoop);
+//     };
+
+//     // === FINAL FIX #2: THE "IGNITION" LOGIC ===
+//     // This effect runs when status changes to 'playing'.
+//     if (uiState.status === 'playing') {
+//       // Check if this is the start of a new round (ball is not moving).
+//       if (gameStateRef.current.ball.dx === 0 && gameStateRef.current.ball.dy === 0) {
+//         // Kick-start the countdown for the VERY FIRST SERVE.
+//         gameStateRef.current.scoreResetCountdown = 60; // 1-second delay
+//       }
+//       // Start the game loop.
+//       animationFrameId = requestAnimationFrame(gameLoop);
+//     }
+
+//     // Cleanup function to stop the loop.
+//     return () => {
+//       cancelAnimationFrame(animationFrameId);
+//     };
+//   }, [uiState.status, width, height]);
+
+//   // The reset function. MUST reset the ball to have zero speed.
+//   const handleReset = () => {
+//     setUiState(prev => ({ ...prev, status: 'ready' }));
+//     gameStateRef.current = {
+//       leftPaddle: { y: height / 2 - 50 },
+//       rightPaddle: { y: height / 2 - 50 },
+//       ball: { x: width / 2, y: height / 2, dx: 0, dy: 0 },
+//       scoreResetCountdown: 60,
+//       lastScorer: 1,
+//     };
+//     setUiState({
+//       leftScore: 0,
+//       rightScore: 0,
+//       status: 'ready',
+//     });
+//   };
+
+//   // The JSX is correct.
+//   return (
+//     <div className="flex flex-col items-center" data-testid="game-container">
+//       <h2 className="text-2xl mb-4">Pong Game</h2>
+//       <div className="mb-4 flex gap-2">
+//         <button onClick={() => setUiState(prev => ({ ...prev, status: 'playing' }))}>Start</button>
+//         <button onClick={() => setUiState(prev => ({ ...prev, status: 'paused' }))}>Pause</button>
+//         <button onClick={handleReset}>Reset</button>
+//       </div>
+//       <div data-testid="game-status" className="mb-2 text-sm">
+//         {uiState.status === 'ready' && 'Ready'}
+//         {uiState.status === 'playing' && 'Playing'}
+//         {uiState.status === 'paused' && 'Paused'}
+//       </div>
+//       <div data-testid="score" className="mb-2 text-lg font-bold">
+//         {uiState.leftScore} - {uiState.rightScore}
+//       </div>
+//       <canvas
+//         ref={canvasRef}
+//         width={width}
+//         height={height}
+//         className="border border-white"
+//         aria-label="Pong game canvas"
+//       />
+//       <div className="mt-4 text-sm text-gray-400">
+//         <p>Left Player: W (up) / S (down)</p>
+//         <p>Right Player: ↑ (up) / ↓ (down)</p>
+//       </div>
+//     </div>
+//   );
+// };
+
+import React from 'react';
+import { usePongEngine } from '../hooks/usePongEngine';
+import { useHumanController } from '../hooks/useHumanController';
+
+/**
+ * The Player vs. Player Pong game component.
+ * It assembles the core game engine with two human-controlled paddle controllers.
+ */
+export const PongGame: React.FC = () => {
+  // 1. Initialize the core game engine. This gives us the state, the canvas ref,
+  //    and the controls to manipulate the engine.
+  const { canvasRef, gameState, controls } = usePongEngine();
+  
+  // 2. Initialize a controller for the LEFT paddle.
+  //    We pass it the engine's standardized movement function.
+  useHumanController(controls.setPaddleMovement, 'left');
+
+  // 3. Initialize another controller for the RIGHT paddle.
+  //    This demonstrates the power of reusable hooks.
+  useHumanController(controls.setPaddleMovement, 'right');
+
+  // 4. Render the UI, using the state and controls provided by the engine.
   return (
     <div className="flex flex-col items-center" data-testid="game-container">
-      <h2 className="text-2xl mb-4">Pong Game</h2>
+      <h2 className="text-2xl mb-4">Player vs. Player</h2>
       
-      {/* Game Controls */}
+      {/* The buttons call the control functions directly from the engine hook */}
       <div className="mb-4 flex gap-2">
-        <button 
-          data-testid="start-button"
-          onClick={() => setGameState(prev => ({ ...prev, status: 'playing' }))}
-          className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700"
-        >
-          Start
-        </button>
-        <button 
-          data-testid="pause-button"
-          onClick={() => setGameState(prev => ({ ...prev, status: 'paused' }))}
-          className="px-4 py-2 bg-yellow-600 text-white rounded hover:bg-yellow-700"
-        >
-          Pause
-        </button>
-        <button 
-          data-testid="reset-button"
-          onClick={() => setGameState(prev => ({
-            ...prev,
-            leftScore: 0,
-            rightScore: 0,
-            ball: { x: width / 2, y: height / 2, dx: 5, dy: 3 },
-            leftPaddle: { y: height / 2 - 50 },
-            rightPaddle: { y: height / 2 - 50 },
-            status: 'ready', // Set to ready on reset
-          }))}
-          className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700"
-        >
-          Reset
-        </button>
+        <button onClick={controls.start}>Start</button>
+        <button onClick={controls.pause}>Pause</button>
+        <button onClick={controls.reset}>Reset</button>
       </div>
 
-      {/* Game Status */}
-      {/*
-        Displays the current game status. The text is chosen to match Cypress E2E test expectations:
-        - 'Initial' or 'Ready' for the ready state
-        - 'Started' or 'Playing' for the playing state
-        - 'Stopped' or 'Paused' for the paused state
-      */}
+      {/* The UI reads its data directly from the gameState object */}
       <div data-testid="game-status" className="mb-2 text-sm">
-        {gameState.status === 'ready' && 'Initial / Ready'}
-        {gameState.status === 'playing' && 'Started / Playing'}
-        {gameState.status === 'paused' && 'Stopped / Paused'}
+        Status: {gameState.status}
       </div>
-
-      {/* Score Display */}
       <div data-testid="score" className="mb-2 text-lg font-bold">
         {gameState.leftScore} - {gameState.rightScore}
       </div>
 
-      {/* Game Canvas */}
+      {/* The canvas element is linked to the engine via the canvasRef */}
       <canvas
         ref={canvasRef}
-        width={width}
-        height={height}
+        width={800}
+        height={400}
         className="border border-white"
         aria-label="Pong game canvas"
-        data-testid="game-board"
       />
       
+      {/* Static instructions for the players */}
       <div className="mt-4 text-sm text-gray-400">
         <p>Left Player: W (up) / S (down)</p>
         <p>Right Player: ↑ (up) / ↓ (down)</p>

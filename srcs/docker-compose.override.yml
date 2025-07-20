@@ -1,0 +1,11 @@
+services:
+  # This defines a COMPLETELY NEW service, just for development
+  frontend-dev:
+    build:
+      context: ./services/frontend
+      dockerfile: Dockerfile.dev # <-- Uses the DEVELOPMENT recipe
+    volumes:
+      - ./services/frontend/src:/app/src # <-- Mounts your code for hot-reloading
+    ports:
+      - "3002:3000" # <-- Uses a different port
+    # ...
