@@ -1,6 +1,4 @@
-\
-// export default App
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { PongGame } from './components/PongGame'
 import { MultiplayerPong } from './components/MultiPlayerPong'
 import { AIPong } from './components/AIPong'
@@ -9,11 +7,11 @@ import { RegisterForm } from './components/RegisterForm'
 import { UserProfile } from './components/UserProfile'
 import { ForgotUsername } from './components/ForgotUsername'
 import { ForgotPassword } from './components/ForgotPassword'
+import { DeleteAccountPage } from './components/DeleteAccountPage'
+import { GameSettings } from './components/GameSettings'
 import { AuthService } from './services/authService'
 import { AuthResponse, User } from './types/auth'
-import { DeleteAccountPage } from './components/DeleteAccountPage'; // (to be created)
 import { GameSettingsProvider } from './contexts/GameSettingsContext'
-import { GameSettings } from './components/GameSettings'
 
 /**
  * Main App Component
@@ -21,25 +19,20 @@ import { GameSettings } from './components/GameSettings'
 function App() {    
   const [gameMode, setGameMode] = useState<'menu' | 'single' | 'multiplayer' | 'ai'>('menu');
   
-  // NOTE: roomId and playerSide are now ONLY for the multiplayer mode.
+    // NOTE: roomId and playerSide are now ONLY for the multiplayer mode.
   const [roomId, setRoomId] = useState('');
   const [playerSide, setPlayerSide] = useState<'left' | 'right'>('left');
 
-  // --- (REMOVED) --- The 'createAIGame' async function is no longer needed.
-  // We can just switch the mode directly.
-
-  // Game mode state management
-  const [gameMode, setGameMode] = useState<'single' | 'multiplayer' | 'ai'>('single');
-  const [roomId, setRoomId] = useState('');
-  const [playerSide, setPlayerSide] = useState<'left' | 'right'>('left');
-
-  // Add view state to control profile/game/accountDeleted
-  const [view, setView] = useState<'game' | 'profile' | 'deleteAccount'>('game');
+  // Authentication state
+  const [user, setUser] = useState<User | null>(null);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
+  const [view, setView] = useState<'game' | 'profile' | 'deleteAccount' | 'forgotPassword' | 'forgotUsername' | 'settings'>('game');
   const [showSettings, setShowSettings] = useState(false);
 
   /**
    * Check authentication status on component mount
-   * Verifies if user has valid stored authentication data
    */
   useEffect(() => {
     const checkAuth = () => {
@@ -56,23 +49,22 @@ function App() {
 
   /**
    * Handle successful authentication
-   * @param authData - Authentication response data
    */
   const handleAuthSuccess = (authData: AuthResponse) => {
     setUser(authData.user);
     setIsAuthenticated(true);
-    setView('game'); // Always go to game after login/register
+    setView('game');
   };
 
   /**
    * Handle logout
-   * Clears authentication state and shows login form
    */
   const handleLogout = () => {
     setUser(null);
     setIsAuthenticated(false);
     setAuthMode('login');
     setView('game');
+    AuthService.clearAuthData();
   };
 
   // --- (NEW) --- A simple function to start the local 2-player game.
@@ -83,6 +75,16 @@ function App() {
   // --- (NEW) --- A simple function to show the multiplayer setup screen.
   const showMultiplayerSetup = () => {
     setGameMode('multiplayer');
+  };
+
+  // --- (NEW) --- A simple function to start the AI game.
+  const startAIGame = () => {
+    setGameMode('ai');
+  };
+
+  // --- (NEW) --- A simple function to return to menu.
+  const handleReturnToMenu = () => {
+    setGameMode('menu');
   };
 
 
@@ -173,17 +175,148 @@ function App() {
             >
               Player vs AI
             </button>
+            <button 
+              onClick={() => setShowSettings(true)}
+              className="px-6 py-3 bg-purple-600 rounded hover:bg-purple-700 w-64 text-lg"
+            >
+              Game Settings
+            </button>
           </div>
         );
     }
   };
 
 
+  // Show loading screen while checking authentication
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-gray-900 text-white flex items-center justify-center">
+        <div className="text-center">
+          <h1 className="text-4xl mb-8">Transcendence Pong</h1>
+          <p>Loading...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Show authentication forms if not authenticated
+  if (!isAuthenticated) {
+    return (
+      <div className="min-h-screen bg-gray-900 text-white flex items-center justify-center">
+        <div className="text-center">
+          <h1 className="text-4xl mb-8">Transcendence Pong</h1>
+          <p className="text-gray-400 mb-8">Please sign in to play the game</p>
+          {authMode === 'login' ? (
+            <LoginForm 
+              onLoginSuccess={handleAuthSuccess}
+              onSwitchToRegister={() => setAuthMode('register')}
+              onSwitchToForgotPassword={() => setView('forgotPassword')}
+              onSwitchToForgotUsername={() => setView('forgotUsername')}
+            />
+          ) : (
+            <RegisterForm 
+              onRegisterSuccess={handleAuthSuccess}
+              onSwitchToLogin={() => setAuthMode('login')}
+            />
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  // Show different views based on current view state
+  if (view === 'profile') {
+    return (
+      <div className="min-h-screen bg-gray-900 text-white flex items-center justify-center">
+        <div className="text-center">
+          <h1 className="text-4xl mb-8">User Profile</h1>
+          <UserProfile 
+            user={user!}
+            onLogout={handleLogout}
+            onBackToGame={() => setView('game')}
+            onDeleteAccount={() => setView('deleteAccount')}
+          />
+        </div>
+      </div>
+    );
+  }
+
+  if (view === 'deleteAccount') {
+    return (
+      <div className="min-h-screen bg-gray-900 text-white flex items-center justify-center">
+        <div className="text-center">
+          <h1 className="text-4xl mb-8">Delete Account</h1>
+          <DeleteAccountPage 
+            user={user!}
+            onBackToProfile={() => setView('profile')}
+            onAccountDeleted={handleLogout}
+          />
+        </div>
+      </div>
+    );
+  }
+
+  if (view === 'forgotPassword') {
+    return (
+      <div className="min-h-screen bg-gray-900 text-white flex items-center justify-center">
+        <div className="text-center">
+          <h1 className="text-4xl mb-8">Forgot Password</h1>
+          <ForgotPassword 
+            onBackToLogin={() => setView('game')}
+          />
+        </div>
+      </div>
+    );
+  }
+
+  if (view === 'forgotUsername') {
+    return (
+      <div className="min-h-screen bg-gray-900 text-white flex items-center justify-center">
+        <div className="text-center">
+          <h1 className="text-4xl mb-8">Forgot Username</h1>
+          <ForgotUsername 
+            onBackToLogin={() => setView('game')}
+          />
+        </div>
+      </div>
+    );
+  }
+
+  // Main game view
   return (
-    <div className="min-h-screen bg-gray-900 text-white flex items-center justify-center">
-      <div className="text-center">
-        <h1 className="text-4xl mb-8">Transcendence Pong</h1>
-        {renderGameContent()}
+    <GameSettingsProvider>
+      <div className="min-h-screen bg-gray-900 text-white flex items-center justify-center">
+        <div className="text-center">
+          <div className="flex justify-between items-center mb-8">
+            <div className="text-left">
+              <h1 className="text-4xl">Transcendence Pong</h1>
+              <p className="text-gray-400 mt-2">Welcome, {user?.username}!</p>
+            </div>
+            <div className="flex gap-4">
+              <button 
+                onClick={() => setView('profile')}
+                className="px-4 py-2 bg-blue-600 rounded hover:bg-blue-700"
+              >
+                Profile
+              </button>
+              <button 
+                onClick={handleLogout}
+                className="px-4 py-2 bg-red-600 rounded hover:bg-red-700"
+              >
+                Logout
+              </button>
+            </div>
+          </div>
+          {renderGameContent()}
+        </div>
+        
+        {/* Game Settings Modal */}
+        {showSettings && (
+          <GameSettings 
+            isOpen={showSettings}
+            onClose={() => setShowSettings(false)}
+          />
+        )}
       </div>
     </GameSettingsProvider>
   );

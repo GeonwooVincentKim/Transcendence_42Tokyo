@@ -1,6 +1,7 @@
 import React from 'react';
 import { usePongEngine } from '../hooks/usePongEngine';
 import { useHumanController } from '../hooks/useHumanController';
+import { useGameSettings } from '../contexts/GameSettingsContext';
 
 /**
  * The Player vs. Player Pong game component.
@@ -12,11 +13,14 @@ export const PongGame: React.FC = () => {
   //    and the controls to manipulate the engine.
   const { canvasRef, gameState, controls } = usePongEngine();
   
-  // 2. Initialize a controller for the LEFT paddle.
+  // 2. Get game settings from context
+  const { settings } = useGameSettings();
+  
+  // 3. Initialize a controller for the LEFT paddle.
   //    We pass it the engine's standardized movement function.
   useHumanController(controls.setPaddleMovement, 'left');
 
-  // 3. Initialize another controller for the RIGHT paddle.
+  // 4. Initialize another controller for the RIGHT paddle.
   //    This demonstrates the power of reusable hooks.
   useHumanController(controls.setPaddleMovement, 'right');
 

@@ -22,9 +22,9 @@ export class UserService {
    * @returns Promise<UserWithoutPassword> - User data without password
    */
   static async registerUser(username: string, email: string, password: string): Promise<UserWithoutPassword> {
-    // Check if username or email already exists
+    // Check if username or email already exists (only active users)
     const existingUser = await DatabaseService.query(
-      'SELECT id FROM users WHERE username = $1 OR email = $2',
+      'SELECT id FROM users WHERE (username = $1 OR email = $2) AND is_active = true',
       [username, email]
     );
     
