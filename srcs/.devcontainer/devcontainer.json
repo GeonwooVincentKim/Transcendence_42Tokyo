@@ -1,0 +1,24 @@
+{
+	"name": "Frontend Dev Container",
+
+
+	// ...
+	"dockerComposeFile": [
+		"../docker-compose.yml",
+		"../docker-compose.override.yml"
+	],
+	"service": "frontend-dev", // <-- Tells VS Code to attach to the dev service
+	// ...
+
+
+
+	// ADD THIS LINE.
+	// This tells VS Code to ONLY start this specific service.
+	"runServices": ["frontend-dev"],
+
+	// This is the folder to open inside the container. Correct.
+	"workspaceFolder": "/app"
+
+	
+}
+
