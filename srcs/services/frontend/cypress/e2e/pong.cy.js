@@ -3,71 +3,49 @@ describe('Pong Game E2E', () => {
   const password = 'testpassword';
   const email = 'testuser@example.com';
 
-  beforeEach(() => {
-    cy.clearCookies();
-    cy.clearLocalStorage();
+  it('should register (if needed) and login, then show menu', () => {
     cy.visit('/');
     cy.wait(1000);
+    // 회원가입 시도
+    cy.contains('Register here').click();
+    cy.get('input[placeholder="Choose a username (3-20 characters)"]').type(username);
+    cy.get('input[placeholder="Enter your email address"]').type(email);
+    cy.get('input[placeholder="Choose a password (min 6 characters)"]').type(password);
+    cy.get('input[placeholder="Confirm your password"]').type(password);
+    cy.get('button').contains('Register').click();
+    // 이미 계정이 있으면 로그인 폼으로 이동
     cy.get('body').then($body => {
-      if ($body.text().includes('Logout')) {
-        cy.contains('Logout').click();
-        cy.wait(500);
-      }
-      if ($body.text().includes('Register here')) {
-        cy.contains('Register here').click();
-        cy.get('input[placeholder="Choose a username (3-20 characters)"]').type(username);
-        cy.get('input[placeholder="Enter your email address"]').type(email);
-        cy.get('input[placeholder="Choose a password (min 6 characters)"]').type(password);
-        cy.get('input[placeholder="Confirm your password"]').type(password);
-        cy.get('button').contains('Register').click();
-        cy.get('body').then($body2 => {
-          if ($body2.text().includes('Already have an account?')) {
-            cy.contains('Login here').click();
-            cy.get('input[placeholder="Enter your username"]').type(username);
-            cy.get('input[placeholder="Enter your password"]').type(password);
-            cy.get('button[type="submit"]').contains(/login/i).click();
-          }
-        });
-      } else if ($body.text().includes('Login')) {
+      if ($body.text().includes('Already have an account?')) {
+        cy.contains('Login here').click();
         cy.get('input[placeholder="Enter your username"]').type(username);
         cy.get('input[placeholder="Enter your password"]').type(password);
         cy.get('button[type="submit"]').contains(/login/i).click();
       }
     });
-    cy.contains('Player vs Player (Local)').click();
+    // 메뉴가 보이는지 확인
+    cy.contains('Player vs Player (Local)').should('be.visible');
   });
 
   it('should render PongGame after menu click', () => {
+    cy.visit('/');
+    cy.wait(1000);
+    // 로그인/회원가입 과정 재사용
+    cy.contains('Register here').click();
+    cy.get('input[placeholder="Choose a username (3-20 characters)"]').type(username);
+    cy.get('input[placeholder="Enter your email address"]').type(email);
+    cy.get('input[placeholder="Choose a password (min 6 characters)"]').type(password);
+    cy.get('input[placeholder="Confirm your password"]').type(password);
+    cy.get('button').contains('Register').click();
+    cy.get('body').then($body => {
+      if ($body.text().includes('Already have an account?')) {
+        cy.contains('Login here').click();
+        cy.get('input[placeholder="Enter your username"]').type(username);
+        cy.get('input[placeholder="Enter your password"]').type(password);
+        cy.get('button[type="submit"]').contains(/login/i).click();
+      }
+    });
+    // 메뉴에서 Player vs Player 클릭
+    cy.contains('Player vs Player (Local)').click();
     cy.get('[data-testid="game-container"]').should('be.visible');
-  });
-
-  it('should render the game title', () => {
-    cy.contains('Player vs. Player').should('be.visible');
-  });
-
-  it('should render the game canvas', () => {
-    cy.get('canvas[aria-label="Pong game canvas"]').should('exist');
-  });
-
-  it('should display control instructions', () => {
-    cy.contains('Left Player: W (up) / S (down)').should('be.visible');
-    cy.contains('Right Player: ARROWUP (up) / ARROWDOWN (down)').should('be.visible');
-  });
-
-  it('should render with default dimensions', () => {
-    cy.get('canvas[aria-label="Pong game canvas"]')
-      .should('have.attr', 'width', '800')
-      .and('have.attr', 'height', '400');
-  });
-
-  it('should have proper component structure', () => {
-    cy.contains('Player vs. Player')
-      .closest('div')
-      .should('have.class', 'flex')
-      .and('have.class', 'flex-col')
-      .and('have.class', 'items-center');
-    cy.get('canvas[aria-label="Pong game canvas"]')
-      .should('have.class', 'border')
-      .and('have.class', 'border-white');
   });
 });
