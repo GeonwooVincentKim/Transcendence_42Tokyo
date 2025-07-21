@@ -1,13 +1,24 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { AuthService } from '../services/authService';
+import { GameStatsService } from '../services/gameStatsService';
 
 interface AIPongProps {
   roomId: string;
 }
 
+interface GameState {
+  leftPaddle: { y: number };
+  rightPaddle: { y: number };
+  ball: { x: number; y: number; dx: number; dy: number };
+  leftScore: number;
+  rightScore: number;
+  status: 'ready' | 'playing' | 'paused' | 'finished';
+}
+
 export const AIPong: React.FC<AIPongProps> = ({ roomId }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const wsRef = useRef<WebSocket | null>(null);
-  const [gameState, setGameState] = useState({
+  const [gameState, setGameState] = useState<GameState>({
     leftPaddle: { y: 200 },
     rightPaddle: { y: 200 },
     ball: { x: 400, y: 200, dx: 5, dy: 3 },
@@ -17,6 +28,27 @@ export const AIPong: React.FC<AIPongProps> = ({ roomId }) => {
   });
   const [connected, setConnected] = useState(false);
   const [keys, setKeys] = useState<Set<string>>(new Set());
+  const [sessionId, setSessionId] = useState<string | null>(null);
+  const [gameStarted, setGameStarted] = useState(false);
+  const [showGameOver, setShowGameOver] = useState(false);
+  const [gameResult, setGameResult] = useState<{ won: boolean; score: number } | null>(null);
+
+  // Initialize game session
+  useEffect(() => {
+    const initializeGame = async () => {
+      try {
+        const sessionId = await GameStatsService.createGameSession('ai', roomId);
+        setSessionId(sessionId);
+        console.log('Game session created:', sessionId);
+      } catch (error) {
+        console.error('Failed to create game session:', error);
+      }
+    };
+
+    if (AuthService.isAuthenticated()) {
+      initializeGame();
+    }
+  }, [roomId]);
 
   // WebSocket connection
   useEffect(() => {
@@ -34,6 +66,7 @@ export const AIPong: React.FC<AIPongProps> = ({ roomId }) => {
       switch (data.type) {
         case 'game_start':
           setGameState({ ...data.data, status: 'playing' });
+          setGameStarted(true);
           break;
         case 'paddle_update':
           if (data.data.player === 'left') {
@@ -50,6 +83,20 @@ export const AIPong: React.FC<AIPongProps> = ({ roomId }) => {
           break;
         case 'game_state_update':
           setGameState(prev => ({ ...data.data, status: prev.status }));
+          
+          // Check for game end condition
+          if (data.data.leftScore >= 11 || data.data.rightScore >= 11) {
+            const won = data.data.leftScore >= 11;
+            const score = data.data.leftScore;
+            setGameResult({ won, score });
+            setShowGameOver(true);
+            setGameState(prev => ({ ...prev, status: 'finished' }));
+            
+            // Save game result
+            if (sessionId) {
+              saveGameResult(won, score);
+            }
+          }
           break;
         case 'game_pause':
           setGameState(prev => ({ ...prev, status: 'paused' }));
@@ -64,6 +111,9 @@ export const AIPong: React.FC<AIPongProps> = ({ roomId }) => {
             rightPaddle: { y: 200 },
             status: 'ready'
           }));
+          setShowGameOver(false);
+          setGameResult(null);
+          setGameStarted(false);
           break;
       }
     };
@@ -76,7 +126,25 @@ export const AIPong: React.FC<AIPongProps> = ({ roomId }) => {
     return () => {
       ws.close();
     };
-  }, [roomId]);
+  }, [roomId, sessionId]);
+
+  // Save game result to database
+  const saveGameResult = async (won: boolean, score: number) => {
+    if (!sessionId) return;
+
+    try {
+      await GameStatsService.saveGameResult({
+        sessionId,
+        playerSide: 'left',
+        score,
+        won,
+        gameType: 'ai'
+      });
+      console.log('Game result saved successfully');
+    } catch (error) {
+      console.error('Failed to save game result:', error);
+    }
+  };
 
   // Keyboard input handling
   useEffect(() => {
@@ -166,13 +234,34 @@ export const AIPong: React.FC<AIPongProps> = ({ roomId }) => {
       ctx.fillStyle = '#fff';
       ctx.fillText(gameState.leftScore.toString(), 200, 30);
       ctx.fillText(gameState.rightScore.toString(), 600, 30);
+
+      // Draw game status
+      if (gameState.status === 'ready' && !gameStarted) {
+        ctx.font = '18px Arial';
+        ctx.fillStyle = '#fff';
+        ctx.fillText('Press SPACE to start', 300, 200);
+      }
+
+      if (gameState.status === 'paused') {
+        ctx.font = '18px Arial';
+        ctx.fillStyle = '#fff';
+        ctx.fillText('Game Paused', 350, 200);
+      }
     };
 
     const interval = setInterval(renderLoop, 16);
     return () => clearInterval(interval);
-  }, [gameState]);
+  }, [gameState, gameStarted]);
 
   // Game control functions
+  const handleStart = () => {
+    if (wsRef.current) {
+      wsRef.current.send(JSON.stringify({
+        type: 'game_start'
+      }));
+    }
+  };
+
   const handlePause = () => {
     if (wsRef.current) {
       wsRef.current.send(JSON.stringify({
@@ -188,3 +277,112 @@ export const AIPong: React.FC<AIPongProps> = ({ roomId }) => {
       }));
     }
   };
+
+  // Handle game over
+  const handleGameOver = () => {
+    setShowGameOver(false);
+    setGameResult(null);
+    handleReset();
+  };
+
+  // Handle space key for starting game
+  useEffect(() => {
+    const handleSpaceKey = (e: KeyboardEvent) => {
+      if (e.code === 'Space' && gameState.status === 'ready' && !gameStarted) {
+        e.preventDefault();
+        handleStart();
+      }
+    };
+
+    window.addEventListener('keydown', handleSpaceKey);
+    return () => window.removeEventListener('keydown', handleSpaceKey);
+  }, [gameState.status, gameStarted]);
+
+  return (
+    <div className="flex flex-col items-center">
+      <div className="mb-4 text-center">
+        <h2 className="text-2xl font-bold mb-2">Player vs AI</h2>
+        <p className="text-sm text-gray-300 mb-2">
+          Use W/S keys to move your paddle (left side)
+        </p>
+        <p className="text-sm text-gray-300">
+          Press SPACE to start the game
+        </p>
+      </div>
+
+      <div className="relative">
+        <canvas
+          ref={canvasRef}
+          width={800}
+          height={400}
+          className="border border-gray-600 bg-black"
+          aria-label="Pong game canvas"
+        />
+
+        {/* Game Over Modal */}
+        {showGameOver && gameResult && (
+          <div className="absolute inset-0 bg-black bg-opacity-75 flex items-center justify-center">
+            <div className="bg-gray-800 p-6 rounded-lg text-center">
+              <h3 className="text-2xl font-bold mb-4">
+                {gameResult.won ? 'You Won!' : 'You Lost!'}
+              </h3>
+              <p className="text-lg mb-4">
+                Final Score: {gameResult.score} - {gameResult.won ? 'AI Score' : 'Your Score'}
+              </p>
+              <button
+                onClick={handleGameOver}
+                className="px-4 py-2 bg-blue-600 rounded hover:bg-blue-700"
+              >
+                Play Again
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+
+      <div className="mt-4 space-x-4">
+        {gameState.status === 'ready' && !gameStarted && (
+          <button
+            onClick={handleStart}
+            className="px-4 py-2 bg-green-600 rounded hover:bg-green-700"
+          >
+            Start Game
+          </button>
+        )}
+        
+        {gameState.status === 'playing' && (
+          <button
+            onClick={handlePause}
+            className="px-4 py-2 bg-yellow-600 rounded hover:bg-yellow-700"
+          >
+            Pause
+          </button>
+        )}
+        
+        {gameState.status === 'paused' && (
+          <button
+            onClick={handleStart}
+            className="px-4 py-2 bg-green-600 rounded hover:bg-green-700"
+          >
+            Resume
+          </button>
+        )}
+        
+        <button
+          onClick={handleReset}
+          className="px-4 py-2 bg-red-600 rounded hover:bg-red-700"
+        >
+          Reset
+        </button>
+      </div>
+
+      <div className="mt-4 text-sm text-gray-400">
+        {connected ? (
+          <span className="text-green-400">Connected to game server</span>
+        ) : (
+          <span className="text-red-400">Disconnected from game server</span>
+        )}
+      </div>
+    </div>
+  );
+};

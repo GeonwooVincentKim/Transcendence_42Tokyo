@@ -1,6 +1,7 @@
 import React from 'react';
 import { usePongEngine } from '../hooks/usePongEngine';
 import { useHumanController } from '../hooks/useHumanController';
+import { useGameSettings } from '../contexts/GameSettingsContext';
 
 /**
  * The Player vs. Player Pong game component.
@@ -20,7 +21,10 @@ export const PongGame: React.FC = () => {
   //    This demonstrates the power of reusable hooks.
   useHumanController(controls.setPaddleMovement, 'right');
 
-  // 4. Render the UI, using the state and controls provided by the engine.
+  // 4. Get game settings for control instructions
+  const { settings } = useGameSettings();
+
+  // 5. Render the UI, using the state and controls provided by the engine.
   return (
     <div className="flex flex-col items-center" data-testid="game-container">
       <h2 className="text-2xl mb-4">Player vs. Player</h2>
