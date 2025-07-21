@@ -18,17 +18,6 @@ import Ranking from './components/Ranking';
  * Main App Component
  */
 function App() {
-  const testMode = typeof window !== 'undefined' && window.location.href.includes('test=1');
-  if (testMode) {
-    console.log('TEST MODE ACTIVATED');
-    return (
-      <GameSettingsProvider>
-        <div className="min-h-screen bg-gray-900 text-white flex items-center justify-center">
-          <PongGame />
-        </div>
-      </GameSettingsProvider>
-    );
-  }
   const [gameMode, setGameMode] = useState<'menu' | 'single' | 'multiplayer' | 'ai'>('menu');
   
     // NOTE: roomId and playerSide are now ONLY for the multiplayer mode.
@@ -47,15 +36,6 @@ function App() {
    * Check authentication status on component mount
    */
   useEffect(() => {
-    // TEST MODE: If ?test=1 is in the URL, auto-login and go to PongGame
-    if (window.location.href.includes('test=1')) {
-      console.log('TEST MODE ACTIVATED');
-      setUser({ username: 'testuser', email: 'test@example.com' } as User);
-      setIsAuthenticated(true);
-      setGameMode('single');
-      setIsLoading(false);
-      return;
-    }
     const checkAuth = () => {
       const storedAuth = AuthService.getStoredAuthData();
       if (storedAuth) {
