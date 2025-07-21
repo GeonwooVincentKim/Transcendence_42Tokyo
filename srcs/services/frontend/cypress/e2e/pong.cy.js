@@ -4,24 +4,41 @@ describe('Pong Game E2E', () => {
   const email = 'testuser@example.com';
 
   beforeEach(() => {
+    cy.clearCookies();
+    cy.clearLocalStorage();
     cy.visit('/');
     cy.wait(1000);
-    // 회원가입 및 로그인 후 메뉴 진입
-    cy.contains('Register here').click();
-    cy.get('input[placeholder="Choose a username (3-20 characters)"]').type(username);
-    cy.get('input[placeholder="Enter your email address"]').type(email);
-    cy.get('input[placeholder="Choose a password (min 6 characters)"]').type(password);
-    cy.get('input[placeholder="Confirm your password"]').type(password);
-    cy.get('button').contains('Register').click();
     cy.get('body').then($body => {
-      if ($body.text().includes('Already have an account?')) {
-        cy.contains('Login here').click();
+      if ($body.text().includes('Logout')) {
+        cy.contains('Logout').click();
+        cy.wait(500);
+      }
+      if ($body.text().includes('Register here')) {
+        cy.contains('Register here').click();
+        cy.get('input[placeholder="Choose a username (3-20 characters)"]').type(username);
+        cy.get('input[placeholder="Enter your email address"]').type(email);
+        cy.get('input[placeholder="Choose a password (min 6 characters)"]').type(password);
+        cy.get('input[placeholder="Confirm your password"]').type(password);
+        cy.get('button').contains('Register').click();
+        cy.get('body').then($body2 => {
+          if ($body2.text().includes('Already have an account?')) {
+            cy.contains('Login here').click();
+            cy.get('input[placeholder="Enter your username"]').type(username);
+            cy.get('input[placeholder="Enter your password"]').type(password);
+            cy.get('button[type="submit"]').contains(/login/i).click();
+          }
+        });
+      } else if ($body.text().includes('Login')) {
         cy.get('input[placeholder="Enter your username"]').type(username);
         cy.get('input[placeholder="Enter your password"]').type(password);
         cy.get('button[type="submit"]').contains(/login/i).click();
       }
     });
     cy.contains('Player vs Player (Local)').click();
+  });
+
+  it('should render PongGame after menu click', () => {
+    cy.get('[data-testid="game-container"]').should('be.visible');
   });
 
   it('should render the game title', () => {
