@@ -1,6 +1,8 @@
 import Fastify from 'fastify';
 import cors from '@fastify/cors';
 import fastifyWebsocket from '@fastify/websocket';
+import { authRoutes } from './routes/auth';
+import { DatabaseService } from './services/databaseService';
 
 /**
  * Pong Game Backend Server
@@ -9,6 +11,7 @@ import fastifyWebsocket from '@fastify/websocket';
  * - REST API endpoints for game state management
  * - WebSocket connections for real-time game updates
  * - CORS support for frontend integration
+ * - PostgreSQL database integration
  */
 
 const isProduction = process.env.NODE_ENV === 'production';
@@ -32,7 +35,9 @@ server.register(cors, {
   origin: process.env.NODE_ENV === 'production'
     ? ['http://localhost:3000', 'http://localhost:80']
     : '*',
-  credentials: true
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'], // Ensure Authorization is allowed
 });
 
 /**
@@ -42,18 +47,34 @@ server.register(fastifyWebsocket);
 
 /**
  * Health check endpoint
- * Used to verify server is running
+ * Returns server status and database connectivity
  */
 server.get('/', async (request, reply) => {
-  return {
-    status: 'ok',
-    message: 'Pong Game Backend Server',
-    timestamp: new Date().toISOString()
-  };
+  try {
+    const dbHealth = await DatabaseService.healthCheck();
+    const dbStats = await DatabaseService.getStats();
+    
+    return {
+      status: 'ok',
+      message: 'Pong Game Backend Server',
+      timestamp: new Date().toISOString(),
+      database: {
+        connected: dbHealth,
+        stats: dbStats
+      }
+    };
+  } catch (error) {
+    server.log.error('Health check failed:', error);
+    return reply.status(500).send({
+      status: 'error',
+      message: 'Server health check failed',
+      timestamp: new Date().toISOString()
+    });
+  }
 });
 
 /**
- * API ping endpoint for testing connectivity
+ * Connectivity test endpoint
  */
 server.get('/api/ping', async (request, reply) => {
   return {
@@ -64,7 +85,7 @@ server.get('/api/ping', async (request, reply) => {
 
 /**
  * Game state endpoint
- * Returns current game state (placeholder for future implementation)
+ * Returns current game state (placeholder for now)
  */
 server.get('/api/game/state', async (request, reply) => {
   return {
@@ -77,6 +98,25 @@ server.get('/api/game/state', async (request, reply) => {
     },
     timestamp: new Date().toISOString()
   };
+});
+
+/**
+ * Database statistics endpoint
+ */
+server.get('/api/stats', async (request, reply) => {
+  try {
+    const stats = await DatabaseService.getStats();
+    return {
+      stats,
+      timestamp: new Date().toISOString()
+    };
+  } catch (error) {
+    server.log.error('Failed to get database stats:', error);
+    return reply.status(500).send({
+      error: 'Failed to get database statistics',
+      message: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
 });
 
 /**
@@ -110,50 +150,44 @@ server.get('/ws/game/:roomId', { websocket: true }, (connection, req) => {
       roomId,
       message: 'Connected to Pong Game Server'
     }));
+    server.log.info('Sent connection_established message to client');
   } catch (error) {
     server.log.error('Error sending initial message:', error);
     return;
   }
 
-  // Set up message handlers
-  const handleMessage = (message: Buffer) => {
+  // Handle incoming messages
+  connection.socket.on('message', (message: Buffer) => {
     try {
       const data = JSON.parse(message.toString());
-      if (data.type === 'ping') {
-        // Respond to keepalive ping
-        connection.socket.write(JSON.stringify({ type: 'pong' }));
-        return;
-      }
-      server.log.info(`Received message from ${clientId} in room ${roomId}:`, data);
-      
-      const response = JSON.stringify({
-        type: 'game_update',
+      server.log.info(`Received message from client ${clientId}:`, data);
+
+      // Echo the message back for now
+      connection.socket.write(JSON.stringify({
+        type: 'echo',
         clientId,
         roomId,
-        data: data,
+        data,
         timestamp: new Date().toISOString()
-      });
-
-      connection.socket.write(response);
+      }));
     } catch (error) {
-      server.log.error(`Error processing message from ${clientId} in room ${roomId}:`, error);
-      
-      const errorResponse = JSON.stringify({
+      server.log.error('Error processing message:', error);
+      connection.socket.write(JSON.stringify({
         type: 'error',
-        message: 'Invalid message format'
-      });
-
-      connection.socket.write(errorResponse);
+        message: 'Invalid message format',
+        timestamp: new Date().toISOString()
+      }));
     }
-  };
-
-  // Set up event handlers
-  connection.socket.on('message', handleMessage);
-  connection.socket.on('close', () => {
-    server.log.info(`WebSocket client disconnected: ${clientId} from room: ${roomId}`);
   });
+
+  // Handle client disconnect
+  connection.socket.on('close', () => {
+    server.log.info(`WebSocket client ${clientId} disconnected from room: ${roomId}`);
+  });
+
+  // Handle connection errors
   connection.socket.on('error', (error: Error) => {
-    server.log.error(`WebSocket error for ${clientId} in room ${roomId}:`, error);
+    server.log.error(`WebSocket error for client ${clientId}:`, error);
   });
 });
 
@@ -167,6 +201,15 @@ const start = async () => {
     const host = process.env.HOST || '0.0.0.0';
 
     server.log.info('Starting Pong Game Backend Server...');
+    
+    // Initialize database connection
+    server.log.info('Initializing database connection...');
+    await DatabaseService.initialize();
+    server.log.info('Database connection initialized successfully');
+    
+    // Register authentication routes
+    await server.register(authRoutes);
+    
     await server.listen({ port, host });
 
     server.log.info(`Server listening on http://${host}:${port}`);
@@ -174,25 +217,45 @@ const start = async () => {
     server.log.info(`  - GET  / (health check)`);
     server.log.info(`  - GET  /api/ping (connectivity test)`);
     server.log.info(`  - GET  /api/game/state (game state)`);
+    server.log.info(`  - GET  /api/stats (database statistics)`);
+    server.log.info(`  - POST /api/auth/register (user registration)`);
+    server.log.info(`  - POST /api/auth/login (user login)`);
+    server.log.info(`  - GET  /api/auth/profile (user profile)`);
+    server.log.info(`  - POST /api/auth/refresh (token refresh)`);
+    server.log.info(`  - GET  /api/auth/users (list all users)`);
     server.log.info(`  - WS   /ws (WebSocket for real-time game)`);
   } catch (err) {
     server.log.error('Failed to start server:', err);
+    console.error('Detailed error:', err);
     process.exit(1);
   }
 };
 
-// Handle graceful shutdown
-process.on('SIGINT', async () => {
-  server.log.info('Received SIGINT, shutting down gracefully...');
-  await server.close();
-  process.exit(0);
-});
+/**
+ * Graceful shutdown handler
+ */
+const gracefulShutdown = async (signal: string) => {
+  server.log.info(`Received ${signal}. Starting graceful shutdown...`);
+  
+  try {
+    // Close database connections
+    await DatabaseService.close();
+    server.log.info('Database connections closed');
+    
+    // Close server
+    await server.close();
+    server.log.info('Server closed');
+    
+    process.exit(0);
+  } catch (error) {
+    server.log.error('Error during graceful shutdown:', error);
+    process.exit(1);
+  }
+};
 
-process.on('SIGTERM', async () => {
-  server.log.info('Received SIGTERM, shutting down gracefully...');
-  await server.close();
-  process.exit(0);
-});
+// Handle shutdown signals
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+process.on('SIGINT', () => gracefulShutdown('SIGINT'));
 
 // Start the server
 start();

@@ -18,11 +18,38 @@ services:
       - "8000:8000"
     environment:
       - NODE_ENV=production
+      - JWT_SECRET=changeme-super-secret-key
+      - DATABASE_URL=postgresql://pong_user:pong_password@postgres:5432/pong_db
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_NAME=pong_db
+      - DB_USER=pong_user
+      - DB_PASSWORD=pong_password
+    depends_on:
+      - postgres
     restart: unless-stopped
     networks:
       - pong-network
     stdin_open: true
     tty: true
+
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      - POSTGRES_DB=pong_db
+      - POSTGRES_USER=pong_user
+      - POSTGRES_PASSWORD=pong_password
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./services/backend/db/init.sql:/docker-entrypoint-initdb.d/init.sql
+    restart: unless-stopped
+    networks:
+      - pong-network
+
+volumes:
+  postgres_data:
 
 networks:
   pong-network:
