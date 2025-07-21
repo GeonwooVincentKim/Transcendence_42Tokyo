@@ -16,7 +16,7 @@ describe('PongGame Component', () => {
         <PongGame />
       </GameSettingsProvider>
     );
-    expect(screen.getByText('Pong Game')).toBeInTheDocument();
+    expect(screen.getByText('Player vs. Player')).toBeInTheDocument();
   });
 
   /**
@@ -89,7 +89,7 @@ describe('PongGame Component', () => {
     );
     
     // Check for main container
-    const container = screen.getByText('Pong Game').closest('div');
+    const container = screen.getByText('Player vs. Player').closest('div');
     expect(container).toHaveClass('flex', 'flex-col', 'items-center');
     
     // Check for canvas container
