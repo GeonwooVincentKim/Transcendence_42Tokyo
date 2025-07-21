@@ -12,11 +12,23 @@ import { GameSettings } from './components/GameSettings'
 import { AuthService } from './services/authService'
 import { AuthResponse, User } from './types/auth'
 import { GameSettingsProvider } from './contexts/GameSettingsContext'
+import Ranking from './components/Ranking';
 
 /**
  * Main App Component
  */
-function App() {    
+function App() {
+  const testMode = typeof window !== 'undefined' && window.location.href.includes('test=1');
+  if (testMode) {
+    console.log('TEST MODE ACTIVATED');
+    return (
+      <GameSettingsProvider>
+        <div className="min-h-screen bg-gray-900 text-white flex items-center justify-center">
+          <PongGame />
+        </div>
+      </GameSettingsProvider>
+    );
+  }
   const [gameMode, setGameMode] = useState<'menu' | 'single' | 'multiplayer' | 'ai'>('menu');
   
     // NOTE: roomId and playerSide are now ONLY for the multiplayer mode.
@@ -28,13 +40,22 @@ function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
-  const [view, setView] = useState<'game' | 'profile' | 'deleteAccount' | 'forgotPassword' | 'forgotUsername' | 'settings'>('game');
+  const [view, setView] = useState<'game' | 'profile' | 'deleteAccount' | 'forgotPassword' | 'forgotUsername' | 'settings' | 'ranking'>('game');
   const [showSettings, setShowSettings] = useState(false);
 
   /**
    * Check authentication status on component mount
    */
   useEffect(() => {
+    // TEST MODE: If ?test=1 is in the URL, auto-login and go to PongGame
+    if (window.location.href.includes('test=1')) {
+      console.log('TEST MODE ACTIVATED');
+      setUser({ username: 'testuser', email: 'test@example.com' } as User);
+      setIsAuthenticated(true);
+      setGameMode('single');
+      setIsLoading(false);
+      return;
+    }
     const checkAuth = () => {
       const storedAuth = AuthService.getStoredAuthData();
       if (storedAuth) {
@@ -181,6 +202,12 @@ function App() {
             >
               Game Settings
             </button>
+            <button 
+              onClick={() => setView('ranking')}
+              className="px-6 py-3 bg-yellow-600 rounded hover:bg-yellow-700 w-64 text-lg"
+            >
+              Ranking
+            </button>
           </div>
         );
     }
@@ -277,6 +304,23 @@ function App() {
           <ForgotUsername 
             onBackToLogin={() => setView('game')}
           />
+        </div>
+      </div>
+    );
+  }
+
+  if (view === 'ranking') {
+    return (
+      <div className="min-h-screen bg-gray-900 text-white flex items-center justify-center">
+        <div className="text-center">
+          <h1 className="text-4xl mb-8">User Ranking</h1>
+          <Ranking />
+          <button
+            onClick={() => setView('game')}
+            className="mt-8 px-4 py-2 bg-gray-600 rounded hover:bg-gray-700"
+          >
+            Back to Game
+          </button>
         </div>
       </div>
     );

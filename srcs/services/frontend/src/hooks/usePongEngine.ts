@@ -33,7 +33,7 @@ const GAME_CONFIG = {
  * The core Pong game engine, encapsulated in a custom hook.
  * It handles all game state, physics, and the game loop with enhanced bounce physics.
  */
-export const usePongEngine = (width = GAME_CONFIG.WIDTH, height = GAME_CONFIG.HEIGHT) => {
+export const usePongEngine = (width: number = GAME_CONFIG.WIDTH, height: number = GAME_CONFIG.HEIGHT) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [status, setStatus] = useState<'ready' | 'playing' | 'paused'>('ready');
   const { settings } = useGameSettings();
