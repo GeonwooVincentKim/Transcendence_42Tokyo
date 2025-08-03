@@ -29,9 +29,6 @@ export const PongGame: React.FC<PongGameProps> = ({ width = 800, height = 400 })
   //    This demonstrates the power of reusable hooks.
   useHumanController(controls.setPaddleMovement, 'right');
 
-  // 4. Get game settings for control instructions
-  const { settings } = useGameSettings();
-
   // 5. Render the UI, using the state and controls provided by the engine.
   return (
     <div className="flex flex-col items-center" data-testid="game-container">
