@@ -285,4 +285,23 @@ export class AuthService {
       return null;
     }
   }
+
+  /**
+   * Get statistics for a user
+   * @param userId - User's unique ID
+   * @returns Promise<any> - User statistics object
+   */
+  static async getUserStatistics(userId: string): Promise<any> {
+    const response = await fetch(`${API_BASE_URL}/api/auth/user/${userId}/statistics`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+    if (!response.ok) {
+      const error: ErrorResponse = await response.json();
+      throw new Error(error.message || 'Failed to get user statistics');
+    }
+    return response.json();
+  }
 } 

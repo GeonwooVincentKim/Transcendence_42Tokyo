@@ -8,16 +8,24 @@ import { useGameSettings } from '../contexts/GameSettingsContext';
  * It assembles the core game engine with two human-controlled paddle controllers.
  */
 
-export const PongGame: React.FC = () => {
+interface PongGameProps {
+  width?: number;
+  height?: number;
+}
+
+export const PongGame: React.FC<PongGameProps> = ({ width = 800, height = 400 }) => {
   // 1. Initialize the core game engine. This gives us the state, the canvas ref,
   //    and the controls to manipulate the engine.
-  const { canvasRef, gameState, controls } = usePongEngine();
+  const { canvasRef, gameState, controls } = usePongEngine(width, height);
   
-  // 2. Initialize a controller for the LEFT paddle.
+  // 2. Get game settings from context
+  const { settings } = useGameSettings();
+  
+  // 3. Initialize a controller for the LEFT paddle.
   //    We pass it the engine's standardized movement function.
   useHumanController(controls.setPaddleMovement, 'left');
 
-  // 3. Initialize another controller for the RIGHT paddle.
+  // 4. Initialize another controller for the RIGHT paddle.
   //    This demonstrates the power of reusable hooks.
   useHumanController(controls.setPaddleMovement, 'right');
 
@@ -31,9 +39,9 @@ export const PongGame: React.FC = () => {
       
       {/* The buttons call the control functions directly from the engine hook */}
       <div className="mb-4 flex gap-2">
-        <button onClick={controls.start}>Start</button>
-        <button onClick={controls.pause}>Pause</button>
-        <button onClick={controls.reset}>Reset</button>
+        <button data-testid="start-button" onClick={controls.start}>Start</button>
+        <button data-testid="pause-button" onClick={controls.pause}>Pause</button>
+        <button data-testid="reset-button" onClick={controls.reset}>Reset</button>
       </div>
 
       {/* The UI reads its data directly from the gameState object */}
@@ -47,8 +55,8 @@ export const PongGame: React.FC = () => {
       {/* The canvas element is linked to the engine via the canvasRef */}
       <canvas
         ref={canvasRef}
-        width={800}
-        height={400}
+        width={width}
+        height={height}
         className="border border-white"
         aria-label="Pong game canvas"
       />
