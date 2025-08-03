@@ -2,6 +2,7 @@ import Fastify from 'fastify';
 import cors from '@fastify/cors';
 import fastifyWebsocket from '@fastify/websocket';
 import { authRoutes } from './routes/auth';
+import { gameRoutes } from './routes/game';
 import { DatabaseService } from './services/databaseService';
 
 /**
@@ -210,6 +211,9 @@ const start = async () => {
     // Register authentication routes
     await server.register(authRoutes);
     
+    // Register game routes
+    await server.register(gameRoutes);
+    
     await server.listen({ port, host });
 
     server.log.info(`Server listening on http://${host}:${port}`);
@@ -223,6 +227,11 @@ const start = async () => {
     server.log.info(`  - GET  /api/auth/profile (user profile)`);
     server.log.info(`  - POST /api/auth/refresh (token refresh)`);
     server.log.info(`  - GET  /api/auth/users (list all users)`);
+    server.log.info(`  - POST /api/game/sessions (create game session)`);
+    server.log.info(`  - PUT  /api/game/sessions/:id/end (end game session)`);
+    server.log.info(`  - POST /api/game/results (save game result)`);
+    server.log.info(`  - GET  /api/game/statistics (user statistics)`);
+    server.log.info(`  - GET  /api/game/leaderboard (top players)`);
     server.log.info(`  - WS   /ws (WebSocket for real-time game)`);
   } catch (err) {
     server.log.error('Failed to start server:', err);

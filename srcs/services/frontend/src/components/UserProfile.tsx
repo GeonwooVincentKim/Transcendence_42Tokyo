@@ -2,22 +2,44 @@
  * User Profile Component
  * 
  * Displays user information and provides logout functionality.
- * Shows username, email, account creation date, and last activity.
+ * Shows username, email, account creation date, last activity, and game statistics.
  */
 
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { AuthService } from '../services/authService';
+import { GameStatsService, UserStatistics } from '../services/gameStatsService';
 import { User } from '../types/auth';
 
 interface UserProfileProps {
   user: User;
   onLogout: () => void;
-  onBackToGame: () => void; // Added prop
-  onDeleteAccount: () => void; // Add this prop
+  onBackToGame: () => void;
+  onDeleteAccount: () => void;
 }
 
 export const UserProfile: React.FC<UserProfileProps> = ({ user, onLogout, onBackToGame, onDeleteAccount }) => {
-  // const [showDeleteModal, setShowDeleteModal] = useState(false); // Removed state
+  const [statistics, setStatistics] = useState<UserStatistics | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  /**
+   * Fetch user statistics on component mount
+   */
+  useEffect(() => {
+    const fetchStatistics = async () => {
+      try {
+        setLoading(true);
+        const stats = await GameStatsService.getUserStatistics();
+        setStatistics(stats);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to load statistics');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchStatistics();
+  }, []);
 
   /**
    * Handle logout action
@@ -42,6 +64,17 @@ export const UserProfile: React.FC<UserProfileProps> = ({ user, onLogout, onBack
       hour: '2-digit',
       minute: '2-digit'
     });
+  };
+
+  /**
+   * Calculate win rate percentage
+   * @param won - Number of games won
+   * @param total - Total number of games
+   * @returns string - Win rate percentage
+   */
+  const calculateWinRate = (won: number, total: number): string => {
+    if (total === 0) return '0%';
+    return `${Math.round((won / total) * 100)}%`;
   };
 
   return (
@@ -84,26 +117,69 @@ export const UserProfile: React.FC<UserProfileProps> = ({ user, onLogout, onBack
           </div>
         </div>
 
-        {/* Game Statistics (Placeholder for future implementation) */}
+        {/* Game Statistics */}
         <div className="bg-gray-50 rounded-lg p-4">
           <h3 className="text-lg font-semibold text-gray-800 mb-3">Game Statistics</h3>
           
-          <div className="space-y-2">
-            <div className="flex justify-between">
-              <span className="text-gray-600">Games played:</span>
-              <span className="font-medium">0</span>
+          {loading ? (
+            <div className="text-center py-4">
+              <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600 mx-auto"></div>
+              <p className="text-gray-600 mt-2">Loading statistics...</p>
             </div>
-            
-            <div className="flex justify-between">
-              <span className="text-gray-600">Wins:</span>
-              <span className="font-medium">0</span>
+          ) : error ? (
+            <div className="text-center py-4">
+              <p className="text-red-600">{error}</p>
+              <button
+                onClick={() => window.location.reload()}
+                className="mt-2 text-blue-600 hover:text-blue-800"
+              >
+                Retry
+              </button>
             </div>
-            
-            <div className="flex justify-between">
-              <span className="text-gray-600">Win rate:</span>
-              <span className="font-medium">0%</span>
+          ) : statistics ? (
+            <div className="space-y-2">
+              <div className="flex justify-between">
+                <span className="text-gray-600">Total games:</span>
+                <span className="font-medium">{statistics.totalGames}</span>
+              </div>
+              
+              <div className="flex justify-between">
+                <span className="text-gray-600">Games won:</span>
+                <span className="font-medium text-green-600">{statistics.gamesWon}</span>
+              </div>
+              
+              <div className="flex justify-between">
+                <span className="text-gray-600">Games lost:</span>
+                <span className="font-medium text-red-600">{statistics.gamesLost}</span>
+              </div>
+              
+              <div className="flex justify-between">
+                <span className="text-gray-600">Win rate:</span>
+                <span className="font-medium">
+                  {calculateWinRate(statistics.gamesWon, statistics.totalGames)}
+                </span>
+              </div>
+              
+              <div className="flex justify-between">
+                <span className="text-gray-600">Total score:</span>
+                <span className="font-medium">{statistics.totalScore}</span>
+              </div>
+              
+              <div className="flex justify-between">
+                <span className="text-gray-600">Highest score:</span>
+                <span className="font-medium text-yellow-600">{statistics.highestScore}</span>
+              </div>
+              
+              <div className="flex justify-between">
+                <span className="text-gray-600">Average score:</span>
+                <span className="font-medium">{statistics.averageScore.toFixed(1)}</span>
+              </div>
             </div>
-          </div>
+          ) : (
+            <div className="text-center py-4">
+              <p className="text-gray-600">No statistics available</p>
+            </div>
+          )}
         </div>
       </div>
 
@@ -130,9 +206,6 @@ export const UserProfile: React.FC<UserProfileProps> = ({ user, onLogout, onBack
           Delete Account
         </button>
       </div>
-
-      {/* Delete Account Modal */}
-      {/* Removed DeleteAccountModal component */}
     </div>
   );
 }; 
