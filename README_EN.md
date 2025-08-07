@@ -1,6 +1,6 @@
 # Pong Game Project - Common Framework
 
-A comprehensive multiplayer Pong game built with modern web technologies, designed for easy onboarding of new team members.
+A comprehensive multiplayer Pong game built with modern web technologies.
 
 ## 🚀 Quick Start
 
@@ -66,11 +66,11 @@ Trascendence/
 └── TESTING.md               # Detailed testing guide
 ```
 
-## 🏗️ Common Framework Architecture
+## 🏗️ Architecture
 
 ### Services Overview
 
-#### 1. Backend Service (`srcs/services/backend/`)
+#### 1. Backend Service
 - **Technology**: Node.js + Express + TypeScript
 - **Database**: PostgreSQL
 - **Features**: 
@@ -80,7 +80,7 @@ Trascendence/
   - User management
   - Real-time communication
 
-#### 2. Frontend Service (`srcs/services/frontend/`)
+#### 2. Frontend Service
 - **Technology**: React 19 + TypeScript + Vite
 - **Styling**: TailwindCSS
 - **Features**:
@@ -89,7 +89,7 @@ Trascendence/
   - User authentication UI
   - Game controls and settings
 
-#### 3. Docker Service (`srcs/services/docker/`)
+#### 3. Docker Service
 - **Technology**: Docker + Docker Compose
 - **Features**:
   - Multi-service orchestration
@@ -97,7 +97,7 @@ Trascendence/
   - Database initialization
   - Network configuration
 
-#### 4. Tester Service (`srcs/services/tester/`)
+#### 4. Tester Service
 - **Technology**: Jest + Cypress + TypeScript
 - **Features**:
   - Unit testing framework
@@ -129,27 +129,7 @@ Trascendence/
 - **Error handling** and logging
 - **Performance optimization**
 
-## 🛠️ Development Guidelines
-
-### Code Standards
-
-#### TypeScript
-- **Strict mode** enabled
-- **ESLint** for code quality
-- **Prettier** for formatting
-- **Type safety** throughout
-
-#### Testing
-- **Jest** for unit tests
-- **Cypress** for E2E tests
-- **Test coverage** requirements
-- **Table-driven tests** pattern
-
-#### Documentation
-- **JSDoc** comments for functions
-- **README** files for each service
-- **API documentation** with examples
-- **Code examples** and tutorials
+## 🛠️ Development
 
 ### Adding New Features
 
@@ -176,6 +156,26 @@ npm test             # Run all tests
 npm run test:e2e     # Run E2E tests
 npm run test:coverage # Run with coverage
 ```
+
+### Code Standards
+
+#### TypeScript
+- **Strict mode** enabled
+- **ESLint** for code quality
+- **Prettier** for formatting
+- **Type safety** throughout
+
+#### Testing
+- **Jest** for unit tests
+- **Cypress** for E2E tests
+- **Test coverage** requirements
+- **Table-driven tests** pattern
+
+#### Documentation
+- **JSDoc** comments for functions
+- **README** files for each service
+- **API documentation** with examples
+- **Code examples** and tutorials
 
 ## 🧪 Testing Strategy
 
@@ -284,10 +284,6 @@ refactor: improve game state management
 - [Frontend Service](./srcs/services/frontend/README.md)
 - [Tester Service](./srcs/services/tester/README.md)
 - [Testing Guide](./TESTING.md)
-
-### Language-Specific Documentation
-- [English Documentation](./README_EN.md)
-- [Japanese Documentation](./README_JP.md)
 
 ### API Documentation
 - **Base URL**: `http://localhost:8000`

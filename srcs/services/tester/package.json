@@ -1,0 +1,42 @@
+{
+  "name": "pong-tester",
+  "version": "1.0.0",
+  "description": "Comprehensive testing framework for Pong Game Project",
+  "main": "index.js",
+  "scripts": {
+    "test": "jest",
+    "test:unit": "jest --testPathPattern=src/tests",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage",
+    "test:e2e": "cypress open",
+    "test:e2e:run": "cypress run",
+    "test:all": "npm run test && npm run test:e2e:run",
+    "lint": "eslint . --ext .js,.ts",
+    "lint:fix": "eslint . --ext .js,.ts --fix",
+    "build": "tsc",
+    "dev": "tsc --watch"
+  },
+  "keywords": [
+    "testing",
+    "e2e",
+    "cypress",
+    "jest",
+    "pong",
+    "game"
+  ],
+  "author": "Pong Game Team",
+  "license": "MIT",
+  "devDependencies": {
+    "@types/jest": "^29.5.0",
+    "@types/node": "^20.0.0",
+    "cypress": "^13.0.0",
+    "eslint": "^8.0.0",
+    "jest": "^29.0.0",
+    "supertest": "^6.0.0",
+    "typescript": "^5.0.0"
+  },
+  "dependencies": {
+    "axios": "^1.0.0",
+    "dotenv": "^16.0.0"
+  }
+}
