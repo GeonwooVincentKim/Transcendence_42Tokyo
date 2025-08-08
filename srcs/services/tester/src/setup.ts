@@ -6,7 +6,7 @@ dotenv.config();
 // Global test setup
 beforeAll(() => {
   // Set test environment
-  process.env.NODE_ENV = 'test';
+  process.env['NODE_ENV'] = 'test';
   
   // Set default timeouts
   jest.setTimeout(10000);

@@ -19,6 +19,7 @@ describe('API Tests', () => {
 
     it('should respond within acceptable time', async () => {
       const startTime = Date.now();
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
       const response = await client.get('/health');
       const responseTime = Date.now() - startTime;
       

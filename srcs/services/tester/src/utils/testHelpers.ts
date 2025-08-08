@@ -13,7 +13,7 @@ export interface TestConfig {
  * Default test configuration
  */
 export const defaultTestConfig: TestConfig = {
-  baseUrl: process.env.TEST_BASE_URL || 'http://localhost:8000',
+  baseUrl: process.env['TEST_BASE_URL'] || 'http://localhost:8000',
   timeout: 10000,
   retries: 3,
 };
@@ -45,10 +45,23 @@ export class TestClient {
           method,
           url: `${this.config.baseUrl}${url}`,
           data,
-          headers,
+          headers: headers || {},
           timeout: this.config.timeout,
         });
-        return response;
+        
+        // 순환 참조 문제를 방지하기 위해 응답 객체 정리
+        const cleanResponse = {
+          status: response.status,
+          statusText: response.statusText,
+          data: response.data,
+          headers: response.headers,
+          config: {
+            url: response.config.url,
+            method: response.config.method,
+          },
+        };
+        
+        return cleanResponse as AxiosResponse<T>;
       } catch (error) {
         lastError = error as Error;
         if (i < this.config.retries - 1) {

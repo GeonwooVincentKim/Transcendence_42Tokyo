@@ -33,6 +33,21 @@ services:
     stdin_open: true
     tty: true
 
+  tester:
+    build: ./services/tester
+    ports:
+      - "8080:8080"
+    environment:
+      - NODE_ENV=production
+      - TEST_BASE_URL=http://backend:8000
+    depends_on:
+      - backend
+    networks:
+      - pong-network
+    volumes:
+      - ./services/tester/test-results:/app/test-results
+    restart: unless-stopped
+
   postgres:
     image: postgres:15-alpine
     environment:

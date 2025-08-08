@@ -1,275 +1,322 @@
-# Tester Service
+# 🏓 Pong Game Project - 통합 사용법 가이드
 
-Comprehensive testing framework for the Pong Game Project.
+이 폴더는 **Pong Game Project의 전체 사용법과 통합 방법**을 보여주는 프레임워크입니다.
 
-## Overview
+> **🌐 다국어 버전**: [English](README_EN.md) | [日本語](README_JP.md)
 
-The Tester service provides a unified testing environment for:
-- **Unit Tests**: Jest-based tests for API endpoints and business logic
-- **E2E Tests**: Cypress-based tests for complete user workflows
-- **Integration Tests**: Tests for service interactions
-- **Performance Tests**: Response time and load testing
+## 📋 목차
 
-## Quick Start
+1. [프로젝트 개요](#프로젝트-개요)
+2. [서비스별 사용법](#서비스별-사용법)
+3. [통합 사용법](#통합-사용법)
+4. [테스트 프레임워크](#테스트-프레임워크)
+5. [문제 해결](#문제-해결)
 
-### Installation
-```bash
-cd srcs/services/tester
-npm install
+## 🎯 프로젝트 개요
+
+### 프로젝트 구조
+```
+srcs/
+├── docker-compose.yml          # 전체 서비스 통합
+├── run-all-tests.ps1          # Windows 테스트 스크립트
+├── run-all-tests.sh           # Linux/Mac 테스트 스크립트
+└── services/
+    ├── backend/               # Fastify + WebSocket 서버
+    ├── frontend/              # React + Vite 클라이언트
+    └── tester/                # 이 폴더 - 사용법 가이드
 ```
 
-### Run All Tests
+### 기술 스택
+- **Backend**: Fastify, TypeScript, WebSocket, PostgreSQL
+- **Frontend**: React 18, TypeScript, Vite, Tailwind CSS
+- **DevOps**: Docker, Docker Compose, Nginx
+- **Testing**: Jest, Vitest, Cypress
+
+## 🚀 서비스별 사용법
+
+### 1. Backend 서비스
+
+#### 개발 모드 실행
 ```bash
+cd srcs/services/backend
+npm install
+npm run dev
+```
+
+#### 테스트 실행
+```bash
+npm test                    # 단위 테스트
+npm run test:watch         # 감시 모드
+npm run test:coverage      # 커버리지 포함
+```
+
+#### Docker 실행
+```bash
+cd srcs
+docker-compose up backend
+```
+
+#### 주요 스크립트
+- `npm run dev`: 개발 서버 (포트 8000)
+- `npm run build`: TypeScript 컴파일
+- `npm start`: 프로덕션 서버 실행
+
+### 2. Frontend 서비스
+
+#### 개발 모드 실행
+```bash
+cd srcs/services/frontend
+npm install
+npm run dev
+```
+
+#### 테스트 실행
+```bash
+npm test                    # Vitest 단위 테스트
+npm run test:ui            # UI 테스트 러너
+npm run test:coverage      # 커버리지 포함
+npm run test:e2e           # Cypress E2E 테스트
+```
+
+#### 빌드 및 배포
+```bash
+npm run build              # 프로덕션 빌드
+npm run preview            # 빌드 결과 미리보기
+```
+
+#### Docker 실행
+```bash
+cd srcs
+docker-compose up frontend
+```
+
+### 3. Docker 통합
+
+#### 전체 서비스 실행
+```bash
+cd srcs
+docker-compose up --build
+```
+
+#### 개별 서비스 실행
+```bash
+docker-compose up backend    # 백엔드만
+docker-compose up frontend   # 프론트엔드만
+docker-compose up postgres   # 데이터베이스만
+```
+
+#### 서비스 상태 확인
+```bash
+docker-compose ps           # 실행 중인 서비스
+docker-compose logs         # 로그 확인
+docker-compose down         # 서비스 중지
+```
+
+## 🔧 통합 사용법
+
+### 1. 전체 프로젝트 시작
+
+#### 방법 1: Docker Compose (권장)
+```bash
+cd srcs
+docker-compose up --build
+```
+
+#### 방법 2: 개별 개발
+```bash
+# 터미널 1: Backend
+cd srcs/services/backend
+npm run dev
+
+# 터미널 2: Frontend
+cd srcs/services/frontend
+npm run dev
+
+# 터미널 3: Database (선택사항)
+docker run -d --name postgres \
+  -e POSTGRES_DB=pong_db \
+  -e POSTGRES_USER=pong_user \
+  -e POSTGRES_PASSWORD=pong_password \
+  -p 5432:5432 \
+  postgres:15-alpine
+```
+
+### 2. 환경 설정
+
+#### Backend 환경변수
+```bash
+# .env 파일 생성
+NODE_ENV=development
+JWT_SECRET=your-secret-key
+DATABASE_URL=postgresql://pong_user:pong_password@localhost:5432/pong_db
+```
+
+#### Frontend 환경변수
+```bash
+# .env 파일 생성
+VITE_API_URL=http://localhost:8000
+```
+
+### 3. 포트 설정
+- **Frontend**: http://localhost:3000 (개발) / http://localhost:80 (Docker)
+- **Backend**: http://localhost:8000
+- **Database**: localhost:5432
+
+## 🧪 테스트 프레임워크
+
+### 1. 단위 테스트
+
+#### Backend 테스트
+```bash
+cd srcs/services/backend
 npm test
 ```
 
-### Run Specific Test Types
+#### Frontend 테스트
 ```bash
-# Unit tests only
-npm run test:unit
+cd srcs/services/frontend
+npm test
+```
 
-# E2E tests only
-npm run test:e2e
+### 2. 통합 테스트
 
-# With coverage
+#### 전체 테스트 실행 (Windows)
+```bash
+cd srcs
+.\run-all-tests.ps1
+```
+
+#### 전체 테스트 실행 (Linux/Mac)
+```bash
+cd srcs
+./run-all-tests.sh
+```
+
+#### E2E 테스트
+```bash
+cd srcs/services/frontend
+npm run test:e2e:run
+```
+
+### 3. 커버리지 확인
+```bash
+# Backend
+cd srcs/services/backend
+npm run test:coverage
+
+# Frontend
+cd srcs/services/frontend
 npm run test:coverage
 ```
 
-## Test Structure
+## 🔍 문제 해결
 
-```
-srcs/services/tester/
-├── src/
-│   ├── tests/           # Test files
-│   │   ├── api.test.ts  # API endpoint tests
-│   │   ├── unit.test.ts # Unit tests
-│   │   └── perf.test.ts # Performance tests
-│   ├── utils/           # Test utilities
-│   │   └── testHelpers.ts
-│   └── setup.ts         # Test setup
-├── cypress/
-│   ├── e2e/            # E2E test files
-│   └── support/        # Cypress support files
-├── jest.config.js      # Jest configuration
-├── cypress.config.js   # Cypress configuration
-└── package.json        # Dependencies and scripts
-```
-
-## Test Categories
-
-### 1. Unit Tests
-- **Location**: `src/tests/`
-- **Framework**: Jest
-- **Purpose**: Test individual functions and components
-- **Coverage**: Business logic, utilities, helpers
-
-### 2. API Tests
-- **Location**: `src/tests/api.test.ts`
-- **Framework**: Jest + Axios
-- **Purpose**: Test API endpoints and responses
-- **Coverage**: HTTP status codes, response data, error handling
-
-### 3. E2E Tests
-- **Location**: `cypress/e2e/`
-- **Framework**: Cypress
-- **Purpose**: Test complete user workflows
-- **Coverage**: User interactions, UI behavior, cross-browser compatibility
-
-### 4. Performance Tests
-- **Location**: `src/tests/perf.test.ts`
-- **Framework**: Jest + Custom metrics
-- **Purpose**: Test response times and load handling
-- **Coverage**: Response time limits, concurrent requests
-
-## Test Utilities
-
-### TestClient
-HTTP client with retry logic and error handling:
-```typescript
-import { TestClient } from '../utils/testHelpers';
-
-const client = new TestClient({
-  baseUrl: 'http://localhost:8000',
-  timeout: 5000,
-  retries: 3
-});
-
-const response = await client.get('/api/health');
-```
-
-### TestDataGenerator
-Generate test data for consistent testing:
-```typescript
-import { TestDataGenerator } from '../utils/testHelpers';
-
-const userData = TestDataGenerator.randomUser();
-const gameState = TestDataGenerator.randomGameState();
-```
-
-### TestAssertions
-Common assertion helpers:
-```typescript
-import { TestAssertions } from '../utils/testHelpers';
-
-TestAssertions.expectStatus(response, 200);
-TestAssertions.expectData(response);
-TestAssertions.expectField(response, 'status');
-```
-
-## Configuration
-
-### Environment Variables
-Create `.env` file in the tester directory:
-```env
-TEST_BASE_URL=http://localhost:8000
-TEST_TIMEOUT=10000
-TEST_RETRIES=3
-NODE_ENV=test
-```
-
-### Jest Configuration
-- **Timeout**: 10 seconds per test
-- **Coverage**: HTML and LCOV reports
-- **Setup**: Automatic environment setup
-- **Mocking**: Automatic mock restoration
-
-### Cypress Configuration
-- **Base URL**: http://localhost:3000
-- **Viewport**: 1280x720
-- **Video**: Enabled
-- **Screenshots**: On failure
-- **Timeouts**: 10 seconds
-
-## Writing Tests
-
-### Unit Test Example
-```typescript
-describe('User Service', () => {
-  it('should create user successfully', async () => {
-    const userData = TestDataGenerator.randomUser();
-    const result = await userService.createUser(userData);
-    
-    expect(result).toBeDefined();
-    expect(result.username).toBe(userData.username);
-  });
-});
-```
-
-### API Test Example
-```typescript
-describe('Auth API', () => {
-  it('should register new user', async () => {
-    const userData = TestDataGenerator.randomUser();
-    const response = await client.post('/api/auth/register', userData);
-    
-    TestAssertions.expectStatus(response, 201);
-    TestAssertions.expectField(response, 'token');
-  });
-});
-```
-
-### E2E Test Example
-```javascript
-describe('Game Flow', () => {
-  it('should complete full game cycle', () => {
-    cy.visit('/');
-    cy.get('[data-testid="start-button"]').click();
-    cy.get('[data-testid="game-status"]').should('contain', 'playing');
-    cy.get('[data-testid="pause-button"]').click();
-    cy.get('[data-testid="game-status"]').should('contain', 'paused');
-  });
-});
-```
-
-## Best Practices
-
-### Test Organization
-1. **Group related tests** using `describe` blocks
-2. **Use descriptive test names** that explain the behavior
-3. **Keep tests independent** and isolated
-4. **Follow naming conventions** consistently
-
-### Test Data
-1. **Use TestDataGenerator** for consistent test data
-2. **Clean up test data** after tests
-3. **Use unique identifiers** to avoid conflicts
-4. **Mock external dependencies** when appropriate
-
-### Assertions
-1. **Test behavior, not implementation**
-2. **Use specific assertions** rather than generic ones
-3. **Check error conditions** and edge cases
-4. **Validate response structure** and data types
-
-### Performance
-1. **Set appropriate timeouts** for different test types
-2. **Use parallel execution** when possible
-3. **Mock slow operations** in unit tests
-4. **Monitor test execution time**
-
-## Continuous Integration
-
-### GitHub Actions Example
-```yaml
-name: Tests
-on: [push, pull_request]
-jobs:
-  test:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-      - uses: actions/setup-node@v3
-        with:
-          node-version: '18'
-      - run: |
-          cd srcs/services/tester
-          npm install
-          npm test
-```
-
-## Troubleshooting
-
-### Common Issues
-
-1. **Tests timing out**
-   - Increase timeout in configuration
-   - Check if services are running
-   - Verify network connectivity
-
-2. **E2E tests failing**
-   - Ensure frontend is running on port 3000
-   - Check if backend is running on port 8000
-   - Verify Docker containers are up
-
-3. **API tests failing**
-   - Check if backend service is accessible
-   - Verify API endpoints are correct
-   - Check authentication requirements
-
-### Debug Mode
+### 1. 포트 충돌
 ```bash
-# Run tests with verbose output
-npm test -- --verbose
+# 포트 사용 확인
+netstat -ano | findstr :8000
+netstat -ano | findstr :3000
 
-# Run specific test file
-npm test -- --testNamePattern="should create user"
-
-# Run with debug logging
-DEBUG=* npm test
+# Docker 컨테이너 정리
+docker-compose down
+docker system prune
 ```
 
-## Contributing
+### 2. 의존성 문제
+```bash
+# node_modules 삭제 후 재설치
+rm -rf node_modules package-lock.json
+npm install
+```
 
-When adding new tests:
+### 3. Docker 문제
+```bash
+# Docker 캐시 정리
+docker system prune -a
+docker-compose build --no-cache
+```
 
-1. **Follow existing patterns** and conventions
-2. **Add appropriate test data** using TestDataGenerator
-3. **Use TestAssertions** for common checks
-4. **Update documentation** if needed
-5. **Ensure all tests pass** before submitting
+### 4. 데이터베이스 문제
+```bash
+# PostgreSQL 컨테이너 재시작
+docker-compose restart postgres
 
-## Resources
+# 데이터베이스 초기화
+docker-compose down -v
+docker-compose up postgres
+```
 
-- [Jest Documentation](https://jestjs.io/docs/getting-started)
-- [Cypress Documentation](https://docs.cypress.io/)
-- [Testing Best Practices](https://testing-library.com/docs/guiding-principles)
+## 📊 모니터링
+
+### 1. 로그 확인
+```bash
+# 전체 로그
+docker-compose logs
+
+# 특정 서비스 로그
+docker-compose logs backend
+docker-compose logs frontend
+```
+
+### 2. 상태 확인
+```bash
+# 서비스 상태
+docker-compose ps
+
+# 리소스 사용량
+docker stats
+```
+
+## 🚀 배포
+
+### 1. 프로덕션 빌드
+```bash
+# Frontend 빌드
+cd srcs/services/frontend
+npm run build
+
+# Backend 빌드
+cd srcs/services/backend
+npm run build
+```
+
+### 2. Docker 배포
+```bash
+cd srcs
+docker-compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+```
+
+## 📝 개발 가이드
+
+### 1. 코드 스타일
+- TypeScript 사용
+- ESLint 규칙 준수
+- 테스트 코드 작성
+- JSDoc 주석 추가
+
+### 2. Git 워크플로우
+1. 기능 브랜치 생성
+2. 변경사항 구현
+3. 테스트 실행
+4. 린팅 확인
+5. PR 생성
+
+### 3. 테스트 전략
+- 단위 테스트: 함수/컴포넌트
+- 통합 테스트: API 엔드포인트
+- E2E 테스트: 사용자 시나리오
+
+---
+
+## 🎮 게임 플레이
+
+### 컨트롤
+- **왼쪽 패들**: `W` (위) / `S` (아래)
+- **오른쪽 패들**: `↑` (위) / `↓` (아래)
+
+### 목표
+상대방 패들을 통과하지 못하도록 공을 막으면서 상대방에게 점수를 내세요!
+
+---
+
+**Happy Gaming! 🏓**
