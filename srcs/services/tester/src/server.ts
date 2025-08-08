@@ -6,13 +6,13 @@ import { promisify } from 'util';
 const execAsync = promisify(exec);
 
 const app = express();
-const PORT = process.env.PORT || 8080;
+const PORT = process.env['PORT'] || 8080;
 
 // Serve static files
 app.use(express.static(path.join(__dirname, '../web-interface')));
 
 // API endpoint to run tests
-app.get('/api/run-tests', async (req, res) => {
+app.get('/api/run-tests', async (_req, res) => {
   try {
     const { stdout, stderr } = await execAsync('npm test -- --json --outputFile=test-results.json');
     res.json({
@@ -30,7 +30,7 @@ app.get('/api/run-tests', async (req, res) => {
 });
 
 // API endpoint to get test results
-app.get('/api/test-results', (req, res) => {
+app.get('/api/test-results', (_req, res) => {
   try {
     const fs = require('fs');
     const resultsPath = path.join(__dirname, '../test-results.json');
@@ -47,15 +47,15 @@ app.get('/api/test-results', (req, res) => {
 });
 
 // API endpoint to get project status
-app.get('/api/status', async (req, res) => {
+app.get('/api/status', async (_req, res) => {
   try {
-    const services = {
+    const services: Record<string, string> = {
       backend: 'http://backend:8000',
       frontend: 'http://frontend:80',
       tester: 'http://localhost:8080'
     };
 
-    const status = {};
+    const status: Record<string, any> = {};
     
     for (const [service, url] of Object.entries(services)) {
       try {
@@ -64,7 +64,7 @@ app.get('/api/status', async (req, res) => {
           status: 'running',
           code: response.status
         };
-      } catch (error) {
+      } catch (error: any) {
         status[service] = {
           status: 'down',
           error: error.message
@@ -79,7 +79,7 @@ app.get('/api/status', async (req, res) => {
 });
 
 // Serve the main page
-app.get('/', (req, res) => {
+app.get('/', (_req, res) => {
   res.sendFile(path.join(__dirname, '../web-interface/index.html'));
 });
 
