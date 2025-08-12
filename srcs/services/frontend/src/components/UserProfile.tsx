@@ -208,4 +208,4 @@ export const UserProfile: React.FC<UserProfileProps> = ({ user, onLogout, onBack
       </div>
     </div>
   );
-}; 
+};
