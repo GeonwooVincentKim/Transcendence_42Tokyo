@@ -4,7 +4,7 @@ import fastifyWebsocket from '@fastify/websocket';
 import { authRoutes } from './routes/auth';
 import { gameRoutes } from './routes/game';
 import { DatabaseService } from './services/databaseService';
-import { initializeDatabase, needsInitialization } from './utils/databaseInit';
+import { initializeDatabase } from './utils/databaseInit';
 
 /**
  * Pong Game Backend Server
@@ -214,14 +214,10 @@ const start = async () => {
     await DatabaseService.initialize();
     server.log.info('Database connection initialized successfully');
     
-    // Check if database needs initialization
-    if (await needsInitialization()) {
-      server.log.info('Database schema not found. Initializing...');
-      await initializeDatabase();
-      server.log.info('Database schema initialized successfully');
-    } else {
-      server.log.info('Database schema already exists');
-    }
+    // Force database initialization to ensure tables are created
+    server.log.info('Initializing database schema...');
+    await initializeDatabase();
+    server.log.info('Database schema initialized successfully');
     
     // Register authentication routes
     await server.register(authRoutes);

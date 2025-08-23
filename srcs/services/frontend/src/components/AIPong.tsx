@@ -32,6 +32,7 @@ export const AIPong: React.FC = () => {
 
   // Handle game end
   const handleGameEnd = useCallback(async (winner: 'left' | 'right', leftScore: number, rightScore: number) => {
+    console.log(`AIPong: Game ended! Winner: ${winner}, Score: ${leftScore} - ${rightScore}`);
     try {
       // Save game result (current user is left player vs AI)
       await GameStatsService.saveGameResultSimple(winner, leftScore, rightScore, 'ai', 'left');

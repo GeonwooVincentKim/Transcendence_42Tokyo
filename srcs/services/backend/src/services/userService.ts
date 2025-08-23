@@ -326,6 +326,9 @@ export class UserService {
    */
   static async updateUserStatistics(userId: string, score: number, won: boolean): Promise<void> {
     try {
+      // Convert userId to integer for database operations
+      const userIdInt = parseInt(userId, 10);
+      
       // Get current statistics
       const currentStats = await this.getUserStatistics(userId);
       
@@ -333,7 +336,7 @@ export class UserService {
         // Create initial statistics if they don't exist
         await DatabaseService.run(
           'INSERT INTO user_statistics (user_id, total_games, games_won, games_lost, total_score, highest_score, average_score) VALUES ($1, $2, $3, $4, $5, $6, $7)',
-          [userId, 1, won ? 1 : 0, won ? 0 : 1, score, score, score]
+          [userIdInt, 1, won ? 1 : 0, won ? 0 : 1, score, score, score]
         );
       } else {
         // Update existing statistics
@@ -347,7 +350,7 @@ export class UserService {
 
         await DatabaseService.run(
           'UPDATE user_statistics SET total_games = $1, games_won = $2, games_lost = $3, total_score = $4, highest_score = $5, average_score = $6, updated_at = CURRENT_TIMESTAMP WHERE user_id = $7',
-          [newTotalGames, newGamesWon, newGamesLost, newTotalScore, newHighestScore, newAverageScore, userId]
+          [newTotalGames, newGamesWon, newGamesLost, newTotalScore, newHighestScore, newAverageScore, userIdInt]
         );
       }
     } catch (error) {

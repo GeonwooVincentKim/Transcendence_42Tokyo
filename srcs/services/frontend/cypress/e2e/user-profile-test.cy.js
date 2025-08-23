@@ -13,8 +13,8 @@ describe('User Profile Test', () => {
     cy.get('p').should('contain', 'Please sign in to play the game')
 
     // Login with test credentials
-    cy.get('input[placeholder="Username"]').type('user2')
-    cy.get('input[placeholder="Password"]').type('password123')
+    cy.get('input[placeholder="Enter your username"]').type('user2')
+    cy.get('input[placeholder="Enter your password"]').type('password123')
     cy.get('button').contains('Login').click()
 
     // Wait for login to complete
@@ -82,8 +82,8 @@ describe('User Profile Test', () => {
 
   it('should display user statistics correctly', () => {
     // Login first
-    cy.get('input[placeholder="Username"]').type('user2')
-    cy.get('input[placeholder="Password"]').type('password123')
+    cy.get('input[placeholder="Enter your username"]').type('user2')
+    cy.get('input[placeholder="Enter your password"]').type('password123')
     cy.get('button').contains('Login').click()
 
     cy.wait(2000)

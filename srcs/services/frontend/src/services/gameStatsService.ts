@@ -92,6 +92,16 @@ export class GameStatsService {
       gameType
     };
 
+    // Debug logging
+    console.log('Frontend - GameResult being sent:', gameResult);
+    console.log('Frontend - Data types:', {
+      sessionId: typeof gameResult.sessionId,
+      playerSide: typeof gameResult.playerSide,
+      score: typeof gameResult.score,
+      won: typeof gameResult.won,
+      gameType: typeof gameResult.gameType
+    });
+
     return this.saveGameResult(gameResult);
   }
 

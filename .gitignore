@@ -63,6 +63,7 @@ temp/
 *.avi
 *.mov
 *.wmv
+*.png
 
 # Database
 *.db

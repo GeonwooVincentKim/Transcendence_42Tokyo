@@ -1,16 +1,14 @@
 import React, { useEffect, useState } from 'react';
-import { AuthService } from '../services/authService';
-import { User } from '../types/auth';
+import { GameStatsService } from '../services/gameStatsService';
 
-interface UserWithStats extends User {
-  stats?: {
-    total_games: number;
-    games_won: number;
-    games_lost: number;
-    total_score: number;
-    highest_score: number;
-    average_score: number;
-  };
+interface UserWithStats {
+  username: string;
+  totalGames: number;
+  gamesWon: number;
+  gamesLost: number;
+  totalScore: number;
+  highestScore: number;
+  averageScore: number;
 }
 
 /**
@@ -27,36 +25,19 @@ const Ranking: React.FC = () => {
     let isMounted = true;
     setLoading(true);
     setError(null);
-    AuthService.getAllUsers()
-      .then(async (userList) => {
-        // Fetch stats for each user in parallel
-        const usersWithStats: UserWithStats[] = await Promise.all(
-          userList.map(async (user) => {
-            try {
-              const stats = await AuthService.getUserStatistics(user.id);
-              return { ...user, stats };
-            } catch (err) {
-              return { ...user, stats: undefined };
-            }
-          })
-        );
-        // Sort by games_won desc, then total_score desc
-        usersWithStats.sort((a, b) => {
-          const aWins = a.stats?.games_won ?? 0;
-          const bWins = b.stats?.games_won ?? 0;
-          if (bWins !== aWins) return bWins - aWins;
-          const aScore = a.stats?.total_score ?? 0;
-          const bScore = b.stats?.total_score ?? 0;
-          return bScore - aScore;
-        });
-        if (isMounted) setUsers(usersWithStats);
+    
+    GameStatsService.getLeaderboard(10)
+      .then((leaderboard) => {
+        if (isMounted) setUsers(leaderboard);
       })
-      .catch(() => {
+      .catch((err) => {
+        console.error('Failed to load leaderboard:', err);
         if (isMounted) setError('Failed to load ranking.');
       })
       .finally(() => {
         if (isMounted) setLoading(false);
       });
+    
     return () => { isMounted = false; };
   }, []);
 
@@ -86,19 +67,19 @@ const Ranking: React.FC = () => {
           </thead>
           <tbody>
             {users.map((user, idx) => (
-              <tr key={user.id} className={idx === 0 ? 'bg-yellow-900' : idx % 2 === 0 ? 'bg-gray-700' : 'bg-gray-800'}>
+              <tr key={user.username} className={idx === 0 ? 'bg-yellow-900' : idx % 2 === 0 ? 'bg-gray-700' : 'bg-gray-800'}>
                 <td className="px-4 py-2 text-center font-bold">{idx + 1}</td>
                 <td className="px-4 py-2 text-center">{user.username}</td>
-                <td className="px-4 py-2 text-center">{user.stats?.total_games ?? '-'}</td>
-                <td className="px-4 py-2 text-center">{user.stats?.games_won ?? '-'}</td>
+                <td className="px-4 py-2 text-center">{user.totalGames}</td>
+                <td className="px-4 py-2 text-center">{user.gamesWon}</td>
                 <td className="px-4 py-2 text-center">
-                  {user.stats && user.stats.total_games > 0
-                    ? `${((user.stats.games_won / user.stats.total_games) * 100).toFixed(1)}%`
+                  {user.totalGames > 0
+                    ? `${((user.gamesWon / user.totalGames) * 100).toFixed(1)}%`
                     : '-'}
                 </td>
-                <td className="px-4 py-2 text-center">{user.stats?.total_score ?? '-'}</td>
-                <td className="px-4 py-2 text-center">{user.stats?.highest_score ?? '-'}</td>
-                <td className="px-4 py-2 text-center">{user.stats?.average_score?.toFixed(2) ?? '-'}</td>
+                <td className="px-4 py-2 text-center">{user.totalScore}</td>
+                <td className="px-4 py-2 text-center">{user.highestScore}</td>
+                <td className="px-4 py-2 text-center">{user.averageScore.toFixed(1)}</td>
               </tr>
             ))}
           </tbody>

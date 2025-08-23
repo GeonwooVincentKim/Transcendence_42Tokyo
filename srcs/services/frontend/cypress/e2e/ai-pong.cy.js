@@ -9,9 +9,9 @@ describe('AI Pong Game E2E Tests', () => {
     
     // Register or login
     cy.contains('Register here').click();
-    cy.get('input[placeholder="Choose a username (3-20 characters)"]').type(username);
+    cy.get('input[placeholder="Enter your username"]').type(username);
     cy.get('input[placeholder="Enter your email address"]').type(email);
-    cy.get('input[placeholder="Choose a password (min 6 characters)"]').type(password);
+    cy.get('input[placeholder="Enter your password"]').type(password);
     cy.get('input[placeholder="Confirm your password"]').type(password);
     cy.get('button').contains('Register').click();
     

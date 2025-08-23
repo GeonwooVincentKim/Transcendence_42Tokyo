@@ -11,10 +11,8 @@ import { DatabaseService } from '../services/databaseService';
  */
 export async function initializeDatabase(): Promise<void> {
   try {
-    // Initialize the database connection
-    await DatabaseService.initialize();
-    
     console.log('Creating database tables...');
+    console.log('Starting database initialization...');
     
     // Create users table
     await DatabaseService.run(`
@@ -111,23 +109,4 @@ export async function initializeDatabase(): Promise<void> {
   }
 }
 
-/**
- * Check if database needs initialization
- */
-export async function needsInitialization(): Promise<boolean> {
-  try {
-    await DatabaseService.initialize();
-    
-    // Check if users table exists by querying sqlite_master
-    const result = await DatabaseService.get(`
-      SELECT name FROM sqlite_master 
-      WHERE type='table' AND name='users'
-    `);
-    
-    return !result;
-  } catch (error) {
-    // If there's any error checking the database, assume it needs initialization
-    console.log('Database needs initialization (error checking tables):', error instanceof Error ? error.message : 'Unknown error');
-    return true;
-  }
-}
+

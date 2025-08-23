@@ -49,7 +49,6 @@ CREATE TABLE IF NOT EXISTS game_results (
     score INTEGER NOT NULL DEFAULT 0,
     won BOOLEAN,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (session_id) REFERENCES game_sessions(id) ON DELETE CASCADE,
     FOREIGN KEY (player_id) REFERENCES users(id) ON DELETE SET NULL
 );
 

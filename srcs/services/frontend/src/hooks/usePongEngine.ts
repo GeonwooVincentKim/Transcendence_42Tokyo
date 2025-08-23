@@ -81,13 +81,16 @@ export const usePongEngine = (
    * Check if game should end
    */
   const checkGameEnd = useCallback((leftScore: number, rightScore: number) => {
+    console.log(`Checking game end: ${leftScore} - ${rightScore}, winning score: ${GAME_CONFIG.WINNING_SCORE}`);
     if (leftScore >= GAME_CONFIG.WINNING_SCORE || rightScore >= GAME_CONFIG.WINNING_SCORE) {
       const winner = leftScore >= GAME_CONFIG.WINNING_SCORE ? 'left' : 'right';
+      console.log(`Game ended! Winner: ${winner}, Final score: ${leftScore} - ${rightScore}`);
       setStatus('finished');
       setGameState(prev => ({ ...prev, status: 'finished', winner }));
       
       // Call the game end callback if provided
       if (onGameEnd) {
+        console.log('Calling onGameEnd callback...');
         onGameEnd(winner, leftScore, rightScore);
       }
       

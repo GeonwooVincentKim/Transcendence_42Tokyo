@@ -180,15 +180,33 @@ export async function gameRoutes(fastify: FastifyInstance) {
       const decoded = request.user as JWTPayload;
       const { sessionId, playerSide, score, won, gameType } = request.body;
 
-      // Save game result - convert sessionId to integer and won to 0/1
-      const sessionIdInt = parseInt(sessionId.replace('session-', ''), 10) || Date.now();
-      const wonInt = won ? 1 : 0;
-      
-      await DatabaseService.run(
-        `INSERT INTO game_results (session_id, player_id, player_side, score, won, created_at)
-         VALUES ($1, $2, $3, $4, $5, CURRENT_TIMESTAMP)`,
-        [sessionIdInt, decoded.userId, playerSide, score, wonInt]
-      );
+              // Save game result - set session_id to NULL since we don't create game sessions for single player games
+        const userIdInt = parseInt(decoded.userId, 10);
+        const wonInt = won ? 1 : 0;
+
+        // Debug logging
+        console.log('Debug - Values being inserted:', {
+          sessionId: 'NULL',
+          userId: decoded.userId,
+          userIdInt,
+          playerSide,
+          score,
+          wonInt,
+          types: {
+            sessionId: 'NULL',
+            userId: typeof decoded.userId,
+            userIdInt: typeof userIdInt,
+            playerSide: typeof playerSide,
+            score: typeof score,
+            wonInt: typeof wonInt
+          }
+        });
+
+        await DatabaseService.run(
+          `INSERT INTO game_results (session_id, player_id, player_side, score, won, created_at)
+           VALUES (NULL, $1, $2, $3, $4, CURRENT_TIMESTAMP)`,
+          [userIdInt, playerSide, score, wonInt]
+        );
 
       // Update user statistics
       await UserService.updateUserStatistics(decoded.userId, score, won);

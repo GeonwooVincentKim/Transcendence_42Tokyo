@@ -57,6 +57,9 @@ export class DatabaseService {
       verbose: process.env.NODE_ENV === 'development'
     };
 
+    console.log('DEBUG - Database path:', config.databasePath);
+    console.log('DEBUG - DB_PATH env var:', process.env.DB_PATH);
+
     try {
       this.db = new Database(config.databasePath, {
         verbose: config.verbose ? console.log : undefined
