@@ -28,7 +28,7 @@ export class UserService {
       [username, email]
     );
     
-    if (existingUser.rows.length > 0) {
+    if (existingUser.length > 0) {
       throw new Error('Username or email already exists');
     }
 
@@ -37,17 +37,24 @@ export class UserService {
     const hashedPassword = await bcrypt.hash(password, saltRounds);
 
     // Create new user
-    const result = await DatabaseService.query(
+    await DatabaseService.run(
       `INSERT INTO users (username, email, password_hash, created_at, updated_at)
-       VALUES ($1, $2, $3, NOW(), NOW())
-       RETURNING id, username, email, created_at, updated_at`,
+       VALUES ($1, $2, $3, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
       [username, email, hashedPassword]
     );
 
-    const newUser = result.rows[0];
+    // Get the newly created user
+    const result = await DatabaseService.query(
+      `SELECT id, username, email, created_at, updated_at 
+       FROM users 
+       WHERE username = $1 AND email = $2`,
+      [username, email]
+    );
+
+    const newUser = result[0];
     
     // Create initial user statistics
-    await DatabaseService.query(
+    await DatabaseService.run(
       'INSERT INTO user_statistics (user_id) VALUES ($1)',
       [newUser.id]
     );
@@ -74,11 +81,11 @@ export class UserService {
       [username]
     );
     
-    if (result.rows.length === 0) {
+    if (result.length === 0) {
       throw new Error('Invalid username or password');
     }
 
-    const user = result.rows[0];
+    const user = result[0];
 
     // Verify password
     const isPasswordValid = await bcrypt.compare(password, user.password_hash);
@@ -88,8 +95,8 @@ export class UserService {
     }
 
     // Update last login
-    await DatabaseService.query(
-      'UPDATE users SET last_login = NOW() WHERE id = $1',
+    await DatabaseService.run(
+      'UPDATE users SET last_login = CURRENT_TIMESTAMP WHERE id = $1',
       [user.id]
     );
 
@@ -113,11 +120,11 @@ export class UserService {
       [userId]
     );
 
-    if (result.rows.length === 0) {
+    if (result.length === 0) {
       return null;
     }
 
-    const user = result.rows[0];
+    const user = result[0];
     return {
       id: user.id.toString(),
       username: user.username,
@@ -138,7 +145,7 @@ export class UserService {
       [email]
     );
 
-    return result.rows.length > 0 ? result.rows[0].username : null;
+    return result.length > 0 ? result[0].username : null;
   }
 
   /**
@@ -153,19 +160,19 @@ export class UserService {
       [email]
     );
 
-    if (userResult.rows.length === 0) {
+    if (userResult.length === 0) {
       throw new Error('User not found');
     }
 
-    const userId = userResult.rows[0].id;
+    const userId = userResult[0].id;
     const resetToken = Math.random().toString(36).substr(2, 15);
     const expiresAt = new Date(Date.now() + 30 * 60 * 1000); // 30 minutes from now
 
     // Store reset token
-    await DatabaseService.query(
+    await DatabaseService.run(
       `INSERT INTO password_reset_tokens (user_id, token, expires_at)
        VALUES ($1, $2, $3)`,
-      [userId, resetToken, expiresAt]
+      [userId, resetToken, expiresAt.toISOString()]
     );
 
     return resetToken;
@@ -184,11 +191,11 @@ export class UserService {
       [resetToken]
     );
 
-    if (tokenResult.rows.length === 0) {
+    if (tokenResult.length === 0) {
       throw new Error('Invalid reset token');
     }
 
-    const tokenData = tokenResult.rows[0];
+    const tokenData = tokenResult[0];
 
     if (new Date() > tokenData.expires_at) {
       throw new Error('Reset token has expired');
@@ -201,11 +208,11 @@ export class UserService {
     // Update user password and mark token as used
     await DatabaseService.transaction([
       {
-        text: 'UPDATE users SET password_hash = $1, updated_at = NOW() WHERE id = $2',
+        sql: 'UPDATE users SET password_hash = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2',
         params: [hashedPassword, tokenData.user_id]
       },
       {
-        text: 'UPDATE password_reset_tokens SET used_at = NOW() WHERE token = $1',
+        sql: 'UPDATE password_reset_tokens SET used_at = CURRENT_TIMESTAMP WHERE token = $1',
         params: [resetToken]
       }
     ]);
@@ -216,7 +223,7 @@ export class UserService {
       [tokenData.user_id]
     );
 
-    const user = userResult.rows[0];
+    const user = userResult[0];
     return {
       id: user.id.toString(),
       username: user.username,
@@ -231,8 +238,8 @@ export class UserService {
    * @param userId - User's unique ID
    */
   static async updateUserActivity(userId: string): Promise<void> {
-    await DatabaseService.query(
-      'UPDATE users SET last_login = NOW() WHERE id = $1',
+    await DatabaseService.run(
+      'UPDATE users SET last_login = CURRENT_TIMESTAMP WHERE id = $1',
       [userId]
     );
   }
@@ -246,7 +253,7 @@ export class UserService {
       'SELECT id, username, email, created_at, updated_at, last_login FROM users WHERE is_active = true ORDER BY created_at DESC'
     );
 
-    return result.rows.map(user => ({
+    return result.map((user: any) => ({
       id: user.id.toString(),
       username: user.username,
       email: user.email,
@@ -261,12 +268,18 @@ export class UserService {
    * @returns Promise<boolean> - True if user was deleted successfully
    */
   static async deleteUser(userId: string): Promise<boolean> {
-    const result = await DatabaseService.query(
-      'UPDATE users SET is_active = false WHERE id = $1 RETURNING id',
+    await DatabaseService.run(
+      'UPDATE users SET is_active = false WHERE id = $1',
       [userId]
     );
 
-    return result.rows.length > 0;
+    // Check if user was actually updated
+    const result = await DatabaseService.query(
+      'SELECT id FROM users WHERE id = $1 AND is_active = false',
+      [userId]
+    );
+
+    return result.length > 0;
   }
 
   /**
@@ -277,15 +290,32 @@ export class UserService {
   static async getUserStatistics(userId: string): Promise<object | null> {
     const result = await DatabaseService.query(
       `SELECT 
-        total_games, games_won, games_lost, 
-        total_score, highest_score, average_score,
-        created_at, updated_at
-       FROM user_statistics 
-       WHERE user_id = $1`,
+        us.total_games, us.games_won, us.games_lost, 
+        us.total_score, us.highest_score, us.average_score,
+        us.created_at, us.updated_at,
+        u.username
+       FROM user_statistics us
+       JOIN users u ON us.user_id = u.id
+       WHERE us.user_id = $1`,
       [userId]
     );
 
-    return result.rows.length > 0 ? result.rows[0] : null;
+    if (result.length === 0) {
+      return null;
+    }
+
+    const stats = result[0];
+    return {
+      username: stats.username,
+      totalGames: parseInt(stats.total_games),
+      gamesWon: parseInt(stats.games_won),
+      gamesLost: parseInt(stats.games_lost),
+      totalScore: parseInt(stats.total_score),
+      highestScore: parseInt(stats.highest_score),
+      averageScore: parseFloat(stats.average_score),
+      createdAt: stats.created_at,
+      updatedAt: stats.updated_at
+    };
   }
 
   /**
@@ -295,10 +325,33 @@ export class UserService {
    * @param won - Whether the user won the game
    */
   static async updateUserStatistics(userId: string, score: number, won: boolean): Promise<void> {
-    // Call the database function to recalculate statistics
-    await DatabaseService.query(
-      'SELECT calculate_user_statistics($1)',
-      [userId]
-    );
+    try {
+      // Get current statistics
+      const currentStats = await this.getUserStatistics(userId);
+      
+      if (!currentStats) {
+        // Create initial statistics if they don't exist
+        await DatabaseService.run(
+          'INSERT INTO user_statistics (user_id, total_games, games_won, games_lost, total_score, highest_score, average_score) VALUES ($1, $2, $3, $4, $5, $6, $7)',
+          [userId, 1, won ? 1 : 0, won ? 0 : 1, score, score, score]
+        );
+      } else {
+        // Update existing statistics
+        const newTotalGames = (currentStats as any).total_games + 1;
+        const newGamesWon = (currentStats as any).games_won + (won ? 1 : 0);
+        const newGamesLost = (currentStats as any).games_lost + (won ? 0 : 1);
+        const newTotalScore = (currentStats as any).total_score + score;
+        const newHighestScore = Math.max((currentStats as any).highest_score, score);
+        const newAverageScore = newTotalScore / newTotalGames;
+
+        await DatabaseService.run(
+          'UPDATE user_statistics SET total_games = $1, games_won = $2, games_lost = $3, total_score = $4, highest_score = $5, average_score = $6, updated_at = CURRENT_TIMESTAMP WHERE user_id = $7',
+          [newTotalGames, newGamesWon, newGamesLost, newTotalScore, newHighestScore, newAverageScore, userId]
+        );
+      }
+    } catch (error) {
+      console.error('Failed to update user statistics:', error);
+      throw error;
+    }
   }
 } 

@@ -29,10 +29,18 @@ export const UserProfile: React.FC<UserProfileProps> = ({ user, onLogout, onBack
     const fetchStatistics = async () => {
       try {
         setLoading(true);
+        setError(null);
         const stats = await GameStatsService.getUserStatistics();
         setStatistics(stats);
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to load statistics');
+        const errorMessage = err instanceof Error ? err.message : 'Failed to load statistics';
+        setError(errorMessage);
+        
+        // If it's an authentication error, redirect to login
+        if (errorMessage.includes('Valid JWT token required')) {
+          AuthService.clearAuthData();
+          onLogout();
+        }
       } finally {
         setLoading(false);
       }

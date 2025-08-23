@@ -200,16 +200,29 @@ export const usePongEngine = (width: number = GAME_CONFIG.WIDTH, height: number 
   }, []);
 
   const startGame = useCallback(() => {
+    console.log('Start game called, current status:', status);
+    
     if (status === 'ready') {
+      console.log('Starting new game');
       setStatus('playing');
       setTimeout(() => {
         gameStateRef.current.ball.dx = settings.ballSpeed;
         gameStateRef.current.ball.dy = settings.ballSpeed * GAME_CONFIG.BALL_VERTICAL_FACTOR;
       }, GAME_CONFIG.BALL_RESTART_DELAY);
+    } else if (status === 'paused') {
+      console.log('Resuming paused game');
+      setStatus('playing');
+      // Don't reset ball position, just resume the game
     }
   }, [status, settings.ballSpeed]);
 
-  const pauseGame = useCallback(() => setStatus('paused'), []);
+  const pauseGame = useCallback(() => {
+    console.log('Pause game called, current status:', status);
+    if (status === 'playing') {
+      console.log('Pausing game');
+      setStatus('paused');
+    }
+  }, [status]);
 
   const resetGame = useCallback(() => {
     setStatus('ready');

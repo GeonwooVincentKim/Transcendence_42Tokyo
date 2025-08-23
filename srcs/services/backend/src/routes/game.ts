@@ -6,6 +6,7 @@
  */
 
 import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
+import jwt from '@fastify/jwt';
 import { UserService } from '../services/userService';
 import { DatabaseService } from '../services/databaseService';
 
@@ -41,6 +42,14 @@ interface GameSessionRequest {
  * @param fastify - Fastify instance
  */
 export async function gameRoutes(fastify: FastifyInstance) {
+  // Register JWT plugin for game routes
+  const jwtSecret = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
+  await fastify.register(jwt, {
+    secret: jwtSecret,
+    sign: {
+      expiresIn: '24h' // Token expires in 24 hours
+    }
+  });
   /**
    * POST /api/game/sessions
    * Create a new game session
@@ -72,14 +81,21 @@ export async function gameRoutes(fastify: FastifyInstance) {
       const { gameType, roomId } = request.body;
 
       // Create game session
-      const result = await DatabaseService.query(
+      await DatabaseService.run(
         `INSERT INTO game_sessions (room_id, game_type, status, created_at)
-         VALUES ($1, $2, 'active', NOW())
-         RETURNING id`,
+         VALUES ($1, $2, 'active', CURRENT_TIMESTAMP)`,
         [roomId || `session-${Date.now()}`, gameType]
       );
 
-      const sessionId = result.rows[0].id.toString();
+      // Get the newly created session ID
+      const result = await DatabaseService.query(
+        `SELECT id FROM game_sessions 
+         WHERE room_id = $1 AND game_type = $2 AND status = 'active'
+         ORDER BY created_at DESC LIMIT 1`,
+        [roomId || `session-${Date.now()}`, gameType]
+      );
+
+      const sessionId = result[0].id.toString();
 
       return reply.status(201).send({
         sessionId,
@@ -113,9 +129,9 @@ export async function gameRoutes(fastify: FastifyInstance) {
       const { sessionId } = request.params;
 
       // End game session
-      await DatabaseService.query(
+      await DatabaseService.run(
         `UPDATE game_sessions 
-         SET status = 'finished', finished_at = NOW()
+         SET status = 'finished', finished_at = CURRENT_TIMESTAMP
          WHERE id = $1`,
         [sessionId]
       );
@@ -165,9 +181,9 @@ export async function gameRoutes(fastify: FastifyInstance) {
       const { sessionId, playerSide, score, won, gameType } = request.body;
 
       // Save game result
-      await DatabaseService.query(
+      await DatabaseService.run(
         `INSERT INTO game_results (session_id, player_id, player_side, score, won, created_at)
-         VALUES ($1, $2, $3, $4, $5, NOW())`,
+         VALUES ($1, $2, $3, $4, $5, CURRENT_TIMESTAMP)`,
         [sessionId, decoded.userId, playerSide, score, won]
       );
 
@@ -250,7 +266,7 @@ export async function gameRoutes(fastify: FastifyInstance) {
         [limit]
       );
 
-      const leaderboard = result.rows.map(row => ({
+      const leaderboard = result.map((row: any) => ({
         username: row.username,
         totalGames: parseInt(row.total_games),
         gamesWon: parseInt(row.games_won),
@@ -297,7 +313,7 @@ export async function gameRoutes(fastify: FastifyInstance) {
         [sessionId]
       );
 
-      if (result.rows.length === 0) {
+      if (result.length === 0) {
         return reply.status(404).send({
           error: 'Session not found',
           message: 'Game session does not exist'
@@ -305,7 +321,7 @@ export async function gameRoutes(fastify: FastifyInstance) {
       }
 
       return reply.status(200).send({
-        session: result.rows[0]
+        session: result[0]
       });
     } catch (error) {
       return reply.status(500).send({

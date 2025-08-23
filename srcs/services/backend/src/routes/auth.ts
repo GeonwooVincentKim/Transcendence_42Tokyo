@@ -24,8 +24,13 @@ interface JWTPayload {
  */
 export async function authRoutes(fastify: FastifyInstance) {
   // Register JWT plugin
+  const jwtSecret = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
+  
   await fastify.register(jwt, {
-    secret: process.env.JWT_SECRET || 'your-secret-key-change-in-production'
+    secret: jwtSecret,
+    sign: {
+      expiresIn: '24h' // Token expires in 24 hours
+    }
   });
 
   /**
@@ -372,6 +377,44 @@ export async function authRoutes(fastify: FastifyInstance) {
         message: error instanceof Error ? error.message : 'Unknown error occurred'
       };
       return reply.status(500).send(errorResponse);
+    }
+  });
+
+  /**
+   * POST /api/auth/verify-token
+   * Test endpoint to verify JWT token
+   */
+  fastify.post<{ Body: { token: string } }>('/api/auth/verify-token', {
+    schema: {
+      body: {
+        type: 'object',
+        required: ['token'],
+        properties: {
+          token: { type: 'string' }
+        }
+      }
+    }
+  }, async (request, reply) => {
+    try {
+      const { token } = request.body;
+      console.log('Testing token verification for token:', token.substring(0, 20) + '...');
+      
+      // Try to verify the token
+      const decoded = fastify.jwt.verify(token);
+      console.log('Token verification successful:', decoded);
+      
+      return reply.status(200).send({
+        valid: true,
+        decoded,
+        message: 'Token is valid'
+      });
+    } catch (error) {
+      console.error('Token verification failed:', error);
+      return reply.status(400).send({
+        valid: false,
+        error: error instanceof Error ? error.message : 'Unknown error',
+        message: 'Token is invalid'
+      });
     }
   });
 } 

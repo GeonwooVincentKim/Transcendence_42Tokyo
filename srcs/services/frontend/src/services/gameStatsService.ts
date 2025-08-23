@@ -75,7 +75,7 @@ export class GameStatsService {
   static async getUserStatistics(): Promise<UserStatistics | null> {
     const token = AuthService.getToken();
     if (!token) {
-      throw new Error('Authentication required');
+      throw new Error('Valid JWT token required');
     }
 
     const response = await fetch(`${API_BASE_URL}/api/game/statistics`, {

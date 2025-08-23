@@ -4,6 +4,7 @@ import fastifyWebsocket from '@fastify/websocket';
 import { authRoutes } from './routes/auth';
 import { gameRoutes } from './routes/game';
 import { DatabaseService } from './services/databaseService';
+import { initializeDatabase, needsInitialization } from './utils/databaseInit';
 
 /**
  * Pong Game Backend Server
@@ -12,7 +13,7 @@ import { DatabaseService } from './services/databaseService';
  * - REST API endpoints for game state management
  * - WebSocket connections for real-time game updates
  * - CORS support for frontend integration
- * - PostgreSQL database integration
+ * - SQLite database integration
  */
 
 const isProduction = process.env.NODE_ENV === 'production';
@@ -34,11 +35,11 @@ const server = Fastify({
  */
 server.register(cors, {
   origin: process.env.NODE_ENV === 'production'
-    ? ['http://localhost:3000', 'http://localhost:80']
-    : '*',
+    ? ['http://localhost:3000', 'http://localhost:80', 'http://frontend:80']
+    : ['http://localhost:3000', 'http://localhost:3002', 'http://localhost:5173', 'http://127.0.0.1:3000', 'http://127.0.0.1:3002', 'http://127.0.0.1:5173'],
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization'], // Ensure Authorization is allowed
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
 });
 
 /**
@@ -66,10 +67,14 @@ server.get('/', async (request, reply) => {
     };
   } catch (error) {
     server.log.error('Health check failed:', error);
-    return reply.status(500).send({
-      status: 'error',
-      message: 'Server health check failed',
-      timestamp: new Date().toISOString()
+    return reply.status(200).send({
+      status: 'ok',
+      message: 'Pong Game Backend Server (Database connection failed)',
+      timestamp: new Date().toISOString(),
+      database: {
+        connected: false,
+        error: error instanceof Error ? error.message : 'Unknown database error'
+      }
     });
   }
 });
@@ -113,9 +118,10 @@ server.get('/api/stats', async (request, reply) => {
     };
   } catch (error) {
     server.log.error('Failed to get database stats:', error);
-    return reply.status(500).send({
-      error: 'Failed to get database statistics',
-      message: error instanceof Error ? error.message : 'Unknown error'
+    return reply.status(503).send({
+      error: 'Database temporarily unavailable',
+      message: 'Database connection failed',
+      timestamp: new Date().toISOString()
     });
   }
 });
@@ -207,6 +213,15 @@ const start = async () => {
     server.log.info('Initializing database connection...');
     await DatabaseService.initialize();
     server.log.info('Database connection initialized successfully');
+    
+    // Check if database needs initialization
+    if (await needsInitialization()) {
+      server.log.info('Database schema not found. Initializing...');
+      await initializeDatabase();
+      server.log.info('Database schema initialized successfully');
+    } else {
+      server.log.info('Database schema already exists');
+    }
     
     // Register authentication routes
     await server.register(authRoutes);

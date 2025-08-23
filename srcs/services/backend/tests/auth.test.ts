@@ -15,6 +15,10 @@ describe('Auth API', () => {
   beforeAll(async () => {
     // Initialize database for testing
     await DatabaseService.initialize();
+    
+    // Import and run database initialization
+    const { initializeDatabase } = await import('../src/utils/databaseInit');
+    await initializeDatabase();
   });
 
   beforeEach(async () => {
@@ -23,9 +27,9 @@ describe('Auth API', () => {
     await app.ready();
 
     // Clean up test data before each test
-    await DatabaseService.query('DELETE FROM password_reset_tokens');
-    await DatabaseService.query('DELETE FROM user_statistics');
-    await DatabaseService.query('DELETE FROM users');
+    await DatabaseService.run('DELETE FROM password_reset_tokens');
+    await DatabaseService.run('DELETE FROM user_statistics');
+    await DatabaseService.run('DELETE FROM users');
   });
 
   afterEach(async () => {
@@ -34,9 +38,9 @@ describe('Auth API', () => {
 
   afterAll(async () => {
     // Clean up and close database connection
-    await DatabaseService.query('DELETE FROM password_reset_tokens');
-    await DatabaseService.query('DELETE FROM user_statistics');
-    await DatabaseService.query('DELETE FROM users');
+    await DatabaseService.run('DELETE FROM password_reset_tokens');
+    await DatabaseService.run('DELETE FROM user_statistics');
+    await DatabaseService.run('DELETE FROM users');
     await DatabaseService.close();
   });
 

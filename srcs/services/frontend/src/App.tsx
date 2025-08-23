@@ -37,10 +37,22 @@ function App() {
    */
   useEffect(() => {
     const checkAuth = () => {
-      const storedAuth = AuthService.getStoredAuthData();
-      if (storedAuth) {
-        setUser(storedAuth.user);
-        setIsAuthenticated(true);
+      try {
+        const storedAuth = AuthService.getStoredAuthData();
+        if (storedAuth && AuthService.isAuthenticated()) {
+          setUser(storedAuth.user);
+          setIsAuthenticated(true);
+        } else {
+          // Clear invalid auth data
+          AuthService.clearAuthData();
+          setUser(null);
+          setIsAuthenticated(false);
+        }
+      } catch (error) {
+        console.error('Error checking authentication:', error);
+        AuthService.clearAuthData();
+        setUser(null);
+        setIsAuthenticated(false);
       }
       setIsLoading(false);
     };

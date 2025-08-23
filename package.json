@@ -1,7 +1,45 @@
 {
+  "name": "trascendence-pong-game",
+  "version": "1.0.0",
+  "description": "A comprehensive multiplayer Pong game built with modern web technologies",
+  "main": "index.js",
+  "scripts": {
+    "dev": "cd srcs && docker-compose up --build",
+    "build": "cd srcs && docker-compose build",
+    "test": "cd srcs && ./run-all-tests.sh",
+    "test:windows": "cd srcs && powershell -ExecutionPolicy Bypass -File run-all-tests.ps1",
+    "clean": "cd srcs && docker-compose down -v --remove-orphans",
+    "logs": "cd srcs && docker-compose logs -f",
+    "status": "cd srcs && docker-compose ps",
+    "install-deps": "cd srcs/services/backend && npm install && cd ../frontend && npm install && cd ../tester && npm install"
+  },
+  "keywords": [
+    "pong",
+    "game",
+    "multiplayer",
+    "react",
+    "nodejs",
+    "typescript",
+    "docker",
+    "websocket"
+  ],
+  "author": "Pong Game Team",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/your-username/trascendence.git"
+  },
+  "bugs": {
+    "url": "https://github.com/your-username/trascendence/issues"
+  },
+  "homepage": "https://github.com/your-username/trascendence#readme",
   "devDependencies": {
     "autoprefixer": "^10.4.21",
     "postcss": "^8.5.6",
     "tailwindcss": "^4.1.11"
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=8.0.0"
   }
 }

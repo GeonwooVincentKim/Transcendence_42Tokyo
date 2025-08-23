@@ -167,7 +167,7 @@ export class AuthService {
    * @returns boolean - True if user has valid stored token
    */
   static isAuthenticated(): boolean {
-    const token = localStorage.getItem('token');
+    const token = this.getToken();
     return !!token;
   }
 
@@ -176,7 +176,28 @@ export class AuthService {
    * @returns string | null - Stored token or null if not found
    */
   static getToken(): string | null {
-    return localStorage.getItem('token');
+    const token = localStorage.getItem('token');
+    if (!token) {
+      console.warn('No JWT token found in localStorage');
+      return null;
+    }
+    
+    // Check if token is expired (basic check)
+    try {
+      const payload = JSON.parse(atob(token.split('.')[1]));
+      const currentTime = Math.floor(Date.now() / 1000);
+      if (payload.exp && payload.exp < currentTime) {
+        console.warn('JWT token has expired');
+        this.clearAuthData();
+        return null;
+      }
+    } catch (error) {
+      console.error('Error parsing JWT token:', error);
+      this.clearAuthData();
+      return null;
+    }
+    
+    return token;
   }
 
   /**

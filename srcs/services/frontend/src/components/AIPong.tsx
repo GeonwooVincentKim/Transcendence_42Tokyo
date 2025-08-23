@@ -42,11 +42,11 @@ export const AIPong: React.FC = () => {
     aiDifficulty,
     (debugInfo) => {
       setAiDebugInfo({
-        lastMove: debugInfo.lastMove ? 'moving' : 'idle',
+        lastMove: debugInfo.lastMove !== 0 ? 'moving' : 'idle',
         ballDirection: gameState.ball?.dx > 0 ? 'right' : 'left',
         aiPosition: gameState.rightPaddle?.y || 200,
         targetPosition: debugInfo.prediction?.y || 200,
-        isMoving: debugInfo.lastMove > 0,
+        isMoving: debugInfo.lastMove !== 0,
         consecutiveMisses: debugInfo.consecutiveMisses,
         consecutiveHits: debugInfo.consecutiveHits,
         difficulty: debugInfo.difficulty,
@@ -63,25 +63,45 @@ export const AIPong: React.FC = () => {
 
   // Handle difficulty change
   const handleDifficultyChange = (newDifficulty: AIDifficulty) => {
-    setAiDifficulty(newDifficulty);
-    // Reset game when changing difficulty
+    console.log('Difficulty changing from', aiDifficulty, 'to', newDifficulty);
+    
+    // Pause game first if it's playing
+    if (gameState.status === 'playing') {
+      controls.pause();
+    }
+    
+    // Reset game completely
     controls.reset();
+    
+    // Update difficulty after a short delay to ensure reset is complete
+    setTimeout(() => {
+      setAiDifficulty(newDifficulty);
+      console.log('Difficulty updated to', newDifficulty);
+    }, 100);
   };
 
   return (
-    <div className="flex flex-col items-center space-y-4 p-4">
+    <div className="flex flex-col items-center space-y-4 p-4" data-testid="game-container">
       {/* Game Title */}
       <h2 className="text-2xl font-bold text-white mb-4">
-        Player vs AI Pong
+        Player vs AI
       </h2>
+
+      {/* Instructions */}
+      <div className="text-white text-sm mb-4 text-center">
+        <p>Use W (up) / S (down) to move your paddle.</p>
+        <p>The AI adapts its difficulty based on your performance!</p>
+        <p>AI Difficulty: {aiDifficulty}</p>
+      </div>
 
       {/* Difficulty Selector */}
       <div className="flex space-x-2 mb-4">
+        <span className="text-white mr-2">AI Difficulty:</span>
         <button
           onClick={() => handleDifficultyChange('easy')}
           className={`px-4 py-2 rounded ${
             aiDifficulty === 'easy'
-              ? 'bg-green-600 text-white'
+              ? 'bg-blue-600 text-white'
               : 'bg-gray-600 text-gray-300 hover:bg-gray-500'
           }`}
         >
@@ -91,7 +111,7 @@ export const AIPong: React.FC = () => {
           onClick={() => handleDifficultyChange('medium')}
           className={`px-4 py-2 rounded ${
             aiDifficulty === 'medium'
-              ? 'bg-yellow-600 text-white'
+              ? 'bg-blue-600 text-white'
               : 'bg-gray-600 text-gray-300 hover:bg-gray-500'
           }`}
         >
@@ -101,7 +121,7 @@ export const AIPong: React.FC = () => {
           onClick={() => handleDifficultyChange('hard')}
           className={`px-4 py-2 rounded ${
             aiDifficulty === 'hard'
-              ? 'bg-red-600 text-white'
+              ? 'bg-blue-600 text-white'
               : 'bg-gray-600 text-gray-300 hover:bg-gray-500'
           }`}
         >
@@ -116,6 +136,7 @@ export const AIPong: React.FC = () => {
           width={800}
           height={400}
           className="border-2 border-white bg-black"
+          aria-label="AI Pong game canvas"
         />
         
         {/* Game Controls Overlay */}
@@ -125,8 +146,8 @@ export const AIPong: React.FC = () => {
         </div>
 
         {/* Score Display */}
-        <div className="absolute top-2 right-2 text-white text-2xl font-bold">
-          {gameState.leftScore} - {gameState.rightScore}
+        <div className="absolute top-2 right-2 text-white text-2xl font-bold" data-testid="score">
+          Player: {gameState.leftScore} - AI: {gameState.rightScore}
         </div>
       </div>
 
@@ -137,7 +158,7 @@ export const AIPong: React.FC = () => {
           disabled={gameState.status === 'playing'}
           className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 disabled:bg-gray-600"
         >
-          Start Game
+          Start
         </button>
         <button
           onClick={controls.pause}
@@ -156,14 +177,14 @@ export const AIPong: React.FC = () => {
           onClick={() => setShowDebugInfo(!showDebugInfo)}
           className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
         >
-          {showDebugInfo ? 'Hide' : 'Show'} Debug Info
+          {showDebugInfo ? 'Hide Debug' : 'Show Debug'}
         </button>
       </div>
 
       {/* AI Debug Information */}
       {showDebugInfo && (
         <div className="bg-gray-800 p-4 rounded-lg text-white text-sm max-w-md" data-testid="ai-debug-info">
-          <h3 className="font-bold mb-2">AI Debug Information</h3>
+          <h3 className="font-bold mb-2">AI Debug Info:</h3>
           <div className="space-y-1">
             <div>Difficulty: <span className="text-yellow-400">{aiDebugInfo.difficulty}</span></div>
             <div>Last Move: <span className="text-blue-400">{aiDebugInfo.lastMove}</span></div>
@@ -191,7 +212,7 @@ export const AIPong: React.FC = () => {
       )}
 
       {/* Game Status */}
-      <div className="text-white text-lg">
+      <div className="text-white text-lg" data-testid="game-status">
         Status: <span className="text-yellow-400">{gameState.status}</span>
       </div>
     </div>

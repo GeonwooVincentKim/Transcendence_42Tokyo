@@ -1,24 +1,18 @@
 /**
  * Database Service
  * 
- * Handles PostgreSQL database connections and provides query methods.
- * Uses connection pooling for better performance.
+ * Handles SQLite database connections and provides query methods.
+ * Uses better-sqlite3 for better performance and reliability.
  */
 
-import { Pool, PoolClient, QueryResult } from 'pg';
+import Database from 'better-sqlite3';
 
 /**
  * Database configuration interface
  */
 interface DatabaseConfig {
-  host: string;
-  port: number;
-  database: string;
-  user: string;
-  password: string;
-  max?: number;
-  idleTimeoutMillis?: number;
-  connectionTimeoutMillis?: number;
+  databasePath: string;
+  verbose?: boolean;
 }
 
 /**
@@ -26,11 +20,32 @@ interface DatabaseConfig {
  * Provides methods for database operations
  */
 export class DatabaseService {
-  private static pool: Pool | null = null;
+  private static db: Database.Database | null = null;
   private static isInitialized = false;
 
   /**
-   * Initialize database connection pool
+   * Convert PostgreSQL-style parameters ($1, $2, etc.) to SQLite-style parameters (?)
+   * @param sql - SQL query with PostgreSQL-style parameters
+   * @returns SQL query with SQLite-style parameters
+   */
+  private static convertParameters(sql: string): string {
+    return sql.replace(/\$(\d+)/g, '?');
+  }
+
+  /**
+   * Check if a SQL statement returns data
+   * @param sql - SQL query text
+   * @returns boolean - True if statement returns data
+   */
+  private static isSelectStatement(sql: string): boolean {
+    const trimmedSql = sql.trim().toLowerCase();
+    return trimmedSql.startsWith('select') || 
+           trimmedSql.startsWith('pragma') ||
+           trimmedSql.startsWith('explain');
+  }
+
+  /**
+   * Initialize database connection
    */
   static async initialize(): Promise<void> {
     if (this.isInitialized) {
@@ -38,100 +53,144 @@ export class DatabaseService {
     }
 
     const config: DatabaseConfig = {
-      host: process.env.DB_HOST || 'localhost',
-      port: parseInt(process.env.DB_PORT || '5432'),
-      database: process.env.DB_NAME || 'pong_db',
-      user: process.env.DB_USER || 'pong_user',
-      password: process.env.DB_PASSWORD || 'pong_password',
-      max: 20, // Maximum number of clients in the pool
-      idleTimeoutMillis: 30000, // Close idle clients after 30 seconds
-      connectionTimeoutMillis: 2000, // Return an error after 2 seconds if connection could not be established
+      databasePath: process.env.DB_PATH || './pong.db',
+      verbose: process.env.NODE_ENV === 'development'
     };
 
     try {
-      this.pool = new Pool(config);
-      
-      // Test the connection
-      const client = await this.pool.connect();
-      await client.query('SELECT NOW()');
-      client.release();
+      this.db = new Database(config.databasePath, {
+        verbose: config.verbose ? console.log : undefined
+      });
+
+      // Enable foreign keys
+      this.db.pragma('foreign_keys = ON');
       
       this.isInitialized = true;
-      console.log('Database connection pool initialized successfully');
+      console.log('Database connection initialized successfully');
     } catch (error) {
-      console.error('Failed to initialize database connection pool:', error);
+      console.error('Failed to initialize database connection:', error);
       throw error;
     }
   }
 
   /**
-   * Get a client from the pool
+   * Get database instance
    */
-  static async getClient(): Promise<PoolClient> {
-    if (!this.pool) {
-      await this.initialize();
+  static getDatabase(): Database.Database {
+    if (!this.db) {
+      throw new Error('Database not initialized. Call initialize() first.');
     }
-    
-    if (!this.pool) {
-      throw new Error('Database pool not initialized');
-    }
-    
-    return this.pool.connect();
+    return this.db;
   }
 
   /**
    * Execute a query with parameters
-   * @param text - SQL query text
+   * @param sql - SQL query text
    * @param params - Query parameters
-   * @returns Promise<QueryResult> - Query result
+   * @returns Promise<any[]> - Query result rows
    */
-  static async query(text: string, params?: any[]): Promise<QueryResult> {
-    const client = await this.getClient();
+  static async query(sql: string, params: any[] = []): Promise<any[]> {
+    if (!this.db) {
+      await this.initialize();
+    }
     
     try {
-      const result = await client.query(text, params);
-      return result;
-    } finally {
-      client.release();
+      const convertedSql = this.convertParameters(sql);
+      
+      // Check if this is a SELECT statement or similar that returns data
+      if (!this.isSelectStatement(convertedSql)) {
+        throw new Error(`This statement does not return data. Use run() instead: ${sql}`);
+      }
+      
+      const stmt = this.db!.prepare(convertedSql);
+      return stmt.all(params);
+    } catch (error) {
+      console.error('Query error:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Execute a single query and get the first row
+   * @param sql - SQL query text
+   * @param params - Query parameters
+   * @returns Promise<any> - First row result
+   */
+  static async get(sql: string, params: any[] = []): Promise<any> {
+    if (!this.db) {
+      await this.initialize();
+    }
+    
+    try {
+      const convertedSql = this.convertParameters(sql);
+      
+      // Check if this is a SELECT statement or similar that returns data
+      if (!this.isSelectStatement(convertedSql)) {
+        throw new Error(`This statement does not return data. Use run() instead: ${sql}`);
+      }
+      
+      const stmt = this.db!.prepare(convertedSql);
+      return stmt.get(params);
+    } catch (error) {
+      console.error('Get query error:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Execute a query that doesn't return results (INSERT, UPDATE, DELETE)
+   * @param sql - SQL query text
+   * @param params - Query parameters
+   * @returns Promise<void>
+   */
+  static async run(sql: string, params: any[] = []): Promise<void> {
+    if (!this.db) {
+      await this.initialize();
+    }
+    
+    try {
+      const convertedSql = this.convertParameters(sql);
+      const stmt = this.db!.prepare(convertedSql);
+      stmt.run(params);
+    } catch (error) {
+      console.error('Run query error:', error);
+      throw error;
     }
   }
 
   /**
    * Execute a transaction with multiple queries
-   * @param queries - Array of query objects with text and params
-   * @returns Promise<any[]> - Array of query results
+   * @param queries - Array of query objects with sql and params
+   * @returns Promise<void>
    */
-  static async transaction(queries: Array<{ text: string; params?: any[] }>): Promise<any[]> {
-    const client = await this.getClient();
+  static async transaction(queries: Array<{ sql: string; params?: any[] }>): Promise<void> {
+    if (!this.db) {
+      await this.initialize();
+    }
     
     try {
-      await client.query('BEGIN');
-      
-      const results = [];
-      for (const query of queries) {
-        const result = await client.query(query.text, query.params);
-        results.push(result);
-      }
-      
-      await client.query('COMMIT');
-      return results;
+      this.db!.transaction(() => {
+        queries.forEach((query) => {
+          const convertedSql = this.convertParameters(query.sql);
+          const stmt = this.db!.prepare(convertedSql);
+          stmt.run(query.params || []);
+        });
+      })();
     } catch (error) {
-      await client.query('ROLLBACK');
+      console.error('Transaction error:', error);
       throw error;
-    } finally {
-      client.release();
     }
   }
 
   /**
-   * Close the database connection pool
+   * Close the database connection
    */
   static async close(): Promise<void> {
-    if (this.pool) {
-      await this.pool.end();
-      this.pool = null;
+    if (this.db) {
+      this.db.close();
+      this.db = null;
       this.isInitialized = false;
-      console.log('Database connection pool closed');
+      console.log('Database connection closed');
     }
   }
 
@@ -141,8 +200,8 @@ export class DatabaseService {
    */
   static async healthCheck(): Promise<boolean> {
     try {
-      const result = await this.query('SELECT 1 as health_check');
-      return result.rows[0]?.health_check === 1;
+      const result = await this.get('SELECT 1 as health_check');
+      return result?.health_check === 1;
     } catch (error) {
       console.error('Database health check failed:', error);
       return false;
@@ -155,7 +214,7 @@ export class DatabaseService {
    */
   static async getStats(): Promise<object> {
     try {
-      const stats = await this.query(`
+      const stats = await this.get(`
         SELECT 
           (SELECT COUNT(*) FROM users) as total_users,
           (SELECT COUNT(*) FROM game_sessions) as total_sessions,
@@ -163,7 +222,7 @@ export class DatabaseService {
           (SELECT COUNT(*) FROM user_statistics) as total_statistics
       `);
       
-      return stats.rows[0] || {};
+      return stats || {};
     } catch (error) {
       console.error('Failed to get database stats:', error);
       return {};

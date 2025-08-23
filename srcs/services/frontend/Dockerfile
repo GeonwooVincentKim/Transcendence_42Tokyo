@@ -20,8 +20,10 @@ COPY . .
 # Build the application
 RUN npm run build
 
-# Fix CSP in the built HTML file
-RUN sed -i 's/connect-src '\''self'\'' ws:\/\/localhost:8000;/connect-src '\''self'\'' ws:\/\/localhost:8000 http:\/\/localhost:8000;/g' /app/dist/index.html
+# Fix CSP in the built HTML file (cross-platform compatible)
+RUN if [ -f /app/dist/index.html ]; then \
+        sed -i 's/connect-src '\''self'\'' ws:\/\/localhost:8000;/connect-src '\''self'\'' ws:\/\/localhost:8000 http:\/\/localhost:8000;/g' /app/dist/index.html || true; \
+    fi
 
 # Production stage
 FROM nginx:1.25-alpine AS production
