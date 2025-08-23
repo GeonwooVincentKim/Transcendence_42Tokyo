@@ -180,11 +180,14 @@ export async function gameRoutes(fastify: FastifyInstance) {
       const decoded = request.user as JWTPayload;
       const { sessionId, playerSide, score, won, gameType } = request.body;
 
-      // Save game result
+      // Save game result - convert sessionId to integer and won to 0/1
+      const sessionIdInt = parseInt(sessionId.replace('session-', ''), 10) || Date.now();
+      const wonInt = won ? 1 : 0;
+      
       await DatabaseService.run(
         `INSERT INTO game_results (session_id, player_id, player_side, score, won, created_at)
          VALUES ($1, $2, $3, $4, $5, CURRENT_TIMESTAMP)`,
-        [sessionId, decoded.userId, playerSide, score, won]
+        [sessionIdInt, decoded.userId, playerSide, score, wonInt]
       );
 
       // Update user statistics

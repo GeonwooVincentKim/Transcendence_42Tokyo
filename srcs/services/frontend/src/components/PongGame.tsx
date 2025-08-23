@@ -1,7 +1,8 @@
-import React from 'react';
+import React, { useCallback } from 'react';
 import { usePongEngine } from '../hooks/usePongEngine';
 import { useHumanController } from '../hooks/useHumanController';
 import { useGameSettings } from '../contexts/GameSettingsContext';
+import { GameStatsService } from '../services/gameStatsService';
 
 /**
  * The Player vs. Player Pong game component.
@@ -14,9 +15,20 @@ interface PongGameProps {
 }
 
 export const PongGame: React.FC<PongGameProps> = ({ width = 800, height = 400 }) => {
+  // Handle game end
+  const handleGameEnd = useCallback(async (winner: 'left' | 'right', leftScore: number, rightScore: number) => {
+    try {
+      // Save game result for both players (assuming current user is left player)
+      await GameStatsService.saveGameResultSimple(winner, leftScore, rightScore, 'single', 'left');
+      console.log('Game result saved successfully');
+    } catch (error) {
+      console.error('Failed to save game result:', error);
+    }
+  }, []);
+
   // 1. Initialize the core game engine. This gives us the state, the canvas ref,
   //    and the controls to manipulate the engine.
-  const { canvasRef, gameState, controls } = usePongEngine(width, height);
+  const { canvasRef, gameState, controls } = usePongEngine(width, height, handleGameEnd);
   
   // 2. Get game settings from context
   const { settings } = useGameSettings();
@@ -48,6 +60,17 @@ export const PongGame: React.FC<PongGameProps> = ({ width = 800, height = 400 })
       <div data-testid="score" className="mb-2 text-lg font-bold">
         {gameState.leftScore} - {gameState.rightScore}
       </div>
+      
+      {/* Game end message */}
+      {gameState.status === 'finished' && gameState.winner && (
+        <div className="mb-4 p-4 bg-green-600 text-white rounded-lg text-center">
+          <h3 className="text-xl font-bold mb-2">Game Over!</h3>
+          <p className="text-lg">
+            {gameState.winner === 'left' ? 'Left Player' : 'Right Player'} wins!
+          </p>
+          <p className="text-sm mt-2">Final Score: {gameState.leftScore} - {gameState.rightScore}</p>
+        </div>
+      )}
 
       {/* The canvas element is linked to the engine via the canvasRef */}
       <canvas

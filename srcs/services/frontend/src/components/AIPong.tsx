@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import { usePongEngine } from '../hooks/usePongEngine';
 import { useHumanController } from '../hooks/useHumanController';
 import { useAIController, AIDifficulty } from '../hooks/useAIController';
+import { GameStatsService } from '../services/gameStatsService';
 
 /**
  * The Player vs. AI Pong game component.
@@ -29,8 +30,19 @@ export const AIPong: React.FC = () => {
     forceMovement: false
   });
 
+  // Handle game end
+  const handleGameEnd = useCallback(async (winner: 'left' | 'right', leftScore: number, rightScore: number) => {
+    try {
+      // Save game result (current user is left player vs AI)
+      await GameStatsService.saveGameResultSimple(winner, leftScore, rightScore, 'ai', 'left');
+      console.log('AI game result saved successfully');
+    } catch (error) {
+      console.error('Failed to save AI game result:', error);
+    }
+  }, []);
+
   // 1. Initialize the core game engine. This is IDENTICAL to the other game mode.
-  const { canvasRef, gameState, controls } = usePongEngine();
+  const { canvasRef, gameState, controls } = usePongEngine(800, 400, handleGameEnd);
   
   // 2. Initialize a controller for the LEFT paddle (the human player).
   useHumanController(controls.setPaddleMovement, 'left');
@@ -149,6 +161,19 @@ export const AIPong: React.FC = () => {
         <div className="absolute top-2 right-2 text-white text-2xl font-bold" data-testid="score">
           Player: {gameState.leftScore} - AI: {gameState.rightScore}
         </div>
+        
+        {/* Game End Message */}
+        {gameState.status === 'finished' && gameState.winner && (
+          <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-75">
+            <div className="bg-green-600 text-white p-6 rounded-lg text-center">
+              <h3 className="text-2xl font-bold mb-2">Game Over!</h3>
+              <p className="text-xl mb-2">
+                {gameState.winner === 'left' ? 'Player' : 'AI'} wins!
+              </p>
+              <p className="text-lg">Final Score: {gameState.leftScore} - {gameState.rightScore}</p>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Game Controls */}

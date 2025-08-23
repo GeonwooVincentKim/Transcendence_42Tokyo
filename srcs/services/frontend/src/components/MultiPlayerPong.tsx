@@ -17,7 +17,8 @@ export const MultiplayerPong: React.FC<MultiplayerPongProps> = ({
     ball: { x: 400, y: 200, dx: 5, dy: 3 },
     leftScore: 0,
     rightScore: 0,
-    status: 'ready' // Added
+    status: 'ready' as 'ready' | 'playing' | 'paused' | 'finished',
+    winner: undefined as 'left' | 'right' | undefined
   });
   const [connected, setConnected] = useState(false);
   const [keys, setKeys] = useState<Set<string>>(new Set());
@@ -78,7 +79,17 @@ export const MultiplayerPong: React.FC<MultiplayerPongProps> = ({
             ball: { x: 400, y: 200, dx: 5, dy: 3 },
             leftPaddle: { y: 200 },
             rightPaddle: { y: 200 },
-            status: 'ready'
+            status: 'ready',
+            winner: undefined
+          }));
+          break;
+        case 'game_end':
+          setGameState(prev => ({
+            ...prev,
+            status: 'finished',
+            winner: data.data.winner,
+            leftScore: data.data.leftScore,
+            rightScore: data.data.rightScore
           }));
           break;
       }
@@ -272,7 +283,19 @@ export const MultiplayerPong: React.FC<MultiplayerPongProps> = ({
         {gameState.status === 'ready' && 'Initial / Ready'}
         {gameState.status === 'playing' && 'Started / Playing'}
         {gameState.status === 'paused' && 'Stopped / Paused'}
+        {gameState.status === 'finished' && 'Game Over'}
       </div>
+      
+      {/* Game End Message */}
+      {gameState.status === 'finished' && gameState.winner && (
+        <div className="mb-4 p-4 bg-green-600 text-white rounded-lg text-center">
+          <h3 className="text-xl font-bold mb-2">Game Over!</h3>
+          <p className="text-lg">
+            {gameState.winner === 'left' ? 'Left Player' : 'Right Player'} wins!
+          </p>
+          <p className="text-sm mt-2">Final Score: {gameState.leftScore} - {gameState.rightScore}</p>
+        </div>
+      )}
       <div className="mb-4 text-sm">
         <p>You are playing as: <strong>{playerSide.toUpperCase()}</strong></p>
         <p>{playerSide === 'left' ? 'W/S keys' : '↑/↓ keys'}</p>

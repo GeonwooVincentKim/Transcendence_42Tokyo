@@ -69,6 +69,33 @@ export class GameStatsService {
   }
 
   /**
+   * Save game result with simplified interface
+   * @param winner - Winner of the game ('left' | 'right')
+   * @param leftScore - Left player's final score
+   * @param rightScore - Right player's final score
+   * @param gameType - Type of game ('single', 'multiplayer', 'ai')
+   * @param playerSide - Which side the current user was playing ('left' | 'right')
+   * @returns Promise<boolean> - True if saved successfully
+   */
+  static async saveGameResultSimple(
+    winner: 'left' | 'right',
+    leftScore: number,
+    rightScore: number,
+    gameType: 'single' | 'multiplayer' | 'ai',
+    playerSide: 'left' | 'right'
+  ): Promise<boolean> {
+    const gameResult: GameResult = {
+      sessionId: `session-${Date.now()}`,
+      playerSide,
+      score: playerSide === 'left' ? leftScore : rightScore,
+      won: (playerSide === 'left' && winner === 'left') || (playerSide === 'right' && winner === 'right'),
+      gameType
+    };
+
+    return this.saveGameResult(gameResult);
+  }
+
+  /**
    * Get user statistics
    * @returns Promise<UserStatistics | null> - User statistics or null if not found
    */

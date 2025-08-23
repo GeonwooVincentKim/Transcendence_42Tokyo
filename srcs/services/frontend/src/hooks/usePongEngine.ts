@@ -10,7 +10,8 @@ export interface GameState {
   ball: { x: number; y: number; dx: number; dy: number; };
   leftScore: number;
   rightScore: number;
-  status: 'ready' | 'playing' | 'paused';
+  status: 'ready' | 'playing' | 'paused' | 'finished';
+  winner?: 'left' | 'right';
 }
 
 /**
@@ -27,24 +28,30 @@ const GAME_CONFIG = {
   BOUNCE_FACTOR: 6,
   PADDLE_COLLISION_LEFT: 20,
   PADDLE_COLLISION_RIGHT: 10,
+  WINNING_SCORE: 10, // Game ends when a player reaches this score
 } as const;
 
 /**
  * The core Pong game engine, encapsulated in a custom hook.
  * It handles all game state, physics, and the game loop with enhanced bounce physics.
  */
-export const usePongEngine = (width: number = GAME_CONFIG.WIDTH, height: number = GAME_CONFIG.HEIGHT) => {
+export const usePongEngine = (
+  width: number = GAME_CONFIG.WIDTH, 
+  height: number = GAME_CONFIG.HEIGHT,
+  onGameEnd?: (winner: 'left' | 'right', leftScore: number, rightScore: number) => void
+) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const [status, setStatus] = useState<'ready' | 'playing' | 'paused'>('ready');
+  const [status, setStatus] = useState<'ready' | 'playing' | 'paused' | 'finished'>('ready');
   const { settings } = useGameSettings();
   
   // Calculate initial positions based on settings
-  const getInitialState = useCallback(() => ({
+  const getInitialState = useCallback((): GameState => ({
     leftPaddle: { y: height / 2 - (settings.paddleHeight / 2) },
     rightPaddle: { y: height / 2 - (settings.paddleHeight / 2) },
     ball: { x: width / 2, y: height / 2, dx: 0, dy: 0 },
     leftScore: 0,
     rightScore: 0,
+    status: 'ready',
   }), [height, width, settings.paddleHeight]);
 
   const [gameState, setGameState] = useState(getInitialState);
@@ -69,6 +76,25 @@ export const usePongEngine = (width: number = GAME_CONFIG.WIDTH, height: number 
     const normalizedImpact = relativeImpact / (settings.paddleHeight / 2);
     state.ball.dy = normalizedImpact * GAME_CONFIG.BOUNCE_FACTOR;
   }, [settings.ballSpeed, settings.paddleHeight]);
+
+  /**
+   * Check if game should end
+   */
+  const checkGameEnd = useCallback((leftScore: number, rightScore: number) => {
+    if (leftScore >= GAME_CONFIG.WINNING_SCORE || rightScore >= GAME_CONFIG.WINNING_SCORE) {
+      const winner = leftScore >= GAME_CONFIG.WINNING_SCORE ? 'left' : 'right';
+      setStatus('finished');
+      setGameState(prev => ({ ...prev, status: 'finished', winner }));
+      
+      // Call the game end callback if provided
+      if (onGameEnd) {
+        onGameEnd(winner, leftScore, rightScore);
+      }
+      
+      return true;
+    }
+    return false;
+  }, [onGameEnd]);
 
   /**
    * Reset ball to center with delay
@@ -180,6 +206,10 @@ export const usePongEngine = (width: number = GAME_CONFIG.WIDTH, height: number 
       }
 
       if (scoreChanged) {
+        // Check if game should end
+        if (checkGameEnd(state.leftScore, state.rightScore)) {
+          return; // Stop the game loop if game ended
+        }
         resetBall(lastScorer);
       }
 
@@ -191,7 +221,7 @@ export const usePongEngine = (width: number = GAME_CONFIG.WIDTH, height: number 
     
     animationFrameId = requestAnimationFrame(gameLoop);
     return () => cancelAnimationFrame(animationFrameId);
-  }, [status, width, height, settings.paddleSpeed, settings.paddleHeight, settings.ballSpeed, settings.ballSize, handlePaddleBounce, resetBall, drawGame]);
+  }, [status, width, height, settings.paddleSpeed, settings.paddleHeight, settings.ballSpeed, settings.ballSize, handlePaddleBounce, resetBall, drawGame, checkGameEnd]);
 
   // --- PUBLIC API FOR CONTROLLING THE ENGINE ---
 

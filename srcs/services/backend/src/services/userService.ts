@@ -337,11 +337,12 @@ export class UserService {
         );
       } else {
         // Update existing statistics
-        const newTotalGames = (currentStats as any).total_games + 1;
-        const newGamesWon = (currentStats as any).games_won + (won ? 1 : 0);
-        const newGamesLost = (currentStats as any).games_lost + (won ? 0 : 1);
-        const newTotalScore = (currentStats as any).total_score + score;
-        const newHighestScore = Math.max((currentStats as any).highest_score, score);
+        const stats = currentStats as any;
+        const newTotalGames = stats.totalGames + 1;
+        const newGamesWon = stats.gamesWon + (won ? 1 : 0);
+        const newGamesLost = stats.gamesLost + (won ? 0 : 1);
+        const newTotalScore = stats.totalScore + score;
+        const newHighestScore = Math.max(stats.highestScore, score);
         const newAverageScore = newTotalScore / newTotalGames;
 
         await DatabaseService.run(
