@@ -112,6 +112,7 @@ Trascendence/
 - **Classic Pong mechanics** with modern enhancements
 - **Real-time multiplayer** support
 - **AI opponent** for single-player mode
+- **Tournament system** with single-elimination brackets
 - **Score tracking** and statistics
 - **Game state persistence**
 
@@ -121,11 +122,13 @@ Trascendence/
 - **Customizable game settings**
 - **Leaderboard** and rankings
 - **User profiles** and statistics
+- **Tournament management** interface
 
 ### Technical Features
 - **WebSocket** real-time communication
 - **JWT-based authentication**
 - **Database persistence**
+- **Tournament bracket generation**
 - **Error handling** and logging
 - **Performance optimization**
 
@@ -301,6 +304,16 @@ GET    /api/game/state      # Get game state
 POST   /api/auth/register   # User registration
 POST   /api/auth/login      # User login
 GET    /api/users/profile   # Get user profile
+
+# Tournament API
+GET    /api/tournaments     # List tournaments
+POST   /api/tournaments     # Create tournament
+GET    /api/tournaments/:id # Get tournament details
+POST   /api/tournaments/:id/join  # Join tournament
+POST   /api/tournaments/:id/start # Start tournament
+GET    /api/tournaments/:id/matches # Get tournament matches
+GET    /api/tournaments/:id/brackets # Get tournament brackets
+POST   /api/tournaments/:id/matches/:matchId/result # Submit match result
 ```
 
 ## 🐛 Troubleshooting
