@@ -3,6 +3,7 @@ import cors from '@fastify/cors';
 import fastifyWebsocket from '@fastify/websocket';
 import { authRoutes } from './routes/auth';
 import { gameRoutes } from './routes/game';
+import { tournamentRoutes } from './routes/tournament';
 import { DatabaseService } from './services/databaseService';
 import { initializeDatabase } from './utils/databaseInit';
 
@@ -224,6 +225,8 @@ const start = async () => {
     
     // Register game routes
     await server.register(gameRoutes);
+    // Register tournament routes
+    await server.register(tournamentRoutes);
     
     await server.listen({ port, host });
 
@@ -243,6 +246,14 @@ const start = async () => {
     server.log.info(`  - POST /api/game/results (save game result)`);
     server.log.info(`  - GET  /api/game/statistics (user statistics)`);
     server.log.info(`  - GET  /api/game/leaderboard (top players)`);
+    server.log.info(`  - POST /api/tournaments (create tournament)`);
+    server.log.info(`  - GET  /api/tournaments (list tournaments)`);
+    server.log.info(`  - GET  /api/tournaments/:id (tournament details)`);
+    server.log.info(`  - POST /api/tournaments/:id/join (join tournament)`);
+    server.log.info(`  - POST /api/tournaments/:id/start (start tournament)`);
+    server.log.info(`  - GET  /api/tournaments/:id/brackets (view brackets)`);
+    server.log.info(`  - GET  /api/tournaments/:id/matches (list matches)`);
+    server.log.info(`  - POST /api/tournaments/:id/matches/:matchId/result (report result)`);
     server.log.info(`  - WS   /ws (WebSocket for real-time game)`);
   } catch (err) {
     server.log.error('Failed to start server:', err);

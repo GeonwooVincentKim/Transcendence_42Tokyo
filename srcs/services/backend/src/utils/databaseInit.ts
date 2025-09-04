@@ -102,6 +102,72 @@ export async function initializeDatabase(): Promise<void> {
     await DatabaseService.run('CREATE INDEX IF NOT EXISTS idx_user_statistics_user_id ON user_statistics(user_id)');
     console.log('Indexes created');
     
+    // Create tournaments table
+    await DatabaseService.run(`
+      CREATE TABLE IF NOT EXISTS tournaments (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL,
+        description TEXT,
+        max_participants INTEGER NOT NULL,
+        status TEXT NOT NULL DEFAULT 'registration',
+        created_by INTEGER,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        started_at DATETIME,
+        finished_at DATETIME,
+        FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
+      )
+    `);
+    console.log('Tournaments table created');
+
+    // Create tournament participants table
+    await DatabaseService.run(`
+      CREATE TABLE IF NOT EXISTS tournament_participants (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        tournament_id INTEGER NOT NULL,
+        user_id INTEGER NOT NULL,
+        joined_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        eliminated_at DATETIME,
+        final_rank INTEGER,
+        UNIQUE (tournament_id, user_id),
+        FOREIGN KEY (tournament_id) REFERENCES tournaments(id) ON DELETE CASCADE,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+      )
+    `);
+    console.log('Tournament participants table created');
+
+    // Create tournament matches table
+    await DatabaseService.run(`
+      CREATE TABLE IF NOT EXISTS tournament_matches (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        tournament_id INTEGER NOT NULL,
+        round INTEGER NOT NULL,
+        match_number INTEGER NOT NULL,
+        player1_id INTEGER,
+        player2_id INTEGER,
+        winner_id INTEGER,
+        status TEXT NOT NULL DEFAULT 'pending',
+        player1_score INTEGER DEFAULT 0,
+        player2_score INTEGER DEFAULT 0,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        started_at DATETIME,
+        finished_at DATETIME,
+        FOREIGN KEY (tournament_id) REFERENCES tournaments(id) ON DELETE CASCADE,
+        FOREIGN KEY (player1_id) REFERENCES users(id) ON DELETE SET NULL,
+        FOREIGN KEY (player2_id) REFERENCES users(id) ON DELETE SET NULL,
+        FOREIGN KEY (winner_id) REFERENCES users(id) ON DELETE SET NULL
+      )
+    `);
+    console.log('Tournament matches table created');
+
+    // Create tournament indexes
+    await DatabaseService.run('CREATE INDEX IF NOT EXISTS idx_tournaments_status ON tournaments(status)');
+    await DatabaseService.run('CREATE INDEX IF NOT EXISTS idx_tournaments_created_by ON tournaments(created_by)');
+    await DatabaseService.run('CREATE INDEX IF NOT EXISTS idx_tournament_participants_tid ON tournament_participants(tournament_id)');
+    await DatabaseService.run('CREATE INDEX IF NOT EXISTS idx_tournament_matches_tid ON tournament_matches(tournament_id)');
+    await DatabaseService.run('CREATE INDEX IF NOT EXISTS idx_tournament_matches_round ON tournament_matches(round)');
+    await DatabaseService.run('CREATE INDEX IF NOT EXISTS idx_tournament_matches_status ON tournament_matches(status)');
+    console.log('Tournament indexes created');
+
     console.log('Database schema initialized successfully');
   } catch (error) {
     console.error('Failed to initialize database schema:', error);

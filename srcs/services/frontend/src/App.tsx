@@ -1,18 +1,20 @@
-import { useState, useEffect } from 'react'
-import { PongGame } from './components/PongGame'
-import { MultiplayerPong } from './components/MultiPlayerPong'
-import { AIPong } from './components/AIPong'
-import { LoginForm } from './components/LoginForm'
-import { RegisterForm } from './components/RegisterForm'
-import { UserProfile } from './components/UserProfile'
-import { ForgotUsername } from './components/ForgotUsername'
-import { ForgotPassword } from './components/ForgotPassword'
-import { DeleteAccountPage } from './components/DeleteAccountPage'
-import { GameSettings } from './components/GameSettings'
-import { AuthService } from './services/authService'
-import { AuthResponse, User } from './types/auth'
-import { GameSettingsProvider } from './contexts/GameSettingsContext'
+import { useState, useEffect } from 'react';
+import { LoginForm } from './components/LoginForm';
+import { RegisterForm } from './components/RegisterForm';
+import { ForgotPassword } from './components/ForgotPassword';
+import { ForgotUsername } from './components/ForgotUsername';
+import { UserProfile } from './components/UserProfile';
+import { DeleteAccountPage } from './components/DeleteAccountPage';
+import { PongGame } from './components/PongGame';
+import { AIPong } from './components/AIPong';
+import { MultiplayerPong } from './components/MultiPlayerPong';
+import { Tournament } from './components/Tournament';
+import { GameSettings } from './components/GameSettings';
 import Ranking from './components/Ranking';
+import { AuthService } from './services/authService';
+import './App.css';
+import { AuthResponse, User } from './types/auth';
+import { GameSettingsProvider } from './contexts/GameSettingsContext';
 
 /**
  * Main App Component
@@ -29,7 +31,7 @@ function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
-  const [view, setView] = useState<'game' | 'profile' | 'deleteAccount' | 'forgotPassword' | 'forgotUsername' | 'settings' | 'ranking'>('game');
+  const [view, setView] = useState<'game' | 'profile' | 'deleteAccount' | 'forgotPassword' | 'forgotUsername' | 'settings' | 'ranking' | 'tournament'>('game');
   const [showSettings, setShowSettings] = useState(false);
 
   /**
@@ -200,6 +202,12 @@ function App() {
             >
               Ranking
             </button>
+            <button 
+              onClick={() => setView('tournament')}
+              className="px-6 py-3 bg-pink-600 rounded hover:bg-pink-700 w-64 text-lg"
+            >
+              Tournament
+            </button>
           </div>
         );
     }
@@ -313,6 +321,17 @@ function App() {
           >
             Back to Game
           </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (view === 'tournament') {
+    return (
+      <div className="min-h-screen bg-gray-900 text-white flex items-center justify-center">
+        <div className="text-center">
+          <h1 className="text-4xl mb-8">Tournament</h1>
+          <Tournament onBack={() => setView('game')} />
         </div>
       </div>
     );
