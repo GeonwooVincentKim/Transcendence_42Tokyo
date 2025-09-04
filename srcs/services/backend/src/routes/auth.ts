@@ -6,7 +6,6 @@
  */
 
 import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
-import jwt from '@fastify/jwt';
 import { UserService } from '../services/userService';
 import { LoginRequest, RegisterRequest, AuthResponse, ErrorResponse } from '../types/auth';
 
@@ -23,15 +22,6 @@ interface JWTPayload {
  * @param fastify - Fastify instance
  */
 export async function authRoutes(fastify: FastifyInstance) {
-  // Register JWT plugin
-  const jwtSecret = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
-  
-  await fastify.register(jwt, {
-    secret: jwtSecret,
-    sign: {
-      expiresIn: '24h' // Token expires in 24 hours
-    }
-  });
 
   /**
    * POST /api/auth/register

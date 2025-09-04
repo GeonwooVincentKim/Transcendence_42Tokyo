@@ -1,6 +1,7 @@
 import Fastify from 'fastify';
 import cors from '@fastify/cors';
 import fastifyWebsocket from '@fastify/websocket';
+import jwt from '@fastify/jwt';
 import { authRoutes } from './routes/auth';
 import { gameRoutes } from './routes/game';
 import { tournamentRoutes } from './routes/tournament';
@@ -220,11 +221,21 @@ const start = async () => {
     await initializeDatabase();
     server.log.info('Database schema initialized successfully');
     
+    // Register JWT plugin for authentication FIRST
+    const jwtSecret = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
+    await server.register(jwt, { 
+      secret: jwtSecret,
+      sign: {
+        expiresIn: '24h'
+      }
+    });
+    
     // Register authentication routes
     await server.register(authRoutes);
     
     // Register game routes
     await server.register(gameRoutes);
+    
     // Register tournament routes
     await server.register(tournamentRoutes);
     

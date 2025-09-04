@@ -3,18 +3,27 @@
  */
 
 import { FastifyInstance } from 'fastify';
-import jwt from '@fastify/jwt';
 import { TournamentService } from '../services/tournamentService';
 
 export async function tournamentRoutes(fastify: FastifyInstance) {
-  const jwtSecret = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
-  await fastify.register(jwt, { secret: jwtSecret });
 
   const requireAuth = async (request: any, reply: any) => {
     try {
+      console.log('JWT verification attempt:', { 
+        hasJwt: !!request.jwtVerify, 
+        headers: request.headers,
+        url: request.url 
+      });
+      
       await request.jwtVerify();
+      
+      console.log('JWT verification successful:', { 
+        user: request.user,
+        userId: request.user?.userId 
+      });
     } catch (err) {
-      reply.status(401).send({ error: 'Unauthorized' });
+      console.error('JWT verification failed:', err);
+      reply.status(401).send({ error: 'Unauthorized - JWT verification failed' });
     }
   };
 
@@ -95,13 +104,17 @@ export async function tournamentRoutes(fastify: FastifyInstance) {
       }
 
       const userId = Number(request.user?.userId);
+      console.log('Join tournament request:', { tournamentId: id, userId, user: request.user });
+      
       if (!userId) {
-        return reply.status(401).send({ error: 'Unauthorized' });
+        console.error('No userId found in request.user:', request.user);
+        return reply.status(401).send({ error: 'Unauthorized - No user ID found' });
       }
 
       await TournamentService.joinTournament(id, userId);
       return reply.status(200).send({ message: 'Successfully joined tournament' });
     } catch (error: any) {
+      console.error('Join tournament error:', error);
       if (error.message.includes('not accepting participants')) {
         reply.status(400).send({ error: error.message });
       } else if (error.message.includes('already a participant')) {
@@ -244,6 +257,44 @@ export async function tournamentRoutes(fastify: FastifyInstance) {
       return reply.send(stats);
     } catch (error: any) {
       reply.status(500).send({ error: error.message || 'Failed to get tournament stats' });
+    }
+  });
+
+  // Leave tournament (remove participant)
+  fastify.post('/api/tournaments/:id/leave', { preHandler: requireAuth }, async (request: any, reply) => {
+    try {
+      const id = Number(request.params.id);
+      if (isNaN(id)) {
+        return reply.status(400).send({ error: 'Invalid tournament ID' });
+      }
+
+      const userId = Number(request.user?.userId);
+      if (!userId) {
+        return reply.status(401).send({ error: 'Unauthorized' });
+      }
+
+      const wasCleanedUp = await TournamentService.removeParticipant(id, userId);
+      
+      if (wasCleanedUp) {
+        return reply.send({ message: 'Left tournament and tournament was cleaned up (no participants left)' });
+      } else {
+        return reply.send({ message: 'Left tournament successfully' });
+      }
+    } catch (error: any) {
+      reply.status(500).send({ error: error.message || 'Failed to leave tournament' });
+    }
+  });
+
+  // Clean up empty tournaments (admin endpoint)
+  fastify.post('/api/tournaments/cleanup', { preHandler: requireAuth }, async (request: any, reply) => {
+    try {
+      const cleanedCount = await TournamentService.cleanupEmptyTournaments();
+      return reply.send({ 
+        message: `Cleaned up ${cleanedCount} empty tournaments`,
+        cleanedCount 
+      });
+    } catch (error: any) {
+      reply.status(500).send({ error: error.message || 'Failed to cleanup tournaments' });
     }
   });
 }

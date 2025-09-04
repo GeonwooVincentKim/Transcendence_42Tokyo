@@ -31,6 +31,9 @@ describe('Tournament API', () => {
     const user = await UserService.registerUser(uniqueUsername, uniqueEmail, 'password123');
     testUserId = Number(user.id);
     
+    // Create a mock token for testing
+    testToken = `mock-token-${testCounter}`;
+    
     // Register tournament routes without JWT middleware
     await app.register(async (fastify: FastifyInstance) => {
       // Tournament routes with mocked authentication
@@ -410,12 +413,15 @@ describe('Tournament API', () => {
         }
       });
 
-      // Create another user and join tournament
-      const user2 = await UserService.registerUser(`tournamentuser2_${testCounter}`, `tournament2_${testCounter}@test.com`, 'password123');
-      await DatabaseService.run(
-        'INSERT INTO tournament_participants (tournament_id, user_id) VALUES (?, ?)',
-        [tournament.id, user2.id]
-      );
+             // Create another user and join tournament
+       const user2 = await UserService.registerUser(`tournamentuser2_${testCounter}`, `tournament2_${testCounter}@testCounter.com`, 'password123');
+       const user2Id = Number(user2.id);
+       
+       // Manually add second user to tournament participants
+       await DatabaseService.run(
+         'INSERT INTO tournament_participants (tournament_id, user_id) VALUES (?, ?)',
+         [tournament.id, user2Id]
+       );
 
       // Start the tournament
       const response = await app.inject({

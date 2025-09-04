@@ -67,6 +67,17 @@ export class TournamentService {
       throw new Error('Invalid tournament input: name and maxParticipants (>=2) are required');
     }
 
+    // If createdBy is provided, validate that the user exists
+    if (input.createdBy) {
+      const userExists = await DatabaseService.query(
+        `SELECT id FROM users WHERE id = $1`,
+        [input.createdBy]
+      );
+      if (userExists.length === 0) {
+        throw new Error('User not found');
+      }
+    }
+
     await DatabaseService.run(
       `INSERT INTO tournaments (name, description, max_participants, created_by)
        VALUES ($1, $2, $3, $4)`,
@@ -444,6 +455,82 @@ export class TournamentService {
       progress: tournament?.status === 'completed' ? 100 : 
                 (completedMatches.length / matches.length) * 100
     };
+  }
+
+  /**
+   * Automatically clean up empty tournaments (no participants)
+   * This method removes tournaments that have no participants
+   */
+  static async cleanupEmptyTournaments(): Promise<number> {
+    try {
+      // Find tournaments with no participants
+      const emptyTournaments = await DatabaseService.query(
+        `SELECT t.id FROM tournaments t
+         LEFT JOIN tournament_participants tp ON t.id = tp.tournament_id
+         WHERE tp.tournament_id IS NULL
+         AND t.status = 'registration'`
+      );
+
+      let cleanedCount = 0;
+      for (const tournament of emptyTournaments) {
+        // Delete tournament matches first
+        await DatabaseService.run(
+          'DELETE FROM tournament_matches WHERE tournament_id = $1',
+          [tournament.id]
+        );
+        
+        // Delete tournament participants (should be none, but safety first)
+        await DatabaseService.run(
+          'DELETE FROM tournament_participants WHERE tournament_id = $1',
+          [tournament.id]
+        );
+        
+        // Delete the tournament
+        await DatabaseService.run(
+          'DELETE FROM tournaments WHERE id = $1',
+          [tournament.id]
+        );
+        
+        cleanedCount++;
+      }
+
+      return cleanedCount;
+    } catch (error) {
+      console.error('Error cleaning up empty tournaments:', error);
+      return 0;
+    }
+  }
+
+  /**
+   * Remove participant from tournament and cleanup if empty
+   */
+  static async removeParticipant(tournamentId: number, userId: number): Promise<boolean> {
+    try {
+      // Remove participant
+      await DatabaseService.run(
+        'DELETE FROM tournament_participants WHERE tournament_id = $1 AND user_id = $2',
+        [tournamentId, userId]
+      );
+
+      // Check if tournament is now empty
+      const remainingParticipants = await DatabaseService.query(
+        'SELECT COUNT(*) as count FROM tournament_participants WHERE tournament_id = $1',
+        [tournamentId]
+      );
+
+      const participantCount = remainingParticipants[0]?.count || 0;
+
+      if (participantCount === 0) {
+        // Tournament is empty, clean it up
+        await this.cleanupEmptyTournaments();
+        return true; // Tournament was cleaned up
+      }
+
+      return false; // Tournament still has participants
+    } catch (error) {
+      console.error('Error removing participant:', error);
+      return false;
+    }
   }
 }
 

@@ -95,6 +95,16 @@ export const TournamentService = {
     if (!res.ok) throw new Error('Failed to join tournament');
   },
 
+  async leave(token: string, id: number): Promise<void> {
+    const res = await fetch(`${API_BASE_URL}/api/tournaments/${id}/leave`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`
+      }
+    });
+    if (!res.ok) throw new Error('Failed to leave tournament');
+  },
+
   async start(token: string, id: number): Promise<void> {
     const res = await fetch(`${API_BASE_URL}/api/tournaments/${id}/start`, {
       method: 'POST',

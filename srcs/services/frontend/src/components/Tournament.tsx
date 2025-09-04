@@ -29,10 +29,15 @@ export const Tournament: React.FC<Props> = ({ onBack }) => {
   const [description, setDescription] = useState('');
 
   const token = AuthService.getStoredAuthData()?.token || '';
+  const isAuthenticated = AuthService.isAuthenticated();
 
   useEffect(() => {
-    loadTournaments();
-  }, []);
+    if (isAuthenticated) {
+      loadTournaments();
+    } else {
+      setError('Please login to access tournaments');
+    }
+  }, [isAuthenticated]);
 
   useEffect(() => {
     if (selectedTournament) {
@@ -76,6 +81,11 @@ export const Tournament: React.FC<Props> = ({ onBack }) => {
 
   const createTournament = async () => {
     try {
+      if (!isAuthenticated) {
+        setError('Please login to create tournaments');
+        return;
+      }
+      
       setLoading(true);
       setError(null);
       
@@ -88,8 +98,11 @@ export const Tournament: React.FC<Props> = ({ onBack }) => {
       setName('New Tournament');
       setMaxParticipants(2);
       setDescription('');
-      setError('Tournament created successfully!');
+      
+      // 즉시 토너먼트 목록 새로고침
       await loadTournaments();
+      
+      setError('Tournament created successfully!');
     } catch (e: any) {
       setError(e.message || 'Failed to create tournament');
     } finally {
@@ -99,14 +112,35 @@ export const Tournament: React.FC<Props> = ({ onBack }) => {
 
   const joinTournament = async (tournament: TournamentType) => {
     try {
-      await TournamentService.join(token, tournament.id);
-      if (selectedTournament?.id === tournament.id) {
-        await loadTournamentDetails(tournament.id);
+      if (!isAuthenticated) {
+        setError('Please login to join tournaments');
+        return;
       }
-      setError('Joined tournament successfully!');
+      
+      await TournamentService.join(token, tournament.id);
+      
+      // 즉시 참가자 목록 업데이트
+      await loadTournamentDetails(tournament.id);
+      
+      // 토너먼트 목록도 새로고침
       await loadTournaments();
+      
+      setError('Joined tournament successfully!');
     } catch (e: any) {
       setError(e.message || 'Failed to join tournament');
+    }
+  };
+
+  const leaveTournament = async (tournamentId: number) => {
+    try {
+      await TournamentService.leave(token, tournamentId);
+      if (selectedTournament?.id === tournamentId) {
+        await loadTournamentDetails(tournamentId);
+      }
+      setError('Left tournament successfully!');
+      await loadTournaments();
+    } catch (e: any) {
+      setError(e.message || 'Failed to leave tournament');
     }
   };
 
@@ -183,40 +217,42 @@ export const Tournament: React.FC<Props> = ({ onBack }) => {
 
   const renderTournamentList = () => (
     <div className="space-y-4">
-      <div className="w-full max-w-4xl bg-gray-800 p-6 rounded">
-        <h3 className="text-xl font-semibold mb-4">Create Tournament</h3>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-          <input 
-            className="px-3 py-2 text-black rounded" 
-            placeholder="Tournament Name" 
-            value={name} 
-            onChange={(e) => setName(e.target.value)} 
-          />
-          <div className="flex flex-col">
+      {isAuthenticated && (
+        <div className="w-full max-w-4xl bg-gray-800 p-6 rounded">
+          <h3 className="text-xl font-semibold mb-4">Create Tournament</h3>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
             <input 
               className="px-3 py-2 text-black rounded" 
-              type="number" 
-              min={2} 
-              max={16} 
-              value={maxParticipants} 
-              onChange={(e) => setMaxParticipants(parseInt(e.target.value || '2', 10))} 
+              placeholder="Tournament Name" 
+              value={name} 
+              onChange={(e) => setName(e.target.value)} 
             />
-            <span className="text-xs text-gray-400 mt-1">Max participants (2-16)</span>
+            <div className="flex flex-col">
+              <input 
+                className="px-3 py-2 text-black rounded" 
+                type="number" 
+                min={2} 
+                max={16} 
+                value={maxParticipants} 
+                onChange={(e) => setMaxParticipants(parseInt(e.target.value || '2', 10))} 
+              />
+              <span className="text-xs text-gray-400 mt-1">Max participants (2-16)</span>
+            </div>
+            <button 
+              className="px-4 py-2 bg-green-600 rounded hover:bg-green-700" 
+              onClick={createTournament}
+            >
+              Create
+            </button>
           </div>
-          <button 
-            className="px-4 py-2 bg-green-600 rounded hover:bg-green-700" 
-            onClick={createTournament}
-          >
-            Create
-          </button>
+          <textarea 
+            className="px-3 py-2 text-black rounded w-full mb-4" 
+            placeholder="Description (optional)" 
+            value={description} 
+            onChange={(e) => setDescription(e.target.value)} 
+          />
         </div>
-        <textarea 
-          className="px-3 py-2 text-black rounded w-full mb-4" 
-          placeholder="Description (optional)" 
-          value={description} 
-          onChange={(e) => setDescription(e.target.value)} 
-        />
-      </div>
+      )}
 
       <div className="w-full max-w-4xl bg-gray-800 p-6 rounded">
         <h3 className="text-xl font-semibold mb-4">Tournaments</h3>
@@ -250,12 +286,21 @@ export const Tournament: React.FC<Props> = ({ onBack }) => {
                   </div>
                 </div>
                 <div className="flex gap-2">
-                  <button 
-                    className="px-3 py-1 bg-blue-600 rounded hover:bg-blue-700" 
-                    onClick={() => joinTournament(t)}
-                  >
-                    Join
-                  </button>
+                  {participants.some(p => p.tournament_id === t.id) ? (
+                    <button 
+                      className="px-3 py-1 bg-red-600 rounded hover:bg-red-700" 
+                      onClick={() => leaveTournament(t.id)}
+                    >
+                      Leave
+                    </button>
+                  ) : (
+                    <button 
+                      className="px-3 py-1 bg-blue-600 rounded hover:bg-blue-700" 
+                      onClick={() => joinTournament(t)}
+                    >
+                      Join
+                    </button>
+                  )}
                   {t.status === 'registration' && (
                     <button 
                       className={`px-3 py-1 rounded ${
@@ -304,101 +349,175 @@ export const Tournament: React.FC<Props> = ({ onBack }) => {
       <div className="space-y-6">
         <div className="flex items-center justify-between">
           <h2 className="text-2xl font-bold">{selectedTournament.name}</h2>
-          <button 
-            onClick={() => setView('list')} 
-            className="px-4 py-2 bg-gray-600 rounded hover:bg-gray-700"
-          >
-            Back to List
-          </button>
+          <div className="flex gap-2">
+            <button 
+              onClick={() => setView('brackets')} 
+              className="px-4 py-2 bg-blue-600 rounded hover:bg-blue-700"
+            >
+              View Brackets
+            </button>
+            <button 
+              onClick={() => setView('list')} 
+              className="px-4 py-2 bg-gray-600 rounded hover:bg-gray-700"
+            >
+              Back to List
+            </button>
+          </div>
         </div>
 
-        {stats && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* Tournament Info */}
           <div className="bg-gray-800 p-6 rounded">
-            <h3 className="text-xl font-semibold mb-4">Tournament Statistics</h3>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <div className="text-center">
-                <div className="text-2xl font-bold text-blue-400">{stats.participantCount}</div>
-                <div className="text-sm text-gray-400">Participants</div>
-              </div>
-              <div className="text-center">
-                <div className="text-2xl font-bold text-green-400">{stats.completedMatches}</div>
-                <div className="text-sm text-gray-400">Completed</div>
-              </div>
-              <div className="text-center">
-                <div className="text-2xl font-bold text-yellow-400">{stats.pendingMatches}</div>
-                <div className="text-sm text-gray-400">Pending</div>
-              </div>
-              <div className="text-center">
-                <div className="text-2xl font-bold text-purple-400">{Math.round(stats.progress)}%</div>
-                <div className="text-sm text-gray-400">Progress</div>
-              </div>
-            </div>
-            <div className="mt-4">
-              <div className="w-full bg-gray-700 rounded-full h-2">
-                <div 
-                  className="bg-blue-600 h-2 rounded-full transition-all duration-300" 
-                  style={{ width: `${stats.progress}%` }}
-                ></div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        <div className="bg-gray-800 p-6 rounded">
-          <h3 className="text-xl font-semibold mb-4">Participants</h3>
-          <div className="grid gap-2">
-            {participants.map(p => (
-              <div key={p.id} className="flex items-center justify-between bg-gray-700 px-4 py-2 rounded">
-                <span className="font-medium">{p.username || `User ${p.user_id}`}</span>
-                <span className="text-sm text-gray-400">
-                  {p.final_rank ? `Rank: ${p.final_rank}` : 'Active'}
+            <h3 className="text-xl font-semibold mb-4">Tournament Information</h3>
+            <div className="space-y-3">
+              <div className="flex justify-between">
+                <span className="text-gray-400">Status:</span>
+                <span className={`font-semibold ${getStatusColor(selectedTournament.status)}`}>
+                  {selectedTournament.status.charAt(0).toUpperCase() + selectedTournament.status.slice(1)}
                 </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-400">Max Participants:</span>
+                <span>{selectedTournament.max_participants}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-400">Current Participants:</span>
+                <span>{participants.length}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-400">Created:</span>
+                <span>{new Date(selectedTournament.created_at).toLocaleDateString()}</span>
+              </div>
+              {selectedTournament.started_at && (
+                <div className="flex justify-between">
+                  <span className="text-gray-400">Started:</span>
+                  <span>{new Date(selectedTournament.started_at).toLocaleDateString()}</span>
+                </div>
+              )}
+              {selectedTournament.finished_at && (
+                <div className="flex justify-between">
+                  <span className="text-gray-400">Finished:</span>
+                  <span>{new Date(selectedTournament.finished_at).toLocaleDateString()}</span>
+                </div>
+              )}
+            </div>
+            
+            {selectedTournament.status === 'registration' && (
+              <div className="mt-4">
+                <button 
+                  onClick={() => startTournament(selectedTournament)}
+                  disabled={loading || participants.length < 2}
+                  className="w-full px-4 py-2 bg-green-600 rounded hover:bg-green-700 disabled:bg-gray-600 disabled:cursor-not-allowed"
+                >
+                  {loading ? 'Starting...' : 'Start Tournament'}
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* Statistics */}
+          {stats && (
+            <div className="bg-gray-800 p-6 rounded">
+              <h3 className="text-xl font-semibold mb-4">Tournament Statistics</h3>
+              <div className="space-y-3">
+                <div className="flex justify-between">
+                  <span className="text-gray-400">Total Matches:</span>
+                  <span>{stats.totalMatches}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-400">Completed:</span>
+                  <span className="text-green-400">{stats.completedMatches}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-400">Active:</span>
+                  <span className="text-blue-400">{stats.activeMatches}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-400">Pending:</span>
+                  <span className="text-yellow-400">{stats.pendingMatches}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-400">Progress:</span>
+                  <span>{Math.round(stats.progress * 100)}%</span>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Participants */}
+        <div className="bg-gray-800 p-6 rounded">
+          <h3 className="text-xl font-semibold mb-4">Participants ({participants.length})</h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {participants.map(participant => (
+              <div key={participant.id} className="bg-gray-700 p-4 rounded">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <div className="font-medium">{participant.username || `User ${participant.user_id}`}</div>
+                    <div className="text-sm text-gray-400">
+                      Joined: {new Date(participant.joined_at).toLocaleDateString()}
+                    </div>
+                  </div>
+                  {participant.final_rank && (
+                    <div className="text-right">
+                      <div className="text-lg font-bold text-yellow-400">#{participant.final_rank}</div>
+                      <div className="text-xs text-gray-400">Final Rank</div>
+                    </div>
+                  )}
+                  {participant.eliminated_at && (
+                    <div className="text-right">
+                      <div className="text-sm text-red-400">Eliminated</div>
+                      <div className="text-xs text-gray-400">
+                        {new Date(participant.eliminated_at).toLocaleDateString()}
+                      </div>
+                    </div>
+                  )}
+                </div>
               </div>
             ))}
           </div>
         </div>
 
+        {/* Current Match */}
         {currentMatch && (
           <div className="bg-gray-800 p-6 rounded">
             <h3 className="text-xl font-semibold mb-4">Current Match</h3>
             <div className="bg-gray-700 p-4 rounded">
-              <div className="text-center mb-4">
-                <div className="text-lg font-semibold">Round {currentMatch.round} - Match {currentMatch.match_number}</div>
-                <div className={`text-sm ${getMatchStatusColor(currentMatch.status)}`}>
+              <div className="flex items-center justify-between mb-2">
+                <div className="text-sm text-gray-400">
+                  Round {currentMatch.round} - Match {currentMatch.match_number}
+                </div>
+                <div className={`text-sm font-semibold ${getMatchStatusColor(currentMatch.status)}`}>
                   {currentMatch.status.charAt(0).toUpperCase() + currentMatch.status.slice(1)}
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-4 text-center">
+              <div className="grid grid-cols-3 gap-4 text-center">
                 <div>
-                  <div className="text-lg font-semibold">
+                  <div className="font-medium">
                     {currentMatch.player1_username || `Player ${currentMatch.player1_id}`}
                   </div>
-                  <div className="text-2xl font-bold text-blue-400">{currentMatch.player1_score}</div>
+                  <div className="text-lg font-bold">{currentMatch.player1_score}</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-lg font-bold">VS</div>
+                  {currentMatch.winner_username && (
+                    <div className="text-sm text-green-400">
+                      Winner: {currentMatch.winner_username}
+                    </div>
+                  )}
                 </div>
                 <div>
-                  <div className="text-lg font-semibold">VS</div>
-                </div>
-                <div>
-                  <div className="text-lg font-semibold">
+                  <div className="font-medium">
                     {currentMatch.player2_username || `Player ${currentMatch.player2_id}`}
                   </div>
-                  <div className="text-2xl font-bold text-red-400">{currentMatch.player2_score}</div>
+                  <div className="text-lg font-bold">{currentMatch.player2_score}</div>
                 </div>
               </div>
-              {currentMatch.status === 'pending' && (
-                <div className="text-center mt-4">
-                  <button 
-                    className="px-4 py-2 bg-green-600 rounded hover:bg-green-700"
-                    onClick={() => startMatch(currentMatch.id)}
-                  >
-                    Start Match
-                  </button>
-                </div>
-              )}
             </div>
           </div>
         )}
 
+        {/* All Matches */}
         <div className="bg-gray-800 p-6 rounded">
           <h3 className="text-xl font-semibold mb-4">All Matches</h3>
           <div className="space-y-2">
@@ -434,6 +553,16 @@ export const Tournament: React.FC<Props> = ({ onBack }) => {
                     <div className="text-lg font-bold">{match.player2_score}</div>
                   </div>
                 </div>
+                {match.status === 'pending' && (
+                  <div className="text-center mt-4">
+                    <button 
+                      onClick={() => startMatch(match.id)}
+                      className="px-4 py-2 bg-blue-600 rounded hover:bg-blue-700"
+                    >
+                      Start Match
+                    </button>
+                  </div>
+                )}
               </div>
             ))}
           </div>
@@ -450,10 +579,10 @@ export const Tournament: React.FC<Props> = ({ onBack }) => {
         <div className="flex items-center justify-between">
           <h2 className="text-2xl font-bold">{selectedTournament.name} - Brackets</h2>
           <button 
-            onClick={() => setView('list')} 
+            onClick={() => setView('detail')} 
             className="px-4 py-2 bg-gray-600 rounded hover:bg-gray-700"
           >
-            Back to List
+            Back to Detail
           </button>
         </div>
 
@@ -519,16 +648,26 @@ export const Tournament: React.FC<Props> = ({ onBack }) => {
         <div className="text-center mb-8">
           <h1 className="text-4xl font-bold mb-2">Tournament System</h1>
           <p className="text-gray-400">Manage and participate in Pong tournaments</p>
-          <div className="mt-4 p-4 bg-blue-900 border border-blue-700 rounded-lg max-w-2xl mx-auto">
-            <h3 className="text-lg font-semibold text-blue-200 mb-2">How Tournaments Work</h3>
-            <ul className="text-sm text-blue-100 text-left space-y-1">
-              <li>• Create a tournament with 2-16 participants</li>
-              <li>• Join tournaments during registration phase</li>
-              <li>• Start tournament when ready (minimum 2 players)</li>
-              <li>• Single-elimination bracket system</li>
-              <li>• Play matches and advance through rounds</li>
-            </ul>
-          </div>
+          
+          {!isAuthenticated && (
+            <div className="mt-4 p-4 bg-red-900 border border-red-700 rounded-lg max-w-2xl mx-auto">
+              <h3 className="text-lg font-semibold text-red-200 mb-2">⚠️ Authentication Required</h3>
+              <p className="text-sm text-red-100">Please login to create and join tournaments</p>
+            </div>
+          )}
+          
+          {isAuthenticated && (
+            <div className="mt-4 p-4 bg-blue-900 border border-blue-700 rounded-lg max-w-2xl mx-auto">
+              <h3 className="text-lg font-semibold text-blue-200 mb-2">How Tournaments Work</h3>
+              <ul className="text-sm text-blue-100 text-left space-y-1">
+                <li>• Create a tournament with 2-16 participants</li>
+                <li>• Join tournaments during registration phase</li>
+                <li>• Start tournament when ready (minimum 2 players)</li>
+                <li>• Single-elimination bracket system</li>
+                <li>• Play matches and advance through rounds</li>
+              </ul>
+            </div>
+          )}
         </div>
 
         {error && (
