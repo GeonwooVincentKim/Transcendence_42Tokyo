@@ -5,6 +5,7 @@ import jwt from '@fastify/jwt';
 import { authRoutes } from './routes/auth';
 import { gameRoutes } from './routes/game';
 import { tournamentRoutes } from './routes/tournament';
+import { websocketRoutes } from './routes/websocket';
 import { DatabaseService } from './services/databaseService';
 import { initializeDatabase } from './utils/databaseInit';
 
@@ -238,6 +239,9 @@ const start = async () => {
     
     // Register tournament routes
     await server.register(tournamentRoutes);
+    
+    // Register WebSocket routes
+    await server.register(websocketRoutes);
     
     await server.listen({ port, host });
 

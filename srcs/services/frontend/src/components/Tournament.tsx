@@ -9,6 +9,7 @@ import type {
 } from '../services/tournamentService';
 import { AuthService } from '../services/authService';
 import { PongGame } from './PongGame';
+import WebSocketService from '../services/websocketService';
 
 interface Props {
   onBack: () => void;
@@ -25,6 +26,9 @@ export const Tournament: React.FC<Props> = ({ onBack }) => {
   const [view, setView] = useState<'list' | 'detail' | 'brackets' | 'game'>('list');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [gameRoomState, setGameRoomState] = useState<any>(null);
+  const [isPlayerReady, setIsPlayerReady] = useState(false);
+  const [gameSyncStatus, setGameSyncStatus] = useState<'disconnected' | 'connecting' | 'connected' | 'waiting' | 'ready' | 'playing'>('disconnected');
   const [name, setName] = useState('New Tournament');
   const [maxParticipants, setMaxParticipants] = useState(2);
   const [description, setDescription] = useState('');
@@ -49,15 +53,92 @@ export const Tournament: React.FC<Props> = ({ onBack }) => {
     }
   }, [selectedTournament]);
 
-  // 실시간 업데이트 비활성화 (화면 깜빡임 완전 제거)
-  // useEffect(() => {
-  //   if (isAuthenticated && tournaments.length > 0) {
-  //     const interval = setInterval(() => {
-  //       loadTournaments();
-  //     }, 10000); // 10초마다 업데이트
-  //     return () => clearInterval(interval);
-  //   }
-  // }, [isAuthenticated, tournaments.length]);
+  // WebSocket 이벤트 핸들러 설정
+  useEffect(() => {
+    const handlePlayerJoined = (data: any) => {
+      console.log('Player joined:', data);
+      setGameRoomState(data.roomState);
+    };
+
+    const handlePlayerLeft = (data: any) => {
+      console.log('Player left:', data);
+      setGameRoomState(data.roomState);
+    };
+
+    const handlePlayerReady = (data: any) => {
+      console.log('Player ready:', data);
+      setGameRoomState(data.roomState);
+    };
+
+    const handleGameStart = (data: any) => {
+      console.log('Game starting:', data);
+      setGameRoomState(data.roomState);
+      setGameSyncStatus('ready');
+      setError('Game starting in 2 seconds...');
+    };
+
+    const handleGamePlaying = (data: any) => {
+      console.log('Game is playing:', data);
+      setGameRoomState(data.roomState);
+      setGameSyncStatus('playing');
+      setError('Game is now playing!');
+      
+      // 양쪽 모두 게임 뷰로 자동 전환
+      if (currentGameMatch) {
+        setView('game');
+      }
+    };
+
+    const handleGameStateUpdate = (data: any) => {
+      console.log('Game state update:', data);
+      // Handle real-time game state synchronization
+    };
+
+    const handleGameEnd = (data: any) => {
+      console.log('Game ended:', data);
+      setGameRoomState(data.roomState);
+      setGameSyncStatus('disconnected');
+    };
+
+    // WebSocket 이벤트 리스너 등록
+    WebSocketService.on('player_joined', handlePlayerJoined);
+    WebSocketService.on('player_left', handlePlayerLeft);
+    WebSocketService.on('player_ready', handlePlayerReady);
+    WebSocketService.on('game_start', handleGameStart);
+    WebSocketService.on('game_playing', handleGamePlaying);
+    WebSocketService.on('game_state_update', handleGameStateUpdate);
+    WebSocketService.on('game_end', handleGameEnd);
+
+    // 컴포넌트 언마운트 시 이벤트 리스너 제거
+    return () => {
+      WebSocketService.off('player_joined', handlePlayerJoined);
+      WebSocketService.off('player_left', handlePlayerLeft);
+      WebSocketService.off('player_ready', handlePlayerReady);
+      WebSocketService.off('game_start', handleGameStart);
+      WebSocketService.off('game_playing', handleGamePlaying);
+      WebSocketService.off('game_state_update', handleGameStateUpdate);
+      WebSocketService.off('game_end', handleGameEnd);
+    };
+  }, []);
+
+  // 실시간 참가자 수 업데이트 (화면 깜빡임 완전 제거)
+  useEffect(() => {
+    if (isAuthenticated && tournaments.length > 0) {
+      const interval = setInterval(() => {
+        // 현재 스크롤 위치와 뷰 상태 저장
+        const currentScrollY = window.scrollY;
+        const currentView = view;
+        
+        // 토너먼트 목록만 업데이트 (전체 리렌더링 방지)
+        loadTournaments().then(() => {
+          // 스크롤 위치 복원
+          window.scrollTo(0, currentScrollY);
+        });
+      }, 10000); // 10초마다 업데이트 (깜빡임 최소화)
+
+      return () => clearInterval(interval);
+    }
+  }, [isAuthenticated, tournaments.length, view]);
 
   const loadTournaments = async () => {
     try {
@@ -244,20 +325,26 @@ export const Tournament: React.FC<Props> = ({ onBack }) => {
       // 매치를 활성 상태로 변경
       await TournamentService.startMatch(token, selectedTournament.id, match.id);
       
-      // Join game room for real-time synchronization
-      await TournamentService.joinGameRoom(token, selectedTournament.id, match.id);
+      // WebSocket 연결 및 게임 룸 참가
+      setGameSyncStatus('connecting');
+      setError('Connecting to game room...');
+      
+      const currentUser = AuthService.getUser();
+      if (!currentUser) {
+        throw new Error('User not authenticated');
+      }
+      
+      await WebSocketService.connect(selectedTournament.id, match.id, currentUser.id);
       
       // 게임 매치 설정하고 게임 뷰로 전환
       setCurrentGameMatch(match);
       setView('game');
-      
-      setError('Starting game... Waiting for opponent...');
-      
-      // TODO: Implement WebSocket connection for real-time game sync
-      // This will notify the other player that the game has started
+      setGameSyncStatus('connected');
+      setError('Connected to game room! Waiting for opponent...');
       
     } catch (error: any) {
       setError(error.message || 'Failed to start game');
+      setGameSyncStatus('disconnected');
     }
   };
 
@@ -268,12 +355,24 @@ export const Tournament: React.FC<Props> = ({ onBack }) => {
       // 게임 결과를 토너먼트에 보고
       await TournamentService.reportMatchResult(token, selectedTournament.id, currentGameMatch.id, winnerId, player1Score, player2Score);
       
+      // WebSocket으로 게임 종료 알림
+      WebSocketService.endGame({
+        winnerId,
+        player1Score,
+        player2Score,
+        matchId: currentGameMatch.id
+      });
+      
       // 토너먼트 상세 정보 새로고침
       await loadTournamentDetails(selectedTournament.id);
       
       // 게임 뷰에서 브래킷 뷰로 돌아가기
       setCurrentGameMatch(null);
       setView('brackets');
+      setGameSyncStatus('disconnected');
+      
+      // WebSocket 연결 종료
+      WebSocketService.disconnect();
       
       setError('Game completed! Tournament updated.');
     } catch (error: any) {
@@ -381,6 +480,13 @@ export const Tournament: React.FC<Props> = ({ onBack }) => {
                         const currentTournamentParticipants = tournamentParticipants[t.id] || [];
                         return `${currentTournamentParticipants.length}/${t.max_participants} participants`;
                       })()}
+                      {/* 디버깅 정보 */}
+                      <div className="text-xs text-gray-500 mt-1">
+                        Debug: Tournament {t.id} has {tournamentParticipants[t.id]?.length || 0} participants
+                        {tournamentParticipants[t.id] && tournamentParticipants[t.id].length > 0 && (
+                          <div>Participants: {tournamentParticipants[t.id].map(p => `User ${p.user_id}`).join(', ')}</div>
+                        )}
+                      </div>
                     </div>
                     <div className="text-xs text-gray-500 mt-1">
                       {t.status === 'registration' && 'Open for joining'}
@@ -805,28 +911,61 @@ export const Tournament: React.FC<Props> = ({ onBack }) => {
             <p className="text-gray-400">
               {currentGameMatch.player1_username || `Player ${currentGameMatch.player1_id}`} vs {currentGameMatch.player2_username || `Player ${currentGameMatch.player2_id}`}
             </p>
-            <div className="mt-2 p-2 bg-yellow-900 rounded">
-              <p className="text-yellow-300 text-sm">
-                ⚠️ Game synchronization in progress... Both players need to join the game room.
+            <div className="mt-2 p-2 bg-blue-900 rounded">
+              <p className="text-blue-300 text-sm">
+                🔗 WebSocket Status: {gameSyncStatus.toUpperCase()}
               </p>
-              <p className="text-gray-400 text-xs mt-1">
-                This is a placeholder for real-time multiplayer synchronization.
-              </p>
+              {gameRoomState && (
+                <div className="mt-2 text-xs text-gray-400">
+                  <p>Players: {gameRoomState.player1Id ? 'Player 1' : 'None'} vs {gameRoomState.player2Id ? 'Player 2' : 'None'}</p>
+                  <p>Ready Status: P1: {gameRoomState.player1Ready ? '✅' : '❌'} | P2: {gameRoomState.player2Ready ? '✅' : '❌'}</p>
+                  <p>Game Status: {gameRoomState.status}</p>
+                </div>
+              )}
+              {gameSyncStatus === 'connected' && !isPlayerReady && (
+                <button 
+                  onClick={() => {
+                    WebSocketService.setPlayerReady(true);
+                    setIsPlayerReady(true);
+                  }}
+                  className="mt-2 px-4 py-2 bg-green-600 rounded hover:bg-green-700 text-sm"
+                >
+                  ✅ I'm Ready!
+                </button>
+              )}
             </div>
           </div>
           
           {/* 실제 PongGame 컴포넌트 */}
           <div className="flex justify-center">
-            <PongGame 
-              width={800} 
-              height={400}
-              onGameEnd={(winner, leftScore, rightScore) => {
-                // 게임 종료 시 토너먼트 결과 처리
-                const winnerId = winner === 'left' ? currentGameMatch.player1_id : currentGameMatch.player2_id;
-                const loserId = winner === 'left' ? currentGameMatch.player2_id : currentGameMatch.player1_id;
-                handleGameComplete(winnerId || 0, loserId || 0, leftScore, rightScore);
-              }}
-            />
+            {gameSyncStatus === 'playing' ? (
+              <PongGame 
+                width={800} 
+                height={400}
+                onGameEnd={(winner, leftScore, rightScore) => {
+                  // 게임 종료 시 토너먼트 결과 처리
+                  const winnerId = winner === 'left' ? currentGameMatch.player1_id : currentGameMatch.player2_id;
+                  const loserId = winner === 'left' ? currentGameMatch.player2_id : currentGameMatch.player1_id;
+                  handleGameComplete(winnerId || 0, loserId || 0, leftScore, rightScore);
+                }}
+              />
+            ) : (
+              <div className="w-[800px] h-[400px] bg-gray-900 border border-gray-600 rounded flex items-center justify-center">
+                <div className="text-center">
+                  <div className="text-2xl mb-4">
+                    {gameSyncStatus === 'connecting' && '🔗 Connecting...'}
+                    {gameSyncStatus === 'connected' && '⏳ Waiting for opponent...'}
+                    {gameSyncStatus === 'ready' && '🚀 Game starting...'}
+                    {gameSyncStatus === 'waiting' && '⏳ Waiting for both players to be ready...'}
+                  </div>
+                  <div className="text-gray-400">
+                    {gameSyncStatus === 'connected' && 'Make sure both players click "I\'m Ready!"'}
+                    {gameSyncStatus === 'ready' && 'Game will start automatically in 2 seconds...'}
+                    {gameSyncStatus === 'waiting' && 'Both players need to join and be ready'}
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
           
           {/* 게임 컨트롤 */}
