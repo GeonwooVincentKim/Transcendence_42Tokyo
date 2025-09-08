@@ -244,11 +244,18 @@ export const Tournament: React.FC<Props> = ({ onBack }) => {
       // 매치를 활성 상태로 변경
       await TournamentService.startMatch(token, selectedTournament.id, match.id);
       
+      // Join game room for real-time synchronization
+      await TournamentService.joinGameRoom(token, selectedTournament.id, match.id);
+      
       // 게임 매치 설정하고 게임 뷰로 전환
       setCurrentGameMatch(match);
       setView('game');
       
-      setError('Starting game...');
+      setError('Starting game... Waiting for opponent...');
+      
+      // TODO: Implement WebSocket connection for real-time game sync
+      // This will notify the other player that the game has started
+      
     } catch (error: any) {
       setError(error.message || 'Failed to start game');
     }
@@ -798,6 +805,14 @@ export const Tournament: React.FC<Props> = ({ onBack }) => {
             <p className="text-gray-400">
               {currentGameMatch.player1_username || `Player ${currentGameMatch.player1_id}`} vs {currentGameMatch.player2_username || `Player ${currentGameMatch.player2_id}`}
             </p>
+            <div className="mt-2 p-2 bg-yellow-900 rounded">
+              <p className="text-yellow-300 text-sm">
+                ⚠️ Game synchronization in progress... Both players need to join the game room.
+              </p>
+              <p className="text-gray-400 text-xs mt-1">
+                This is a placeholder for real-time multiplayer synchronization.
+              </p>
+            </div>
           </div>
           
           {/* 실제 PongGame 컴포넌트 */}

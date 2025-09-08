@@ -297,6 +297,47 @@ export async function tournamentRoutes(fastify: FastifyInstance) {
       reply.status(500).send({ error: error.message || 'Failed to cleanup tournaments' });
     }
   });
+
+  // Join game room for real-time synchronization
+  fastify.post('/api/tournaments/:id/matches/:matchId/join-game', {
+    preHandler: requireAuth
+  }, async (request: any, reply) => {
+    try {
+      const { id, matchId } = request.params as { id: string, matchId: string };
+      const userId = request.user.userId;
+      
+      console.log('Join game room request:', { tournamentId: id, matchId, userId });
+      
+      // TODO: Implement WebSocket room joining logic
+      // For now, just return success
+      reply.send({ 
+        message: 'Joined game room successfully',
+        gameRoomId: `tournament-${id}-match-${matchId}`,
+        players: [userId] // This should be populated with actual players
+      });
+    } catch (error: any) {
+      console.error('Join game room error:', error);
+      reply.status(500).send({ error: error.message || 'Failed to join game room' });
+    }
+  });
+
+  // Leave game room
+  fastify.post('/api/tournaments/:id/matches/:matchId/leave-game', {
+    preHandler: requireAuth
+  }, async (request: any, reply) => {
+    try {
+      const { id, matchId } = request.params as { id: string, matchId: string };
+      const userId = request.user.userId;
+      
+      console.log('Leave game room request:', { tournamentId: id, matchId, userId });
+      
+      // TODO: Implement WebSocket room leaving logic
+      reply.send({ message: 'Left game room successfully' });
+    } catch (error: any) {
+      console.error('Leave game room error:', error);
+      reply.status(500).send({ error: error.message || 'Failed to leave game room' });
+    }
+  });
 }
 
 

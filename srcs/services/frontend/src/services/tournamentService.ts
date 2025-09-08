@@ -182,6 +182,38 @@ export const TournamentService = {
     const res = await fetch(`${API_BASE_URL}/api/tournaments/${id}/stats`);
     if (!res.ok) throw new Error('Failed to get tournament stats');
     return res.json();
+  },
+
+  async joinGameRoom(token: string, tournamentId: number, matchId: number): Promise<any> {
+    const response = await fetch(`${API_BASE_URL}/api/tournaments/${tournamentId}/matches/${matchId}/join-game`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      }
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || 'Failed to join game room');
+    }
+
+    return response.json();
+  },
+
+  async leaveGameRoom(token: string, tournamentId: number, matchId: number): Promise<void> {
+    const response = await fetch(`${API_BASE_URL}/api/tournaments/${tournamentId}/matches/${matchId}/leave-game`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      }
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || 'Failed to leave game room');
+    }
   }
 };
 
