@@ -21,15 +21,18 @@ export const Tournament: React.FC<Props> = ({ onBack }) => {
   const [brackets, setBrackets] = useState<TournamentBracket[]>([]);
   const [currentMatch, setCurrentMatch] = useState<TournamentMatch | null>(null);
   const [stats, setStats] = useState<TournamentStats | null>(null);
-  const [view, setView] = useState<'list' | 'detail' | 'brackets'>('list');
+  const [view, setView] = useState<'list' | 'detail' | 'brackets' | 'game'>('list');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [name, setName] = useState('New Tournament');
   const [maxParticipants, setMaxParticipants] = useState(2);
   const [description, setDescription] = useState('');
+  const [tournamentParticipants, setTournamentParticipants] = useState<{[tournamentId: number]: TournamentParticipant[]}>({});
+  const [currentGameMatch, setCurrentGameMatch] = useState<TournamentMatch | null>(null);
 
   const token = AuthService.getStoredAuthData()?.token || '';
   const isAuthenticated = AuthService.isAuthenticated();
+  const currentUser = AuthService.getUser();
 
   useEffect(() => {
     if (isAuthenticated) {
@@ -51,6 +54,19 @@ export const Tournament: React.FC<Props> = ({ onBack }) => {
       setError(null);
       const data = await TournamentService.list();
       setTournaments(data);
+      
+      // Load participants for each tournament
+      const participantsMap: {[tournamentId: number]: TournamentParticipant[]} = {};
+      for (const tournament of data) {
+        try {
+          const participantsData = await TournamentService.getParticipants(tournament.id);
+          participantsMap[tournament.id] = participantsData;
+        } catch (e) {
+          console.warn(`Failed to load participants for tournament ${tournament.id}:`, e);
+          participantsMap[tournament.id] = [];
+        }
+      }
+      setTournamentParticipants(participantsMap);
     } catch (e: any) {
       setError(e.message || 'Failed to load tournaments');
     } finally {
@@ -99,7 +115,7 @@ export const Tournament: React.FC<Props> = ({ onBack }) => {
       setMaxParticipants(2);
       setDescription('');
       
-      // 즉시 토너먼트 목록 새로고침
+      // Reload tournaments and participants
       await loadTournaments();
       
       setError('Tournament created successfully!');
@@ -119,11 +135,17 @@ export const Tournament: React.FC<Props> = ({ onBack }) => {
       
       await TournamentService.join(token, tournament.id);
       
-      // 즉시 참가자 목록 업데이트
-      await loadTournamentDetails(tournament.id);
+      // Update participants for this tournament
+      const participantsData = await TournamentService.getParticipants(tournament.id);
+      setTournamentParticipants(prev => ({
+        ...prev,
+        [tournament.id]: participantsData
+      }));
       
-      // 토너먼트 목록도 새로고침
-      await loadTournaments();
+      // If viewing this tournament's details, update the detail view
+      if (selectedTournament?.id === tournament.id) {
+        await loadTournamentDetails(tournament.id);
+      }
       
       setError('Joined tournament successfully!');
     } catch (e: any) {
@@ -134,11 +156,18 @@ export const Tournament: React.FC<Props> = ({ onBack }) => {
   const leaveTournament = async (tournamentId: number) => {
     try {
       await TournamentService.leave(token, tournamentId);
+      
+      // Update participants for this tournament
+      const participantsData = await TournamentService.getParticipants(tournamentId);
+      setTournamentParticipants(prev => ({
+        ...prev,
+        [tournamentId]: participantsData
+      }));
+      
       if (selectedTournament?.id === tournamentId) {
         await loadTournamentDetails(tournamentId);
       }
       setError('Left tournament successfully!');
-      await loadTournaments();
     } catch (e: any) {
       setError(e.message || 'Failed to leave tournament');
     }
@@ -192,6 +221,48 @@ export const Tournament: React.FC<Props> = ({ onBack }) => {
       setError('Match started successfully!');
     } catch (error: any) {
       setError(error.message || 'Failed to start match');
+    }
+  };
+
+  const playGame = async (match: TournamentMatch) => {
+    if (!selectedTournament) return;
+    
+    try {
+      // 매치를 활성 상태로 변경
+      await TournamentService.startMatch(token, selectedTournament.id, match.id);
+      
+      // 게임 매치 설정하고 게임 뷰로 전환
+      setCurrentGameMatch(match);
+      setView('game');
+      
+      setError('Starting game...');
+    } catch (error: any) {
+      setError(error.message || 'Failed to start game');
+    }
+  };
+
+  const handleGameComplete = async (winnerId: number, loserId: number, player1Score: number, player2Score: number) => {
+    if (!selectedTournament || !currentGameMatch) return;
+    
+    try {
+      // 게임 결과를 토너먼트에 보고
+      await TournamentService.reportResult(token, selectedTournament.id, currentGameMatch.id, {
+        winnerId,
+        loserId,
+        player1Score,
+        player2Score
+      });
+      
+      // 토너먼트 상세 정보 새로고침
+      await loadTournamentDetails(selectedTournament.id);
+      
+      // 게임 뷰에서 브래킷 뷰로 돌아가기
+      setCurrentGameMatch(null);
+      setView('brackets');
+      
+      setError('Game completed! Tournament updated.');
+    } catch (error: any) {
+      setError(error.message || 'Failed to report game result');
     }
   };
 
@@ -286,35 +357,45 @@ export const Tournament: React.FC<Props> = ({ onBack }) => {
                   </div>
                 </div>
                 <div className="flex gap-2">
-                  {participants.some(p => p.tournament_id === t.id) ? (
-                    <button 
-                      className="px-3 py-1 bg-red-600 rounded hover:bg-red-700" 
-                      onClick={() => leaveTournament(t.id)}
-                    >
-                      Leave
-                    </button>
-                  ) : (
-                    <button 
-                      className="px-3 py-1 bg-blue-600 rounded hover:bg-blue-700" 
-                      onClick={() => joinTournament(t)}
-                    >
-                      Join
-                    </button>
-                  )}
-                  {t.status === 'registration' && (
-                    <button 
-                      className={`px-3 py-1 rounded ${
-                        participants.length >= 2 
-                          ? 'bg-purple-600 hover:bg-purple-700' 
-                          : 'bg-gray-500 cursor-not-allowed'
-                      }`}
-                      onClick={() => participants.length >= 2 && startTournament(t)}
-                      disabled={participants.length < 2}
-                      title={participants.length < 2 ? 'Need at least 2 participants to start' : 'Start tournament'}
-                    >
-                      Start
-                    </button>
-                  )}
+                  {(() => {
+                    const currentTournamentParticipants = tournamentParticipants[t.id] || [];
+                    const isCurrentUserParticipant = currentUser && currentTournamentParticipants.some(p => p.user_id === parseInt(currentUser.id));
+                    const participantCount = currentTournamentParticipants.length;
+                    
+                    return (
+                      <>
+                        {isCurrentUserParticipant ? (
+                          <button 
+                            className="px-3 py-1 bg-red-600 rounded hover:bg-red-700" 
+                            onClick={() => leaveTournament(t.id)}
+                          >
+                            Leave
+                          </button>
+                        ) : (
+                          <button 
+                            className="px-3 py-1 bg-blue-600 rounded hover:bg-blue-700" 
+                            onClick={() => joinTournament(t)}
+                          >
+                            Join
+                          </button>
+                        )}
+                        {t.status === 'registration' && (
+                          <button 
+                            className={`px-3 py-1 rounded ${
+                              participantCount >= 2 
+                                ? 'bg-purple-600 hover:bg-purple-700' 
+                                : 'bg-gray-500 cursor-not-allowed'
+                            }`}
+                            onClick={() => participantCount >= 2 && startTournament(t)}
+                            disabled={participantCount < 2}
+                            title={participantCount < 2 ? 'Need at least 2 participants to start' : 'Start tournament'}
+                          >
+                            Start
+                          </button>
+                        )}
+                      </>
+                    );
+                  })()}
                   <button 
                     className="px-3 py-1 bg-gray-600 rounded hover:bg-gray-700" 
                     onClick={() => {
@@ -567,6 +648,57 @@ export const Tournament: React.FC<Props> = ({ onBack }) => {
             ))}
           </div>
         </div>
+
+        {/* Tournament Brackets Preview */}
+        {selectedTournament.status !== 'registration' && brackets.length > 0 && (
+          <div className="bg-gray-800 p-6 rounded">
+            <h3 className="text-xl font-semibold mb-4">Tournament Brackets Preview</h3>
+            <div className="space-y-6">
+              {brackets.slice(0, 2).map(round => (
+                <div key={round.round} className="border-b border-gray-700 pb-4 last:border-b-0">
+                  <h4 className="text-lg font-semibold mb-3 text-center text-blue-400">
+                    {round.round === 1 ? 'First Round' : 
+                     round.round === 2 ? 'Quarter Finals' :
+                     round.round === 3 ? 'Semi Finals' :
+                     round.round === 4 ? 'Finals' : `Round ${round.round}`}
+                  </h4>
+                  <div className="grid gap-3">
+                    {round.matches.slice(0, 4).map(match => (
+                      <div key={match.id} className="bg-gray-700 p-3 rounded text-sm">
+                        <div className="flex items-center justify-between">
+                          <span className="font-medium">
+                            {match.player1_username || `Player ${match.player1_id}`}
+                          </span>
+                          <span className="text-gray-400">VS</span>
+                          <span className="font-medium">
+                            {match.player2_username || `Player ${match.player2_id}`}
+                          </span>
+                        </div>
+                        <div className="text-center mt-1">
+                          <span className={`text-xs px-2 py-1 rounded ${
+                            match.status === 'completed' ? 'bg-green-600' :
+                            match.status === 'active' ? 'bg-blue-600' :
+                            'bg-gray-600'
+                          }`}>
+                            {match.status.charAt(0).toUpperCase() + match.status.slice(1)}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+              <div className="text-center">
+                <button 
+                  onClick={() => setView('brackets')} 
+                  className="px-4 py-2 bg-indigo-600 rounded hover:bg-indigo-700"
+                >
+                  View Full Brackets
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     );
   };
@@ -631,11 +763,47 @@ export const Tournament: React.FC<Props> = ({ onBack }) => {
                           </div>
                         </div>
                       )}
+                      
+                      {/* Match Action Buttons */}
+                      {match.status === 'pending' && (
+                        <div className="text-center mt-3">
+                          <button 
+                            onClick={() => startMatch(match.id)}
+                            className="px-4 py-2 bg-blue-600 rounded hover:bg-blue-700 transition-colors"
+                          >
+                            🚀 Start Match
+                          </button>
+                        </div>
+                      )}
+                      
+                      {match.status === 'active' && (
+                        <div className="text-center mt-3">
+                          <div className="text-sm text-blue-400 font-semibold">
+                            🎮 Match in Progress
+                          </div>
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>
               </div>
             ))}
+            
+            {/* Tournament Control Buttons */}
+            {selectedTournament.status === 'registration' && participants.length >= 2 && (
+              <div className="text-center pt-6 border-t border-gray-700">
+                <button 
+                  onClick={() => startTournament(selectedTournament)}
+                  disabled={loading}
+                  className="px-8 py-4 bg-green-600 hover:bg-green-700 disabled:bg-gray-600 rounded-lg font-semibold text-lg transition-colors"
+                >
+                  {loading ? '🚀 Starting Tournament...' : '🚀 Start Tournament'}
+                </button>
+                <p className="text-sm text-gray-400 mt-2">
+                  Ready to begin with {participants.length} participants
+                </p>
+              </div>
+            )}
           </div>
         </div>
       </div>
