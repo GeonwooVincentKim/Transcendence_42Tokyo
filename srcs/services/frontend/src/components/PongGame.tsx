@@ -1,7 +1,6 @@
 import React, { useCallback } from 'react';
 import { usePongEngine } from '../hooks/usePongEngine';
 import { useHumanController } from '../hooks/useHumanController';
-import { useGameSettings } from '../contexts/GameSettingsContext';
 import { GameStatsService } from '../services/gameStatsService';
 
 /**
@@ -12,26 +11,29 @@ import { GameStatsService } from '../services/gameStatsService';
 interface PongGameProps {
   width?: number;
   height?: number;
+  onGameEnd?: (winner: 'left' | 'right', leftScore: number, rightScore: number) => void;
 }
 
-export const PongGame: React.FC<PongGameProps> = ({ width = 800, height = 400 }) => {
+export const PongGame: React.FC<PongGameProps> = ({ width = 800, height = 400, onGameEnd }) => {
   // Handle game end
   const handleGameEnd = useCallback(async (winner: 'left' | 'right', leftScore: number, rightScore: number) => {
     try {
       // Save game result for both players (assuming current user is left player)
       await GameStatsService.saveGameResultSimple(winner, leftScore, rightScore, 'single', 'left');
       console.log('Game result saved successfully');
+      
+      // Call the onGameEnd callback if provided
+      if (onGameEnd) {
+        onGameEnd(winner, leftScore, rightScore);
+      }
     } catch (error) {
       console.error('Failed to save game result:', error);
     }
-  }, []);
+  }, [onGameEnd]);
 
   // 1. Initialize the core game engine. This gives us the state, the canvas ref,
   //    and the controls to manipulate the engine.
   const { canvasRef, gameState, controls } = usePongEngine(width, height, handleGameEnd);
-  
-  // 2. Get game settings from context
-  const { settings } = useGameSettings();
   
   // 3. Initialize a controller for the LEFT paddle.
   //    We pass it the engine's standardized movement function.
@@ -83,8 +85,8 @@ export const PongGame: React.FC<PongGameProps> = ({ width = 800, height = 400 })
       
       {/* Static instructions for the players */}
       <div className="mt-4 text-sm text-gray-400">
-        <p>Left Player: {settings.leftPaddleUp.toUpperCase()} (up) / {settings.leftPaddleDown.toUpperCase()} (down)</p>
-        <p>Right Player: {settings.rightPaddleUp.toUpperCase()} (up) / {settings.rightPaddleDown.toUpperCase()} (down)</p>
+        <p>Left Player: W (up) / S (down)</p>
+        <p>Right Player: Arrow Up (up) / Arrow Down (down)</p>
       </div>
     </div>
   );

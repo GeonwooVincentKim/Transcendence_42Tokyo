@@ -8,6 +8,7 @@ import type {
   TournamentStats
 } from '../services/tournamentService';
 import { AuthService } from '../services/authService';
+import { PongGame } from './PongGame';
 
 interface Props {
   onBack: () => void;
@@ -47,6 +48,16 @@ export const Tournament: React.FC<Props> = ({ onBack }) => {
       loadTournamentDetails(selectedTournament.id);
     }
   }, [selectedTournament]);
+
+  // 실시간 업데이트 비활성화 (화면 깜빡임 완전 제거)
+  // useEffect(() => {
+  //   if (isAuthenticated && tournaments.length > 0) {
+  //     const interval = setInterval(() => {
+  //       loadTournaments();
+  //     }, 10000); // 10초마다 업데이트
+  //     return () => clearInterval(interval);
+  //   }
+  // }, [isAuthenticated, tournaments.length]);
 
   const loadTournaments = async () => {
     try {
@@ -200,6 +211,8 @@ export const Tournament: React.FC<Props> = ({ onBack }) => {
       
       if (selectedTournament?.id === tournament.id) {
         await loadTournamentDetails(tournament.id);
+        // 브래킷 뷰로 자동 이동
+        setView('brackets');
       }
       
       setError('Tournament started successfully!');
@@ -241,17 +254,12 @@ export const Tournament: React.FC<Props> = ({ onBack }) => {
     }
   };
 
-  const handleGameComplete = async (winnerId: number, loserId: number, player1Score: number, player2Score: number) => {
+  const handleGameComplete = async (winnerId: number, _loserId: number, player1Score: number, player2Score: number) => {
     if (!selectedTournament || !currentGameMatch) return;
     
     try {
       // 게임 결과를 토너먼트에 보고
-      await TournamentService.reportResult(token, selectedTournament.id, currentGameMatch.id, {
-        winnerId,
-        loserId,
-        player1Score,
-        player2Score
-      });
+      await TournamentService.reportMatchResult(token, selectedTournament.id, currentGameMatch.id, winnerId, player1Score, player2Score);
       
       // 토너먼트 상세 정보 새로고침
       await loadTournamentDetails(selectedTournament.id);
@@ -286,11 +294,26 @@ export const Tournament: React.FC<Props> = ({ onBack }) => {
     }
   };
 
-  const renderTournamentList = () => (
-    <div className="space-y-4">
-      {isAuthenticated && (
-        <div className="w-full max-w-4xl bg-gray-800 p-6 rounded">
-          <h3 className="text-xl font-semibold mb-4">Create Tournament</h3>
+  const renderTournamentList = () => {
+    // 현재 사용자가 참가한 토너먼트가 있는지 확인
+    const hasJoinedTournament = tournaments.some(t => {
+      const participants = tournamentParticipants[t.id] || [];
+      return currentUser && participants.some(p => p.user_id === parseInt(currentUser.id));
+    });
+
+    // 현재 사용자가 생성한 토너먼트가 있는지 확인
+    const hasCreatedTournament = tournaments.some(t => {
+      return currentUser && (t.created_by === parseInt(currentUser.id) || t.created_by?.toString() === currentUser.id);
+    });
+
+    // 디버깅을 위한 콘솔 로그
+    // Debug logging removed to reduce console noise
+
+    return (
+      <div className="space-y-4">
+        {isAuthenticated && !hasJoinedTournament && !hasCreatedTournament && (
+          <div className="w-full max-w-4xl bg-gray-800 p-6 rounded">
+            <h3 className="text-xl font-semibold mb-4">Create Tournament</h3>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
             <input 
               className="px-3 py-2 text-black rounded" 
@@ -322,10 +345,10 @@ export const Tournament: React.FC<Props> = ({ onBack }) => {
             value={description} 
             onChange={(e) => setDescription(e.target.value)} 
           />
-        </div>
-      )}
+          </div>
+        )}
 
-      <div className="w-full max-w-4xl bg-gray-800 p-6 rounded">
+        <div className="w-full max-w-4xl bg-gray-800 p-6 rounded">
         <h3 className="text-xl font-semibold mb-4">Tournaments</h3>
         {loading ? (
           <div className="text-center py-8">Loading tournaments...</div>
@@ -347,7 +370,10 @@ export const Tournament: React.FC<Props> = ({ onBack }) => {
                       {t.status.charAt(0).toUpperCase() + t.status.slice(1)}
                     </div>
                     <div className="text-sm text-gray-400">
-                      Max {t.max_participants} participants
+                      {(() => {
+                        const currentTournamentParticipants = tournamentParticipants[t.id] || [];
+                        return `${currentTournamentParticipants.length}/${t.max_participants} participants`;
+                      })()}
                     </div>
                     <div className="text-xs text-gray-500 mt-1">
                       {t.status === 'registration' && 'Open for joining'}
@@ -379,20 +405,20 @@ export const Tournament: React.FC<Props> = ({ onBack }) => {
                             Join
                           </button>
                         )}
-                        {t.status === 'registration' && (
-                          <button 
-                            className={`px-3 py-1 rounded ${
-                              participantCount >= 2 
-                                ? 'bg-purple-600 hover:bg-purple-700' 
-                                : 'bg-gray-500 cursor-not-allowed'
-                            }`}
-                            onClick={() => participantCount >= 2 && startTournament(t)}
-                            disabled={participantCount < 2}
-                            title={participantCount < 2 ? 'Need at least 2 participants to start' : 'Start tournament'}
-                          >
-                            Start
-                          </button>
-                        )}
+                  {t.status === 'registration' && (
+                    <button 
+                      className={`px-3 py-1 rounded ${
+                        participantCount >= 2 
+                          ? 'bg-purple-600 hover:bg-purple-700' 
+                          : 'bg-gray-500 cursor-not-allowed'
+                      }`}
+                      onClick={() => participantCount >= 2 && startTournament(t)}
+                      disabled={participantCount < 2}
+                      title={participantCount < 2 ? `Need at least 2 participants to start. Current: ${participantCount}` : 'Start tournament'}
+                    >
+                      Start
+                    </button>
+                  )}
                       </>
                     );
                   })()}
@@ -419,9 +445,10 @@ export const Tournament: React.FC<Props> = ({ onBack }) => {
             ))}
           </div>
         )}
+        </div>
       </div>
-    </div>
-  );
+    );
+  };
 
   const renderTournamentDetail = () => {
     if (!selectedTournament) return null;
@@ -635,12 +662,28 @@ export const Tournament: React.FC<Props> = ({ onBack }) => {
                   </div>
                 </div>
                 {match.status === 'pending' && (
-                  <div className="text-center mt-4">
+                  <div className="text-center mt-4 space-x-2">
                     <button 
                       onClick={() => startMatch(match.id)}
                       className="px-4 py-2 bg-blue-600 rounded hover:bg-blue-700"
                     >
                       Start Match
+                    </button>
+                    <button 
+                      onClick={() => playGame(match)}
+                      className="px-4 py-2 bg-green-600 rounded hover:bg-green-700"
+                    >
+                      🎮 Play Game
+                    </button>
+                  </div>
+                )}
+                {match.status === 'active' && (
+                  <div className="text-center mt-4">
+                    <button 
+                      onClick={() => playGame(match)}
+                      className="px-4 py-2 bg-green-600 rounded hover:bg-green-700"
+                    >
+                      🎮 Play Game
                     </button>
                   </div>
                 )}
@@ -699,6 +742,94 @@ export const Tournament: React.FC<Props> = ({ onBack }) => {
             </div>
           </div>
         )}
+      </div>
+    );
+  };
+
+  const renderGameView = () => {
+    if (!selectedTournament || !currentGameMatch) return null;
+
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <h2 className="text-2xl font-bold">
+            {selectedTournament.name} - Match {currentGameMatch.match_number}
+          </h2>
+          <button 
+            onClick={() => {
+              setCurrentGameMatch(null);
+              setView('brackets');
+            }} 
+            className="px-4 py-2 bg-gray-600 rounded hover:bg-gray-700"
+          >
+            Back to Brackets
+          </button>
+        </div>
+
+        <div className="bg-gray-800 p-6 rounded">
+          <h3 className="text-xl font-semibold mb-4">Match Information</h3>
+          <div className="grid grid-cols-2 gap-4 mb-6">
+            <div className="text-center">
+              <div className="text-lg font-semibold">
+                {currentGameMatch.player1_username || `Player ${currentGameMatch.player1_id}`}
+              </div>
+              <div className="text-sm text-gray-400">Player 1</div>
+            </div>
+            <div className="text-center">
+              <div className="text-lg font-semibold">
+                {currentGameMatch.player2_username || `Player ${currentGameMatch.player2_id}`}
+              </div>
+              <div className="text-sm text-gray-400">Player 2</div>
+            </div>
+          </div>
+          
+          <div className="text-center">
+            <div className="text-2xl font-bold mb-4">VS</div>
+            <div className="text-sm text-gray-400 mb-4">
+              Round {currentGameMatch.round} - Match {currentGameMatch.match_number}
+            </div>
+          </div>
+        </div>
+
+        {/* 실제 PongGame 컴포넌트 */}
+        <div className="bg-gray-800 p-6 rounded">
+          <h3 className="text-xl font-semibold mb-4">Tournament Match</h3>
+          <div className="text-center mb-4">
+            <p className="text-gray-400">
+              {currentGameMatch.player1_username || `Player ${currentGameMatch.player1_id}`} vs {currentGameMatch.player2_username || `Player ${currentGameMatch.player2_id}`}
+            </p>
+          </div>
+          
+          {/* 실제 PongGame 컴포넌트 */}
+          <div className="flex justify-center">
+            <PongGame 
+              width={800} 
+              height={400}
+              onGameEnd={(winner, leftScore, rightScore) => {
+                // 게임 종료 시 토너먼트 결과 처리
+                const winnerId = winner === 'left' ? currentGameMatch.player1_id : currentGameMatch.player2_id;
+                const loserId = winner === 'left' ? currentGameMatch.player2_id : currentGameMatch.player1_id;
+                handleGameComplete(winnerId || 0, loserId || 0, leftScore, rightScore);
+              }}
+            />
+          </div>
+          
+          {/* 게임 컨트롤 */}
+          <div className="mt-4 text-center">
+            <p className="text-sm text-gray-400 mb-2">
+              Use W/S keys for left player, Arrow Up/Down for right player
+            </p>
+            <button 
+              onClick={() => {
+                setCurrentGameMatch(null);
+                setView('brackets');
+              }}
+              className="px-4 py-2 bg-gray-600 rounded hover:bg-gray-700"
+            >
+              Cancel Game
+            </button>
+          </div>
+        </div>
       </div>
     );
   };
@@ -766,21 +897,30 @@ export const Tournament: React.FC<Props> = ({ onBack }) => {
                       
                       {/* Match Action Buttons */}
                       {match.status === 'pending' && (
-                        <div className="text-center mt-3">
+                        <div className="text-center mt-3 space-x-2">
                           <button 
                             onClick={() => startMatch(match.id)}
                             className="px-4 py-2 bg-blue-600 rounded hover:bg-blue-700 transition-colors"
                           >
                             🚀 Start Match
                           </button>
+                          <button 
+                            onClick={() => playGame(match)}
+                            className="px-4 py-2 bg-green-600 rounded hover:bg-green-700 transition-colors"
+                          >
+                            🎮 Play Game
+                          </button>
                         </div>
                       )}
                       
                       {match.status === 'active' && (
                         <div className="text-center mt-3">
-                          <div className="text-sm text-blue-400 font-semibold">
-                            🎮 Match in Progress
-                          </div>
+                          <button 
+                            onClick={() => playGame(match)}
+                            className="px-4 py-2 bg-green-600 rounded hover:bg-green-700 transition-colors"
+                          >
+                            🎮 Play Game
+                          </button>
                         </div>
                       )}
                     </div>
@@ -861,6 +1001,7 @@ export const Tournament: React.FC<Props> = ({ onBack }) => {
         {view === 'list' && renderTournamentList()}
         {view === 'detail' && renderTournamentDetail()}
         {view === 'brackets' && renderTournamentBrackets()}
+        {view === 'game' && renderGameView()}
 
         <div className="text-center mt-8">
           <button 
