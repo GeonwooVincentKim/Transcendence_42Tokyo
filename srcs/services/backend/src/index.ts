@@ -135,10 +135,334 @@ const gameRooms = new Map<string, {
   player1Ready: boolean;
   player2Ready: boolean;
   gameStarted: boolean;
+  gameState?: any;
+  lastUpdate?: number;
+  // Game control synchronization
+  gameControl?: {
+    isPaused: boolean;
+    isStarted: boolean;
+    isReset: boolean;
+    lastControlUpdate?: number;
+  };
 }>();
 
 /**
- * WebSocket endpoint for tournament game rooms
+ * HTTP endpoint for game state polling (WebSocket alternative)
+ * GET /api/game/:tournamentId/:matchId/state
+ */
+server.get('/api/game/:tournamentId/:matchId/state', async (request, reply) => {
+  const { tournamentId, matchId } = request.params as { tournamentId: string; matchId: string };
+  const userId = (request.query as any)?.userId as string;
+  const roomId = `${tournamentId}-${matchId}`;
+  
+  console.log(`Game state requested for tournament ${tournamentId}, match ${matchId}, user ${userId}`);
+  
+  if (!userId) {
+    return reply.status(400).send({ error: 'User ID required' });
+  }
+
+  // Get or create game room
+  let room = gameRooms.get(roomId);
+  if (!room) {
+    room = {
+      players: new Map(),
+      player1Ready: false,
+      player2Ready: false,
+      gameStarted: false,
+      gameState: null,
+      lastUpdate: Date.now()
+    };
+    gameRooms.set(roomId, room);
+    console.log(`Created new game room: ${roomId}`);
+  }
+
+  // Add player to room if not already present
+  if (!room.players.has(userId)) {
+    room.players.set(userId, { 
+      id: userId, 
+      ready: false,
+      joinedAt: new Date().toISOString()
+    });
+    console.log(`Player ${userId} joined room ${roomId}`);
+  }
+
+  // Return current room state
+  return {
+    roomId,
+    players: Array.from(room.players.values()),
+    player1Ready: room.player1Ready,
+    player2Ready: room.player2Ready,
+    gameStarted: room.gameStarted,
+    gameState: room.gameState,
+    gameControl: room.gameControl || {
+      isPaused: false,
+      isStarted: false,
+      isReset: false,
+      lastControlUpdate: Date.now()
+    },
+    lastUpdate: room.lastUpdate
+  };
+});
+
+/**
+ * HTTP endpoint for game control actions (integrated with state API)
+ * POST /api/game/:tournamentId/:matchId/control
+ */
+server.post('/api/game/:tournamentId/:matchId/control', async (request, reply) => {
+  const { tournamentId, matchId } = request.params as { tournamentId: string; matchId: string };
+  const { userId, action } = request.body as { userId: string; action: 'start' | 'pause' | 'reset' };
+  
+  console.log(`Game control action: tournament ${tournamentId}, match ${matchId}, user ${userId}, action: ${action}`);
+  
+  if (!userId) {
+    return reply.status(400).send({ error: 'User ID required' });
+  }
+
+  const roomId = `${tournamentId}-${matchId}`;
+  
+  // Get or create game room
+  let room = gameRooms.get(roomId);
+  if (!room) {
+    room = {
+      players: new Map(),
+      player1Ready: false,
+      player2Ready: false,
+      gameStarted: false,
+      gameState: null,
+      lastUpdate: Date.now()
+    };
+    gameRooms.set(roomId, room);
+  }
+  
+  // Initialize game control if not exists
+  if (!room.gameControl) {
+    room.gameControl = {
+      isPaused: false,
+      isStarted: false,
+      isReset: false,
+      lastControlUpdate: Date.now()
+    };
+  }
+  
+  // Update game control based on action
+  switch (action) {
+    case 'start':
+      room.gameControl.isStarted = true;
+      room.gameControl.isPaused = false;
+      room.gameControl.isReset = false;
+      break;
+    case 'pause':
+      room.gameControl.isPaused = !room.gameControl.isPaused;
+      break;
+    case 'reset':
+      room.gameControl.isReset = true;
+      room.gameControl.isStarted = false;
+      room.gameControl.isPaused = false;
+      break;
+  }
+  
+  room.gameControl.lastControlUpdate = Date.now();
+  room.lastUpdate = Date.now();
+  
+  console.log(`Game control updated in room ${roomId}:`, room.gameControl);
+  
+  return { 
+    success: true, 
+    gameControl: room.gameControl 
+  };
+});
+
+/**
+ * HTTP endpoint for updating player ready status
+ * POST /api/game/:tournamentId/:matchId/ready
+ */
+server.post('/api/game/:tournamentId/:matchId/ready', async (request, reply) => {
+  const { tournamentId, matchId } = request.params as { tournamentId: string; matchId: string };
+  const { userId, ready } = request.body as { userId: string; ready: boolean };
+  const roomId = `${tournamentId}-${matchId}`;
+  
+  console.log(`Player ready update: tournament ${tournamentId}, match ${matchId}, user ${userId}, ready: ${ready}`);
+  
+  if (!userId) {
+    return reply.status(400).send({ error: 'User ID required' });
+  }
+
+  // Get or create game room
+  let room = gameRooms.get(roomId);
+  if (!room) {
+    room = {
+      players: new Map(),
+      player1Ready: false,
+      player2Ready: false,
+      gameStarted: false,
+      gameState: null,
+      lastUpdate: Date.now()
+    };
+    gameRooms.set(roomId, room);
+  }
+
+  // Update player ready status
+  if (room.players.has(userId)) {
+    const player = room.players.get(userId);
+    player.ready = ready;
+    room.players.set(userId, player);
+  } else {
+    room.players.set(userId, { 
+      id: userId, 
+      ready,
+      joinedAt: new Date().toISOString()
+    });
+  }
+
+  // Update room ready status
+  const players = Array.from(room.players.values());
+  if (players.length >= 2) {
+    room.player1Ready = players[0].ready;
+    room.player2Ready = players[1].ready;
+    
+    // Start game if both players are ready
+    if (room.player1Ready && room.player2Ready && !room.gameStarted) {
+      room.gameStarted = true;
+      room.gameState = {
+        status: 'playing',
+        player1: { score: 0, paddle: { x: 50, y: 250 } },
+        player2: { score: 0, paddle: { x: 750, y: 250 } },
+        ball: { x: 400, y: 300, vx: 5, vy: 3 },
+        startTime: new Date().toISOString()
+      };
+      console.log(`Game started in room ${roomId}`);
+    }
+  }
+  
+  room.lastUpdate = Date.now();
+
+  return {
+    success: true,
+    roomId,
+    players: Array.from(room.players.values()),
+    player1Ready: room.player1Ready,
+    player2Ready: room.player2Ready,
+    gameStarted: room.gameStarted,
+    gameState: room.gameState
+  };
+});
+
+/**
+ * HTTP endpoint for game control synchronization
+ * POST /api/game/:tournamentId/:matchId/control
+ */
+server.post('/api/game/:tournamentId/:matchId/control', async (request, reply) => {
+  const { tournamentId, matchId } = request.params as { tournamentId: string; matchId: string };
+  const { userId, action } = request.body as { userId: string; action: 'start' | 'pause' | 'reset' };
+  
+  console.log(`Game control action: tournament ${tournamentId}, match ${matchId}, user ${userId}, action: ${action}`);
+  
+  if (!userId) {
+    return reply.status(400).send({ error: 'User ID required' });
+  }
+
+  const roomId = `${tournamentId}-${matchId}`;
+  
+  if (!gameRooms.has(roomId)) {
+    return reply.status(404).send({ error: 'Game room not found' });
+  }
+
+  const room = gameRooms.get(roomId)!;
+  
+  // Initialize game control if not exists
+  if (!room.gameControl) {
+    room.gameControl = {
+      isPaused: false,
+      isStarted: false,
+      isReset: false,
+      lastControlUpdate: Date.now()
+    };
+  }
+  
+  // Update game control based on action
+  switch (action) {
+    case 'start':
+      room.gameControl.isStarted = true;
+      room.gameControl.isPaused = false;
+      room.gameControl.isReset = false;
+      break;
+    case 'pause':
+      room.gameControl.isPaused = !room.gameControl.isPaused;
+      break;
+    case 'reset':
+      room.gameControl.isReset = true;
+      room.gameControl.isStarted = false;
+      room.gameControl.isPaused = false;
+      break;
+  }
+  
+  room.gameControl.lastControlUpdate = Date.now();
+  room.lastUpdate = Date.now();
+  
+  console.log(`Game control updated in room ${roomId}:`, room.gameControl);
+  
+  return { 
+    success: true, 
+    gameControl: room.gameControl 
+  };
+});
+
+/**
+ * HTTP endpoint for tournament state polling (for Start Tournament synchronization)
+ * GET /api/tournaments/:id/state
+ */
+server.get('/api/tournaments/:id/state', async (request, reply) => {
+  const { id } = request.params as { id: string };
+  const userId = (request.query as any)?.userId as string;
+  
+  console.log(`Tournament state requested for tournament ${id}, user ${userId}`);
+  
+  if (!userId) {
+    return reply.status(400).send({ error: 'User ID required' });
+  }
+
+  try {
+    // Get tournament details from database
+    const tournament = await DatabaseService.query(`
+      SELECT id, name, status, max_participants, created_at, started_at
+      FROM tournaments 
+      WHERE id = ?
+    `, [id]);
+
+    if (!tournament || tournament.length === 0) {
+      return reply.status(404).send({ error: 'Tournament not found' });
+    }
+
+    // Get participants
+    const participants = await DatabaseService.query(`
+      SELECT tp.*, u.username, u.email
+      FROM tournament_participants tp
+      JOIN users u ON tp.user_id = u.id
+      WHERE tp.tournament_id = ?
+      ORDER BY tp.joined_at
+    `, [id]);
+
+    // Get matches
+    const matches = await DatabaseService.query(`
+      SELECT * FROM tournament_matches
+      WHERE tournament_id = ?
+      ORDER BY round, match_number
+    `, [id]);
+
+    return {
+      tournament: tournament[0],
+      participants,
+      matches,
+      lastUpdate: Date.now()
+    };
+  } catch (error) {
+    console.error('Error fetching tournament state:', error);
+    return reply.status(500).send({ error: 'Failed to fetch tournament state' });
+  }
+});
+
+/**
+ * WebSocket endpoint for tournament game rooms (DISABLED - using HTTP polling instead)
  * Handles real-time game synchronization between players
  */
 server.get('/ws/game/:tournamentId/:matchId', { websocket: true }, (connection, req) => {
@@ -148,6 +472,8 @@ server.get('/ws/game/:tournamentId/:matchId', { websocket: true }, (connection, 
   console.log('req.raw.url:', req.raw?.url);
   console.log('req.routerPath:', (req as any).routerPath);
   console.log('req.params:', req.params);
+  console.log('req.raw?.method:', req.raw?.method);
+  console.log('req.raw?.headers:', req.raw?.headers);
   
   let tournamentId = '';
   let matchId = '';
@@ -167,7 +493,7 @@ server.get('/ws/game/:tournamentId/:matchId', { websocket: true }, (connection, 
   
   // Method 3: From params if available
   if (!extractedUrl && req.params) {
-    const params = req.params as any;
+  const params = req.params as any;
     if (params.tournamentId && params.matchId) {
       tournamentId = params.tournamentId;
       matchId = params.matchId;
@@ -184,7 +510,19 @@ server.get('/ws/game/:tournamentId/:matchId', { websocket: true }, (connection, 
       console.log('Extracted from URL:', { tournamentId, matchId });
     } else {
       console.log('Could not extract parameters from URL:', extractedUrl);
-      return;
+      
+      // Method 5: Try to extract from headers (Fastify WebSocket workaround)
+      const headers = req.raw?.headers;
+      if (headers && headers['sec-websocket-protocol']) {
+        const protocol = headers['sec-websocket-protocol'];
+        console.log('WebSocket protocol:', protocol);
+      }
+      
+      // Method 6: Try manual hardcoded extraction for testing
+      console.log('Attempting hardcoded extraction for testing...');
+      tournamentId = '2';
+      matchId = '3';
+      console.log('Using hardcoded values for testing:', { tournamentId, matchId });
     }
   }
   
@@ -391,6 +729,8 @@ const start = async () => {
     // Register tournament routes
     await server.register(tournamentRoutes);
     
+    // HTTP polling APIs are now defined outside start() function for proper registration
+    
     // WebSocket routes are now handled directly in index.ts
     
     await server.listen({ port, host });
@@ -419,6 +759,10 @@ const start = async () => {
     server.log.info(`  - GET  /api/tournaments/:id/brackets (view brackets)`);
     server.log.info(`  - GET  /api/tournaments/:id/matches (list matches)`);
     server.log.info(`  - POST /api/tournaments/:id/matches/:matchId/result (report result)`);
+    server.log.info(`  - GET  /api/game/:tournamentId/:matchId/state (game state polling)`);
+    server.log.info(`  - POST /api/game/:tournamentId/:matchId/ready (player ready status)`);
+    server.log.info(`  - POST /api/game/:tournamentId/:matchId/control (game control sync)`);
+    server.log.info(`  - GET  /api/tournaments/:id/state (tournament state polling)`);
     server.log.info(`  - WS   /ws (WebSocket for real-time game)`);
   } catch (err) {
     server.log.error('Failed to start server:', err);

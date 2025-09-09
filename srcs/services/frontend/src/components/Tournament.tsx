@@ -24,6 +24,7 @@ export const Tournament: React.FC<Props> = ({ onBack }) => {
   const [currentMatch, setCurrentMatch] = useState<TournamentMatch | null>(null);
   const [stats, setStats] = useState<TournamentStats | null>(null);
   const [view, setView] = useState<'list' | 'detail' | 'brackets' | 'game'>('list');
+  const [, setLastUpdate] = useState<number>(Date.now());
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [gameRoomState, setGameRoomState] = useState<any>(null);
@@ -90,14 +91,87 @@ export const Tournament: React.FC<Props> = ({ onBack }) => {
     };
 
     const handleGameStateUpdate = (data: any) => {
-      console.log('Game state update:', data);
+      console.log('Tournament: Game state update received:', data);
       // Handle real-time game state synchronization
+      if (data.roomState) {
+        console.log('Tournament: Updating game room state:', data.roomState);
+        setGameRoomState(data.roomState);
+        
+        // Update game sync status based on room state
+        if (data.roomState.gameStarted) {
+          console.log('Tournament: Game started - setting status to playing');
+          setGameSyncStatus('playing');
+        } else if (data.roomState.player1Ready && data.roomState.player2Ready) {
+          console.log('Tournament: Both players ready - setting status to ready');
+          setGameSyncStatus('ready');
+        } else {
+          console.log('Tournament: Waiting for players - setting status to waiting');
+          setGameSyncStatus('waiting');
+        }
+        
+        // Handle game control updates
+        if (data.roomState.gameControl) {
+          console.log('Tournament: Game control state received:', data.roomState.gameControl);
+          // Emit custom event for game component to handle
+          window.dispatchEvent(new CustomEvent('gameControlStateSync', {
+            detail: { gameControl: data.roomState.gameControl }
+          }));
+        }
+        
+        // Force re-render by updating a dummy state
+        setLastUpdate(Date.now());
+        console.log('Tournament: Force re-render triggered');
+      }
     };
 
     const handleGameEnd = (data: any) => {
       console.log('Game ended:', data);
       setGameRoomState(data.roomState);
       setGameSyncStatus('disconnected');
+    };
+
+    const handleGameControl = (data: any) => {
+      console.log('Game control action:', data);
+      // Handle immediate game control updates (Start/Pause/Reset)
+      const { action, gameControl } = data;
+      
+      // Emit custom event for game component to handle
+      window.dispatchEvent(new CustomEvent('gameControlSync', {
+        detail: { action, gameControl }
+      }));
+    };
+
+    const handleGameControlUpdate = (data: any) => {
+      console.log('Game control state update:', data);
+      // Handle game control state updates from polling
+      const { gameControl } = data;
+      
+      // Emit custom event for game component to handle
+      window.dispatchEvent(new CustomEvent('gameControlStateSync', {
+        detail: { gameControl }
+      }));
+    };
+
+    const handleTournamentStateUpdate = (data: any) => {
+      console.log('Tournament state update:', data);
+      const { tournamentState } = data;
+      
+      // Update tournament state for Start Tournament synchronization
+      if (selectedTournament && tournamentState.tournament) {
+        setSelectedTournament({
+          ...selectedTournament,
+          status: tournamentState.tournament.status,
+          started_at: tournamentState.tournament.started_at
+        });
+        
+        // Update participants and matches
+        if (tournamentState.participants) {
+          setParticipants(tournamentState.participants);
+        }
+        if (tournamentState.matches) {
+          setMatches(tournamentState.matches);
+        }
+      }
     };
 
     // WebSocket 이벤트 리스너 등록
@@ -108,6 +182,9 @@ export const Tournament: React.FC<Props> = ({ onBack }) => {
     WebSocketService.on('game_playing', handleGamePlaying);
     WebSocketService.on('game_state_update', handleGameStateUpdate);
     WebSocketService.on('game_end', handleGameEnd);
+    WebSocketService.on('game_control', handleGameControl);
+    WebSocketService.on('game_control_update', handleGameControlUpdate);
+    WebSocketService.on('tournament_state_update', handleTournamentStateUpdate);
 
     // 컴포넌트 언마운트 시 이벤트 리스너 제거
     return () => {
@@ -118,8 +195,11 @@ export const Tournament: React.FC<Props> = ({ onBack }) => {
       WebSocketService.off('game_playing', handleGamePlaying);
       WebSocketService.off('game_state_update', handleGameStateUpdate);
       WebSocketService.off('game_end', handleGameEnd);
+      WebSocketService.off('game_control', handleGameControl);
+      WebSocketService.off('game_control_update', handleGameControlUpdate);
+      WebSocketService.off('tournament_state_update', handleTournamentStateUpdate);
     };
-  }, []);
+  }, [selectedTournament]);
 
   // 실시간 업데이트 완전 비활성화 (화면 깜빡임 방지)
   // useEffect(() => {
@@ -977,6 +1057,43 @@ export const Tournament: React.FC<Props> = ({ onBack }) => {
             <p className="text-sm text-gray-400 mb-2">
               Use W/S keys for left player, Arrow Up/Down for right player
             </p>
+            
+            {/* 게임 컨트롤 버튼들 */}
+            {gameSyncStatus === 'playing' && (
+              <div className="flex justify-center gap-4 mb-4">
+                <button 
+                  onClick={() => {
+                    if (currentGameMatch && currentUser) {
+                      WebSocketService.sendGameControl('start');
+                    }
+                  }}
+                  className="px-4 py-2 bg-green-600 rounded hover:bg-green-700"
+                >
+                  Start Game
+                </button>
+                <button 
+                  onClick={() => {
+                    if (currentGameMatch && currentUser) {
+                      WebSocketService.sendGameControl('pause');
+                    }
+                  }}
+                  className="px-4 py-2 bg-yellow-600 rounded hover:bg-yellow-700"
+                >
+                  Pause Game
+                </button>
+                <button 
+                  onClick={() => {
+                    if (currentGameMatch && currentUser) {
+                      WebSocketService.sendGameControl('reset');
+                    }
+                  }}
+                  className="px-4 py-2 bg-red-600 rounded hover:bg-red-700"
+                >
+                  Reset Game
+                </button>
+              </div>
+            )}
+            
             <button 
               onClick={() => {
                 setCurrentGameMatch(null);

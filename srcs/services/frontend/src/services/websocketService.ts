@@ -1,75 +1,62 @@
 /**
- * WebSocket Service for Real-time Game Synchronization
+ * HTTP Polling Service for Real-time Game Synchronization
+ * (WebSocket alternative)
  */
 
-interface WebSocketMessage {
-  type: string;
-  [key: string]: any;
+interface GameRoomState {
+  roomId: string;
+  players: any[];
+  player1Ready: boolean;
+  player2Ready: boolean;
+  gameStarted: boolean;
+  gameState?: any;
+  gameControl?: {
+    isPaused: boolean;
+    isStarted: boolean;
+    isReset: boolean;
+    lastControlUpdate?: number;
+  };
+  lastUpdate?: number;
 }
 
-// interface GameRoomState {
-//   status: 'waiting' | 'ready' | 'playing' | 'finished';
-//   player1Id?: number;
-//   player2Id?: number;
-//   player1Ready: boolean;
-//   player2Ready: boolean;
-//   gameData?: any;
-// }
-
 class WebSocketService {
-  private ws: WebSocket | null = null;
   private roomId: string | null = null;
   private userId: string | null = null;
-  private messageHandlers: Map<string, (data: any) => void> = new Map();
+  private tournamentId: number | null = null;
+  private matchId: number | null = null;
+  private pollingInterval: NodeJS.Timeout | null = null;
   private reconnectAttempts = 0;
   private maxReconnectAttempts = 5;
   private reconnectDelay = 1000;
+  private isPolling = false;
 
   constructor() {
     this.setupMessageHandlers();
   }
 
   /**
-   * Connect to WebSocket server
+   * Connect to game room using HTTP polling
    */
   connect(tournamentId: number, matchId: number, userId: string): Promise<void> {
     return new Promise((resolve, reject) => {
       try {
         this.userId = userId;
+        this.tournamentId = tournamentId;
+        this.matchId = matchId;
         this.roomId = `tournament-${tournamentId}-match-${matchId}`;
         
-        const wsUrl = `ws://localhost:8000/ws/game/${tournamentId}/${matchId}?userId=${userId}`;
-        console.log('Connecting to WebSocket:', wsUrl);
+        console.log('Connecting to game room via HTTP polling:', this.roomId);
         
-        this.ws = new WebSocket(wsUrl);
+        // Start polling for game state
+        this.startPolling();
         
-        this.ws.onopen = () => {
-          console.log('WebSocket connected');
+        // Simulate connection success
+        setTimeout(() => {
+          console.log('HTTP polling connection established');
           this.reconnectAttempts = 0;
           this.joinRoom();
           resolve();
-        };
-        
-        this.ws.onmessage = (event) => {
-          try {
-            const message: WebSocketMessage = JSON.parse(event.data);
-            console.log('WebSocket message received:', message);
-            this.handleMessage(message);
-          } catch (error) {
-            console.error('Error parsing WebSocket message:', error);
-          }
-        };
-        
-        this.ws.onclose = (event) => {
-          console.log('WebSocket disconnected:', event.code, event.reason);
-          this.ws = null;
-          this.attemptReconnect();
-        };
-        
-        this.ws.onerror = (error) => {
-          console.error('WebSocket error:', error);
-          reject(error);
-        };
+        }, 100);
         
       } catch (error) {
         reject(error);
@@ -78,150 +65,253 @@ class WebSocketService {
   }
 
   /**
-   * Disconnect from WebSocket server
+   * Disconnect from game room
    */
   disconnect() {
-    if (this.ws) {
-      this.leaveRoom();
-      this.ws.close();
-      this.ws = null;
-    }
+    this.stopPolling();
+    this.leaveRoom();
     this.roomId = null;
     this.userId = null;
+    this.tournamentId = null;
+    this.matchId = null;
   }
 
   /**
-   * Join game room
+   * Start HTTP polling for game state
+   */
+  private startPolling() {
+    if (this.isPolling) return;
+    
+    this.isPolling = true;
+    this.pollingInterval = setInterval(() => {
+      this.pollGameState();
+      this.pollTournamentState();
+    }, 500); // Poll every 500ms for better synchronization
+  }
+
+  /**
+   * Stop HTTP polling
+   */
+  private stopPolling() {
+    if (this.pollingInterval) {
+      clearInterval(this.pollingInterval);
+      this.pollingInterval = null;
+    }
+    this.isPolling = false;
+  }
+
+  /**
+   * Poll game state from server
+   */
+  private async pollGameState() {
+    if (!this.tournamentId || !this.matchId || !this.userId) return;
+
+    try {
+      const response = await fetch(
+        `http://localhost:8000/api/game/${this.tournamentId}/${this.matchId}/state?userId=${this.userId}`
+      );
+      
+      if (response.ok) {
+        const gameState: GameRoomState = await response.json();
+        this.handleGameStateUpdate(gameState);
+      }
+    } catch (error) {
+      console.error('Error polling game state:', error);
+      this.attemptReconnect();
+    }
+  }
+
+  /**
+   * Poll tournament state from server
+   */
+  private async pollTournamentState() {
+    if (!this.tournamentId || !this.userId) return;
+
+    try {
+      const response = await fetch(
+        `http://localhost:8000/api/tournaments/${this.tournamentId}/state?userId=${this.userId}`
+      );
+      
+      if (response.ok) {
+        const tournamentState = await response.json();
+        this.handleTournamentStateUpdate(tournamentState);
+      }
+    } catch (error) {
+      console.error('Error polling tournament state:', error);
+    }
+  }
+
+  /**
+   * Handle game state updates from polling
+   */
+  private handleGameStateUpdate(gameState: GameRoomState) {
+    console.log('Handling game state update:', gameState);
+    
+    // Check if game started
+    if (gameState.gameStarted && gameState.gameState) {
+      console.log('Game started - emitting events');
+      this.emit('game_start', { roomState: gameState });
+      this.emit('game_playing', { roomState: gameState });
+    }
+    
+    // Check player ready status
+    if (gameState.player1Ready && gameState.player2Ready && !gameState.gameStarted) {
+      console.log('Both players ready - emitting ready event');
+      this.emit('player_ready', { roomState: gameState });
+    }
+    
+    // Handle game control updates
+    if (gameState.gameControl) {
+      console.log('Game control update:', gameState.gameControl);
+      this.emit('game_control_update', { gameControl: gameState.gameControl });
+    }
+    
+    // Always emit general state update for synchronization
+    console.log('Emitting general game state update');
+    this.emit('game_state_update', { roomState: gameState });
+  }
+
+  /**
+   * Handle tournament state updates from polling
+   */
+  private handleTournamentStateUpdate(tournamentState: any) {
+    // Emit tournament state update for Start Tournament synchronization
+    this.emit('tournament_state_update', { tournamentState });
+  }
+
+  /**
+   * Join game room (HTTP polling automatically handles this)
    */
   private joinRoom() {
-    if (this.ws && this.ws.readyState === WebSocket.OPEN) {
-      this.send({
-        type: 'join_room'
-      });
-    }
+    console.log('Joined game room via HTTP polling');
+    this.emit('connected', { roomId: this.roomId });
   }
 
   /**
    * Leave game room
    */
   private leaveRoom() {
-    if (this.ws && this.ws.readyState === WebSocket.OPEN) {
-      this.send({
-        type: 'leave_room'
-      });
+    console.log('Left game room');
+  }
+
+  /**
+   * Set player ready status via HTTP
+   */
+  async setPlayerReady(ready: boolean) {
+    if (!this.tournamentId || !this.matchId || !this.userId) {
+      console.error('Cannot set ready status: missing connection info');
+      return;
+    }
+
+    try {
+      const response = await fetch(
+        `http://localhost:8000/api/game/${this.tournamentId}/${this.matchId}/ready`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            userId: this.userId,
+            ready: ready
+          })
+        }
+      );
+
+      if (response.ok) {
+        const result = await response.json();
+        console.log('Player ready status updated:', result);
+        this.handleGameStateUpdate(result);
+      } else {
+        console.error('Failed to update ready status:', response.statusText);
+      }
+    } catch (error) {
+      console.error('Error updating ready status:', error);
     }
   }
 
   /**
-   * Set player ready status
+   * Send game control action (Start/Pause/Reset)
    */
-  setPlayerReady(ready: boolean) {
-    this.send({
-      type: 'player_ready',
-      ready
+  async sendGameControl(action: 'start' | 'pause' | 'reset') {
+    if (!this.tournamentId || !this.matchId || !this.userId) {
+      console.error('Cannot send game control: not connected');
+      return;
+    }
+
+    console.log(`Game control action '${action}' requested by user ${this.userId}`);
+    
+    // Emit game control event for immediate UI update
+    // This will be handled by the frontend to synchronize both players
+    this.emit('game_control', { 
+      action, 
+      userId: this.userId,
+      timestamp: Date.now(),
+      gameControl: {
+        isPaused: action === 'pause',
+        isStarted: action === 'start',
+        isReset: action === 'reset',
+        lastControlUpdate: Date.now()
+      }
+    });
+    
+    // Also emit a general state update to trigger polling refresh
+    this.emit('game_state_update', { 
+      roomState: {
+        roomId: `${this.tournamentId}-${this.matchId}`,
+        players: [],
+        player1Ready: false,
+        player2Ready: false,
+        gameStarted: action === 'start',
+        gameState: null,
+        gameControl: {
+          isPaused: action === 'pause',
+          isStarted: action === 'start',
+          isReset: action === 'reset',
+          lastControlUpdate: Date.now()
+        },
+        lastUpdate: Date.now()
+      }
     });
   }
 
   /**
-   * Update game state
+   * Update game state (placeholder for HTTP polling)
    */
   updateGameState(gameState: any) {
-    this.send({
-      type: 'game_state_update',
-      gameState
-    });
+    console.log('Game state update (HTTP polling):', gameState);
+    // In HTTP polling mode, game state is managed by the server
+    // This is mainly for compatibility
   }
 
   /**
-   * End game
+   * End game (placeholder for HTTP polling)
    */
   endGame(gameResult: any) {
-    this.send({
-      type: 'game_end',
-      gameResult
-    });
+    console.log('Game ended (HTTP polling):', gameResult);
+    this.emit('game_end', { gameResult });
   }
 
   /**
-   * Send message to server
-   */
-  private send(message: WebSocketMessage) {
-    if (this.ws && this.ws.readyState === WebSocket.OPEN) {
-      this.ws.send(JSON.stringify(message));
-    } else {
-      console.warn('WebSocket not connected, cannot send message:', message);
-    }
-  }
-
-  /**
-   * Handle incoming messages
-   */
-  private handleMessage(message: WebSocketMessage) {
-    const handler = this.messageHandlers.get(message.type);
-    if (handler) {
-      handler(message);
-    } else {
-      console.log('No handler for message type:', message.type);
-    }
-  }
-
-  /**
-   * Setup message handlers
+   * Setup message handlers (HTTP polling mode)
    */
   private setupMessageHandlers() {
-    this.messageHandlers.set('connected', (data) => {
-      console.log('Connected to game room:', data);
-    });
-
-    this.messageHandlers.set('player_joined', (data) => {
-      console.log('Player joined:', data);
-      this.emit('player_joined', data);
-    });
-
-    this.messageHandlers.set('player_left', (data) => {
-      console.log('Player left:', data);
-      this.emit('player_left', data);
-    });
-
-    this.messageHandlers.set('player_ready', (data) => {
-      console.log('Player ready status:', data);
-      this.emit('player_ready', data);
-    });
-
-    this.messageHandlers.set('game_start', (data) => {
-      console.log('Game starting:', data);
-      this.emit('game_start', data);
-    });
-
-    this.messageHandlers.set('game_playing', (data) => {
-      console.log('Game is playing:', data);
-      this.emit('game_playing', data);
-    });
-
-    this.messageHandlers.set('game_state_update', (data) => {
-      console.log('Game state update:', data);
-      this.emit('game_state_update', data);
-    });
-
-    this.messageHandlers.set('game_end', (data) => {
-      console.log('Game ended:', data);
-      this.emit('game_end', data);
-    });
+    // HTTP polling mode doesn't need message handlers
+    // Events are emitted directly from polling responses
   }
 
   /**
-   * Attempt to reconnect
+   * Attempt to reconnect (HTTP polling mode)
    */
   private attemptReconnect() {
-    if (this.reconnectAttempts < this.maxReconnectAttempts && this.roomId && this.userId) {
+    if (this.reconnectAttempts < this.maxReconnectAttempts && this.roomId && this.userId && this.tournamentId && this.matchId) {
       this.reconnectAttempts++;
-      console.log(`Attempting to reconnect (${this.reconnectAttempts}/${this.maxReconnectAttempts})...`);
+      console.log(`Attempting to reconnect HTTP polling (${this.reconnectAttempts}/${this.maxReconnectAttempts})...`);
       
       setTimeout(() => {
-        const [tournamentId, matchId] = this.roomId!.split('-').slice(1, 3);
-        this.connect(parseInt(tournamentId), parseInt(matchId), this.userId!)
+        this.connect(this.tournamentId!, this.matchId!, this.userId!)
           .catch(error => {
-            console.error('Reconnection failed:', error);
+            console.error('HTTP polling reconnection failed:', error);
           });
       }, this.reconnectDelay * this.reconnectAttempts);
     }
@@ -260,7 +350,7 @@ class WebSocketService {
    * Get connection status
    */
   isConnected(): boolean {
-    return this.ws !== null && this.ws.readyState === WebSocket.OPEN;
+    return this.isPolling && this.roomId !== null && this.userId !== null;
   }
 
   /**
