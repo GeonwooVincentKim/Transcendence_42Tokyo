@@ -6,11 +6,10 @@ import { FastifyInstance } from 'fastify';
 import WebSocketService from '../services/websocketService';
 
 export async function websocketRoutes(fastify: FastifyInstance) {
-  const wsService = new WebSocketService(fastify);
+  const wsService = new WebSocketService();
 
   // WebSocket connection for game rooms
-  fastify.register(async function (fastify) {
-    fastify.get('/ws/game/:tournamentId/:matchId', { websocket: true }, (connection, req) => {
+  fastify.get('/ws/game/:tournamentId/:matchId', { websocket: true }, (connection, req) => {
       const { tournamentId, matchId } = req.params as { tournamentId: string, matchId: string };
       
       console.log(`WebSocket connection attempt for tournament ${tournamentId}, match ${matchId}`);
@@ -79,5 +78,4 @@ export async function websocketRoutes(fastify: FastifyInstance) {
         matchId: parseInt(matchId)
       }));
     });
-  });
 }

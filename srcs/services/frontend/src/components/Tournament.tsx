@@ -121,24 +121,15 @@ export const Tournament: React.FC<Props> = ({ onBack }) => {
     };
   }, []);
 
-  // 실시간 참가자 수 업데이트 (화면 깜빡임 완전 제거)
-  useEffect(() => {
-    if (isAuthenticated && tournaments.length > 0) {
-      const interval = setInterval(() => {
-        // 현재 스크롤 위치와 뷰 상태 저장
-        const currentScrollY = window.scrollY;
-        const currentView = view;
-        
-        // 토너먼트 목록만 업데이트 (전체 리렌더링 방지)
-        loadTournaments().then(() => {
-          // 스크롤 위치 복원
-          window.scrollTo(0, currentScrollY);
-        });
-      }, 10000); // 10초마다 업데이트 (깜빡임 최소화)
-
-      return () => clearInterval(interval);
-    }
-  }, [isAuthenticated, tournaments.length, view]);
+  // 실시간 업데이트 완전 비활성화 (화면 깜빡임 방지)
+  // useEffect(() => {
+  //   if (isAuthenticated && tournaments.length > 0) {
+  //     const interval = setInterval(() => {
+  //       loadTournaments();
+  //     }, 5000);
+  //     return () => clearInterval(interval);
+  //   }
+  // }, [isAuthenticated, tournaments.length]);
 
   const loadTournaments = async () => {
     try {
@@ -322,6 +313,11 @@ export const Tournament: React.FC<Props> = ({ onBack }) => {
     if (!selectedTournament) return;
     
     try {
+      console.log('playGame called with match:', match);
+      console.log('selectedTournament.id:', selectedTournament.id);
+      console.log('match.id:', match.id);
+      console.log('match.id type:', typeof match.id);
+      
       // 매치를 활성 상태로 변경
       await TournamentService.startMatch(token, selectedTournament.id, match.id);
       
@@ -455,7 +451,15 @@ export const Tournament: React.FC<Props> = ({ onBack }) => {
         )}
 
         <div className="w-full max-w-4xl bg-gray-800 p-6 rounded">
-        <h3 className="text-xl font-semibold mb-4">Tournaments</h3>
+        <div className="flex justify-between items-center mb-4">
+          <h3 className="text-xl font-semibold">Tournaments</h3>
+          <button
+            onClick={loadTournaments}
+            className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded text-sm transition-colors"
+          >
+            🔄 Refresh
+          </button>
+        </div>
         {loading ? (
           <div className="text-center py-8">Loading tournaments...</div>
         ) : error ? (

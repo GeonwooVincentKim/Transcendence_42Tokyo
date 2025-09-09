@@ -2,8 +2,6 @@
  * WebSocket Service for Real-time Game Synchronization
  */
 
-import { FastifyInstance } from 'fastify';
-
 interface GameRoom {
   id: string;
   tournamentId: number;
@@ -23,7 +21,7 @@ class WebSocketService {
   private gameRooms: Map<string, GameRoom> = new Map();
   private playerRooms: Map<string, string> = new Map(); // userId -> roomId
 
-  constructor(private fastify: FastifyInstance) {}
+  constructor() {}
 
   /**
    * Join a game room
