@@ -77,28 +77,36 @@ CREATE INDEX IF NOT EXISTS idx_game_results_session_id ON game_results(session_i
 CREATE INDEX IF NOT EXISTS idx_game_results_player_id ON game_results(player_id);
 CREATE INDEX IF NOT EXISTS idx_user_statistics_user_id ON user_statistics(user_id);
 
--- Tournaments core tables
+-- Tournament system tables
 CREATE TABLE IF NOT EXISTS tournaments (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT NOT NULL,
     description TEXT,
-    max_participants INTEGER NOT NULL,
-    status TEXT NOT NULL DEFAULT 'registration', -- 'registration', 'active', 'completed'
-    created_by INTEGER,
+    max_participants INTEGER NOT NULL DEFAULT 8,
+    status TEXT NOT NULL DEFAULT 'registration', -- 'registration', 'active', 'completed', 'cancelled'
+    tournament_type TEXT NOT NULL DEFAULT 'single_elimination', -- 'single_elimination', 'double_elimination', 'round_robin'
+    created_by INTEGER, -- NULL for guest-created tournaments
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     started_at DATETIME,
     finished_at DATETIME,
+    settings TEXT, -- JSON string for tournament-specific settings
     FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
 );
 
 CREATE TABLE IF NOT EXISTS tournament_participants (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     tournament_id INTEGER NOT NULL,
-    user_id INTEGER NOT NULL,
+    user_id INTEGER, -- NULL for guest participants
+    guest_alias TEXT, -- For guest participants
+    display_name TEXT NOT NULL, -- Either username or guest_alias
+    avatar_url TEXT, -- Avatar for display
     joined_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     eliminated_at DATETIME,
     final_rank INTEGER,
+    seed INTEGER, -- For bracket seeding
+    is_ready BOOLEAN DEFAULT 0,
     UNIQUE (tournament_id, user_id),
+    UNIQUE (tournament_id, guest_alias),
     FOREIGN KEY (tournament_id) REFERENCES tournaments(id) ON DELETE CASCADE,
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
@@ -108,28 +116,46 @@ CREATE TABLE IF NOT EXISTS tournament_matches (
     tournament_id INTEGER NOT NULL,
     round INTEGER NOT NULL,
     match_number INTEGER NOT NULL,
-    player1_id INTEGER,
-    player2_id INTEGER,
-    winner_id INTEGER,
-    status TEXT NOT NULL DEFAULT 'pending', -- 'pending', 'active', 'completed'
+    bracket_position INTEGER, -- Position in bracket visualization
+    player1_id INTEGER, -- References tournament_participants.id
+    player2_id INTEGER, -- References tournament_participants.id
+    winner_id INTEGER, -- References tournament_participants.id
+    status TEXT NOT NULL DEFAULT 'pending', -- 'pending', 'active', 'completed', 'forfeit'
     player1_score INTEGER DEFAULT 0,
     player2_score INTEGER DEFAULT 0,
+    game_session_id TEXT, -- Links to game session
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     started_at DATETIME,
     finished_at DATETIME,
+    match_data TEXT, -- JSON string for additional match data
     FOREIGN KEY (tournament_id) REFERENCES tournaments(id) ON DELETE CASCADE,
-    FOREIGN KEY (player1_id) REFERENCES users(id) ON DELETE SET NULL,
-    FOREIGN KEY (player2_id) REFERENCES users(id) ON DELETE SET NULL,
-    FOREIGN KEY (winner_id) REFERENCES users(id) ON DELETE SET NULL
+    FOREIGN KEY (player1_id) REFERENCES tournament_participants(id) ON DELETE SET NULL,
+    FOREIGN KEY (player2_id) REFERENCES tournament_participants(id) ON DELETE SET NULL,
+    FOREIGN KEY (winner_id) REFERENCES tournament_participants(id) ON DELETE SET NULL
+);
+
+CREATE TABLE IF NOT EXISTS tournament_brackets (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    tournament_id INTEGER NOT NULL,
+    bracket_type TEXT NOT NULL, -- 'main', 'losers', 'consolation'
+    round INTEGER NOT NULL,
+    match_id INTEGER NOT NULL,
+    position_x INTEGER NOT NULL,
+    position_y INTEGER NOT NULL,
+    FOREIGN KEY (tournament_id) REFERENCES tournaments(id) ON DELETE CASCADE,
+    FOREIGN KEY (match_id) REFERENCES tournament_matches(id) ON DELETE CASCADE
 );
 
 -- Tournament indexes
 CREATE INDEX IF NOT EXISTS idx_tournaments_status ON tournaments(status);
 CREATE INDEX IF NOT EXISTS idx_tournaments_created_by ON tournaments(created_by);
+CREATE INDEX IF NOT EXISTS idx_tournaments_type ON tournaments(tournament_type);
 CREATE INDEX IF NOT EXISTS idx_tournament_participants_tid ON tournament_participants(tournament_id);
+CREATE INDEX IF NOT EXISTS idx_tournament_participants_user_id ON tournament_participants(user_id);
 CREATE INDEX IF NOT EXISTS idx_tournament_matches_tid ON tournament_matches(tournament_id);
 CREATE INDEX IF NOT EXISTS idx_tournament_matches_round ON tournament_matches(round);
 CREATE INDEX IF NOT EXISTS idx_tournament_matches_status ON tournament_matches(status);
+CREATE INDEX IF NOT EXISTS idx_tournament_brackets_tid ON tournament_brackets(tournament_id);
 
 -- Create trigger to update updated_at timestamp for users table
 CREATE TRIGGER IF NOT EXISTS update_users_updated_at 

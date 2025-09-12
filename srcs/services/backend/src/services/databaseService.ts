@@ -146,7 +146,7 @@ export class DatabaseService {
    * @param params - Query parameters
    * @returns Promise<void>
    */
-  static async run(sql: string, params: any[] = []): Promise<void> {
+  static async run(sql: string, params: any[] = []): Promise<any> {
     if (!this.db) {
       await this.initialize();
     }
@@ -154,7 +154,8 @@ export class DatabaseService {
     try {
       const convertedSql = this.convertParameters(sql);
       const stmt = this.db!.prepare(convertedSql);
-      stmt.run(params);
+      const result = stmt.run(params);
+      return result;
     } catch (error) {
       console.error('Run query error:', error);
       throw error;

@@ -1,531 +1,382 @@
 /**
- * Tournament API Tests
+ * Tournament Service Tests
  * 
- * Tests for tournament creation, listing, joining, starting, and match management
+ * Comprehensive test suite for tournament functionality
  */
 
-import { FastifyInstance } from 'fastify';
+import { TournamentService, CreateTournamentInput, JoinTournamentInput } from '../src/services/tournamentService';
 import { DatabaseService } from '../src/services/databaseService';
-import { initializeDatabase } from '../src/utils/databaseInit';
-import { UserService } from '../src/services/userService';
 
-describe('Tournament API', () => {
-  let app: FastifyInstance;
-  let testUserId: number;
-  let testToken: string;
-  let testCounter = 0;
+// Mock database service
+jest.mock('../src/services/databaseService');
 
-  beforeEach(async () => {
-    testCounter++;
-    
-    // Initialize Fastify app for testing
-    app = require('fastify')();
-    
-    // Initialize database and schema
-    await DatabaseService.initialize();
-    await initializeDatabase();
-    
-    // Create a unique test user for each test first
-    const uniqueUsername = `tournamentuser${testCounter}`;
-    const uniqueEmail = `tournament${testCounter}@test.com`;
-    const user = await UserService.registerUser(uniqueUsername, uniqueEmail, 'password123');
-    testUserId = Number(user.id);
-    
-    // Create a mock token for testing
-    testToken = `mock-token-${testCounter}`;
-    
-    // Register tournament routes without JWT middleware
-    await app.register(async (fastify: FastifyInstance) => {
-      // Tournament routes with mocked authentication
-      fastify.post('/api/tournaments', async (request: any, reply: any) => {
-        // Check if user is authenticated
-        if (!request.headers.authorization || !request.headers.authorization.startsWith('Bearer ')) {
-          return reply.status(401).send({ error: 'Authentication required' });
-        }
+describe('TournamentService', () => {
+  let mockDatabaseService: jest.Mocked<typeof DatabaseService>;
 
-        // Mock user data for testing
-        request.user = { userId: testUserId.toString(), username: `tournamentuser${testCounter}` };
-
-        const { name, description, maxParticipants } = request.body || {};
-        if (!name || !maxParticipants) {
-          return reply.status(400).send({ error: 'name and maxParticipants are required' });
-        }
-        
-        if (maxParticipants < 2 || maxParticipants > 64) {
-          return reply.status(400).send({ error: 'maxParticipants must be between 2 and 64' });
-        }
-
-        const createdBy = request.user?.userId ? Number(request.user.userId) : undefined;
-        
-        try {
-          const { TournamentService } = require('../src/services/tournamentService');
-          const tournament = await TournamentService.createTournament({
-            name,
-            description,
-            maxParticipants: Number(maxParticipants),
-            createdBy,
-          });
-          return reply.status(201).send(tournament);
-        } catch (error: any) {
-          reply.status(500).send({ error: error.message || 'Failed to create tournament' });
-        }
-      });
-
-      fastify.get('/api/tournaments', async (request: any, reply: any) => {
-        try {
-          const { TournamentService } = require('../src/services/tournamentService');
-          const tournaments = await TournamentService.listTournaments();
-          return tournaments;
-        } catch (error: any) {
-          reply.status(500).send({ error: error.message || 'Failed to list tournaments' });
-        }
-      });
-
-      fastify.get('/api/tournaments/:id', async (request: any, reply: any) => {
-        try {
-          const id = Number(request.params.id);
-          if (isNaN(id)) {
-            return reply.status(400).send({ error: 'Invalid tournament ID' });
-          }
-
-          const { TournamentService } = require('../src/services/tournamentService');
-          const tournament = await TournamentService.getTournamentById(id);
-          if (!tournament) {
-            return reply.status(404).send({ error: 'Tournament not found' });
-          }
-          return tournament;
-        } catch (error: any) {
-          reply.status(500).send({ error: error.message || 'Failed to get tournament' });
-        }
-      });
-
-      fastify.post('/api/tournaments/:id/join', async (request: any, reply: any) => {
-        // Check if user is authenticated
-        if (!request.headers.authorization || !request.headers.authorization.startsWith('Bearer ')) {
-          return reply.status(401).send({ error: 'Authentication required' });
-        }
-
-        // Mock user data for testing
-        request.user = { userId: testUserId.toString(), username: `tournamentuser${testCounter}` };
-
-        try {
-          const id = Number(request.params.id);
-          if (isNaN(id)) {
-            return reply.status(400).send({ error: 'Invalid tournament ID' });
-          }
-
-          const userId = Number(request.user?.userId);
-          if (!userId) {
-            return reply.status(401).send({ error: 'Unauthorized' });
-          }
-
-          const { TournamentService } = require('../src/services/tournamentService');
-          await TournamentService.joinTournament(id, userId);
-          return reply.status(200).send({ message: 'Successfully joined tournament' });
-        } catch (error: any) {
-          if (error.message.includes('not accepting participants')) {
-            reply.status(400).send({ error: error.message });
-          } else if (error.message.includes('already a participant')) {
-            reply.status(400).send({ error: error.message });
-          } else if (error.message.includes('is full')) {
-            reply.status(400).send({ error: error.message });
-          } else {
-            reply.status(500).send({ error: error.message || 'Failed to join tournament' });
-          }
-        }
-      });
-
-      fastify.post('/api/tournaments/:id/start', async (request: any, reply: any) => {
-        // Check if user is authenticated
-        if (!request.headers.authorization || !request.headers.authorization.startsWith('Bearer ')) {
-          return reply.status(401).send({ error: 'Authentication required' });
-        }
-
-        // Mock user data for testing
-        request.user = { userId: testUserId.toString(), username: `tournamentuser${testCounter}` };
-
-        try {
-          const id = Number(request.params.id);
-          if (isNaN(id)) {
-            return reply.status(400).send({ error: 'Invalid tournament ID' });
-          }
-
-          const { TournamentService } = require('../src/services/tournamentService');
-          await TournamentService.startTournament(id);
-          return reply.status(200).send({ message: 'Tournament started successfully' });
-        } catch (error: any) {
-          if (error.message.includes('Not enough participants')) {
-            reply.status(400).send({ error: error.message });
-          } else {
-            reply.status(500).send({ error: error.message || 'Failed to start tournament' });
-          }
-        }
-      });
-
-      fastify.get('/api/tournaments/:id/brackets', async (request: any, reply: any) => {
-        try {
-          const id = Number(request.params.id);
-          if (isNaN(id)) {
-            return reply.status(400).send({ error: 'Invalid tournament ID' });
-          }
-
-          const { TournamentService } = require('../src/services/tournamentService');
-          const brackets = await TournamentService.getBrackets(id);
-          return brackets;
-        } catch (error: any) {
-          reply.status(500).send({ error: error.message || 'Failed to get brackets' });
-        }
-      });
-
-      fastify.get('/api/tournaments/:id/matches', async (request: any, reply: any) => {
-        try {
-          const id = Number(request.params.id);
-          if (isNaN(id)) {
-            return reply.status(400).send({ error: 'Invalid tournament ID' });
-          }
-
-          const { TournamentService } = require('../src/services/tournamentService');
-          const matches = await TournamentService.listMatches(id);
-          return matches;
-        } catch (error: any) {
-          reply.status(500).send({ error: error.message || 'Failed to get matches' });
-        }
-      });
-    });
-    
-    // Mock JWT token for testing
-    testToken = 'mock-jwt-token';
+  beforeEach(() => {
+    jest.clearAllMocks();
+    mockDatabaseService = DatabaseService as jest.Mocked<typeof DatabaseService>;
   });
 
-  afterEach(async () => {
-    // Clean up database tables
-    try {
-      await DatabaseService.run('DELETE FROM tournament_matches');
-      await DatabaseService.run('DELETE FROM tournament_participants');
-      await DatabaseService.run('DELETE FROM tournaments');
-      await DatabaseService.run('DELETE FROM user_statistics');
-      await DatabaseService.run('DELETE FROM game_results');
-      await DatabaseService.run('DELETE FROM game_sessions');
-      await DatabaseService.run('DELETE FROM password_reset_tokens');
-      await DatabaseService.run('DELETE FROM users');
-    } catch (error) {
-      // Ignore cleanup errors
-    }
-    
-    await DatabaseService.close();
-    await app.close();
-  });
+  describe('createTournament', () => {
+    it('should create a tournament with valid input', async () => {
+      const input: CreateTournamentInput = {
+        name: 'Test Tournament',
+        description: 'A test tournament',
+        max_participants: 8,
+        tournament_type: 'single_elimination',
+        created_by: 1
+      };
 
-  describe('Tournament Creation', () => {
-    it('should create a new tournament', async () => {
-      const response = await app.inject({
-        method: 'POST',
-        url: '/api/tournaments',
-        headers: {
-          'Authorization': `Bearer ${testToken}`,
-          'Content-Type': 'application/json'
-        },
-        payload: {
-          name: 'Test Tournament',
-          description: 'A test tournament',
-          maxParticipants: 8
-        }
+      mockDatabaseService.get.mockResolvedValueOnce({ id: 1, username: 'testuser' });
+      mockDatabaseService.run.mockResolvedValueOnce({ lastID: 1, changes: 1 });
+      mockDatabaseService.get.mockResolvedValueOnce({
+        id: 1,
+        name: 'Test Tournament',
+        description: 'A test tournament',
+        max_participants: 8,
+        status: 'registration',
+        tournament_type: 'single_elimination',
+        created_by: 1,
+        created_at: '2024-01-01T00:00:00Z',
+        started_at: null,
+        finished_at: null,
+        settings: null
       });
 
-      expect(response.statusCode).toBe(201);
-      const tournament = JSON.parse(response.payload);
-      expect(tournament.name).toBe('Test Tournament');
-      expect(tournament.max_participants).toBe(8);
-      expect(tournament.status).toBe('registration');
+      const result = await TournamentService.createTournament(input);
+
+      expect(result).toBeDefined();
+      expect(result.name).toBe('Test Tournament');
+      expect(result.max_participants).toBe(8);
+      expect(result.tournament_type).toBe('single_elimination');
     });
 
-    it('should require authentication for tournament creation', async () => {
-      const response = await app.inject({
-        method: 'POST',
-        url: '/api/tournaments',
-        payload: {
-          name: 'Test Tournament',
-          maxParticipants: 8
-        }
-      });
+    it('should throw error for empty tournament name', async () => {
+      const input: CreateTournamentInput = {
+        name: '',
+        max_participants: 8
+      };
 
-      expect(response.statusCode).toBe(401);
+      await expect(TournamentService.createTournament(input)).rejects.toThrow('Tournament name is required');
     });
 
-    it('should validate required fields', async () => {
-      const response = await app.inject({
-        method: 'POST',
-        url: '/api/tournaments',
-        headers: {
-          'Authorization': `Bearer ${testToken}`,
-          'Content-Type': 'application/json'
-        },
-        payload: {
-          name: '',
-          maxParticipants: 0
-        }
-      });
+    it('should throw error for invalid max participants', async () => {
+      const input: CreateTournamentInput = {
+        name: 'Test Tournament',
+        max_participants: 1
+      };
 
-      expect(response.statusCode).toBe(400);
+      await expect(TournamentService.createTournament(input)).rejects.toThrow('Max participants must be between 2 and 64');
+    });
+
+    it('should throw error for invalid tournament type', async () => {
+      const input: CreateTournamentInput = {
+        name: 'Test Tournament',
+        max_participants: 8,
+        tournament_type: 'invalid_type' as any
+      };
+
+      await expect(TournamentService.createTournament(input)).rejects.toThrow('Invalid tournament type');
+    });
+
+    it('should throw error for non-existent user', async () => {
+      const input: CreateTournamentInput = {
+        name: 'Test Tournament',
+        max_participants: 8,
+        created_by: 999
+      };
+
+      mockDatabaseService.get.mockResolvedValueOnce(null);
+
+      await expect(TournamentService.createTournament(input)).rejects.toThrow('User not found');
     });
   });
 
-  describe('Tournament Listing', () => {
-    it('should list tournaments', async () => {
-      // Create a tournament first
-      const createResponse = await app.inject({
-        method: 'POST',
-        url: '/api/tournaments',
-        headers: {
-          'Authorization': `Bearer ${testToken}`,
-          'Content-Type': 'application/json'
-        },
-        payload: {
-          name: 'List Test Tournament',
-          maxParticipants: 4
-        }
+  describe('joinTournament', () => {
+    beforeEach(() => {
+      // Mock tournament exists and is in registration phase
+      mockDatabaseService.get.mockResolvedValueOnce({
+        id: 1,
+        name: 'Test Tournament',
+        status: 'registration',
+        max_participants: 8
+      });
+    });
+
+    it('should allow registered user to join tournament', async () => {
+      const input: JoinTournamentInput = {
+        tournament_id: 1,
+        user_id: 1,
+        display_name: 'Test User'
+      };
+
+      mockDatabaseService.get.mockResolvedValueOnce(null); // Not already in tournament
+      mockDatabaseService.get.mockResolvedValueOnce({ username: 'testuser' }); // User exists
+      mockDatabaseService.get.mockResolvedValueOnce({ count: 2 }); // Participant count
+      mockDatabaseService.run.mockResolvedValueOnce({ lastID: 1, changes: 1 });
+      mockDatabaseService.get.mockResolvedValueOnce({
+        id: 1,
+        tournament_id: 1,
+        user_id: 1,
+        guest_alias: null,
+        display_name: 'Test User',
+        avatar_url: null,
+        joined_at: '2024-01-01T00:00:00Z',
+        eliminated_at: null,
+        final_rank: null,
+        seed: null,
+        is_ready: false
       });
 
-      expect(createResponse.statusCode).toBe(201);
-      const createdTournament = JSON.parse(createResponse.payload);
+      const result = await TournamentService.joinTournament(input);
 
-      // List tournaments
-      const response = await app.inject({
-        method: 'GET',
-        url: '/api/tournaments'
+      expect(result).toBeDefined();
+      expect(result.user_id).toBe(1);
+      expect(result.display_name).toBe('Test User');
+    });
+
+    it('should allow guest user to join tournament', async () => {
+      const input: JoinTournamentInput = {
+        tournament_id: 1,
+        guest_alias: 'guest123',
+        display_name: 'Guest Player'
+      };
+
+      mockDatabaseService.get.mockResolvedValueOnce(null); // Guest alias not taken
+      mockDatabaseService.get.mockResolvedValueOnce({ count: 2 }); // Participant count
+      mockDatabaseService.run.mockResolvedValueOnce({ lastID: 1, changes: 1 });
+      mockDatabaseService.get.mockResolvedValueOnce({
+        id: 1,
+        tournament_id: 1,
+        user_id: null,
+        guest_alias: 'guest123',
+        display_name: 'Guest Player',
+        avatar_url: null,
+        joined_at: '2024-01-01T00:00:00Z',
+        eliminated_at: null,
+        final_rank: null,
+        seed: null,
+        is_ready: false
       });
 
-      expect(response.statusCode).toBe(200);
-      const tournaments = JSON.parse(response.payload);
-      expect(Array.isArray(tournaments)).toBe(true);
-      expect(tournaments.length).toBeGreaterThan(0);
-      expect(tournaments[0].name).toBe('List Test Tournament');
+      const result = await TournamentService.joinTournament(input);
+
+      expect(result).toBeDefined();
+      expect(result.guest_alias).toBe('guest123');
+      expect(result.display_name).toBe('Guest Player');
+    });
+
+    it('should throw error for empty display name', async () => {
+      const input: JoinTournamentInput = {
+        tournament_id: 1,
+        user_id: 1,
+        display_name: ''
+      };
+
+      await expect(TournamentService.joinTournament(input)).rejects.toThrow('Display name is required');
+    });
+
+    it('should throw error when tournament is full', async () => {
+      const input: JoinTournamentInput = {
+        tournament_id: 1,
+        user_id: 1,
+        display_name: 'Test User'
+      };
+
+      mockDatabaseService.get.mockResolvedValueOnce(null); // Not already in tournament
+      mockDatabaseService.get.mockResolvedValueOnce({ username: 'testuser' }); // User exists
+      mockDatabaseService.get.mockResolvedValueOnce({ count: 8 }); // Tournament is full
+
+      await expect(TournamentService.joinTournament(input)).rejects.toThrow('Tournament is full');
+    });
+
+    it('should throw error when user is already in tournament', async () => {
+      const input: JoinTournamentInput = {
+        tournament_id: 1,
+        user_id: 1,
+        display_name: 'Test User'
+      };
+
+      mockDatabaseService.get.mockResolvedValueOnce({ id: 1 }); // Already in tournament
+
+      await expect(TournamentService.joinTournament(input)).rejects.toThrow('User is already in this tournament');
     });
   });
 
-  describe('Tournament Details', () => {
-    it('should get tournament by ID', async () => {
-      // Create a tournament first
-      const createResponse = await app.inject({
-        method: 'POST',
-        url: '/api/tournaments',
-        headers: {
-          'Authorization': `Bearer ${testToken}`,
-          'Content-Type': 'application/json'
-        },
-        payload: {
-          name: 'Detail Test Tournament',
-          maxParticipants: 4
-        }
+  describe('startTournament', () => {
+    it('should start tournament with enough participants', async () => {
+      mockDatabaseService.get.mockResolvedValueOnce({
+        id: 1,
+        name: 'Test Tournament',
+        status: 'registration',
+        tournament_type: 'single_elimination'
       });
 
-      expect(createResponse.statusCode).toBe(201);
-      const tournament = JSON.parse(createResponse.payload);
+      mockDatabaseService.all.mockResolvedValueOnce([
+        { id: 1, user_id: 1, display_name: 'Player 1' },
+        { id: 2, user_id: 2, display_name: 'Player 2' }
+      ]);
 
-      // Get tournament details
-      const response = await app.inject({
-        method: 'GET',
-        url: `/api/tournaments/${tournament.id}`
-      });
+      mockDatabaseService.run.mockResolvedValue({ lastID: 1, changes: 1 });
 
-      expect(response.statusCode).toBe(200);
-      const details = JSON.parse(response.payload);
-      expect(details.id).toBe(tournament.id);
-      expect(details.name).toBe('Detail Test Tournament');
+      await TournamentService.startTournament(1);
+
+      expect(mockDatabaseService.run).toHaveBeenCalledWith(
+        'UPDATE tournaments SET status = ?, started_at = CURRENT_TIMESTAMP WHERE id = ?',
+        ['active', 1]
+      );
     });
 
-    it('should return 404 for non-existent tournament', async () => {
-      const response = await app.inject({
-        method: 'GET',
-        url: '/api/tournaments/999999'
+    it('should throw error when not enough participants', async () => {
+      mockDatabaseService.get.mockResolvedValueOnce({
+        id: 1,
+        name: 'Test Tournament',
+        status: 'registration',
+        tournament_type: 'single_elimination'
       });
 
-      expect(response.statusCode).toBe(404);
-    });
-  });
+      mockDatabaseService.all.mockResolvedValueOnce([
+        { id: 1, user_id: 1, display_name: 'Player 1' }
+      ]);
 
-  describe('Tournament Joining', () => {
-    it('should allow user to join tournament', async () => {
-      // Create a tournament first
-      const createResponse = await app.inject({
-        method: 'POST',
-        url: '/api/tournaments',
-        headers: {
-          'Authorization': `Bearer ${testToken}`,
-          'Content-Type': 'application/json'
-        },
-        payload: {
-          name: 'Join Test Tournament',
-          maxParticipants: 4
-        }
-      });
-
-      expect(createResponse.statusCode).toBe(201);
-      const tournament = JSON.parse(createResponse.payload);
-
-      // Join the tournament
-      const response = await app.inject({
-        method: 'POST',
-        url: `/api/tournaments/${tournament.id}/join`,
-        headers: {
-          'Authorization': `Bearer ${testToken}`
-        }
-      });
-
-      expect(response.statusCode).toBe(200);
+      await expect(TournamentService.startTournament(1)).rejects.toThrow('Not enough participants to start tournament');
     });
 
-    it('should require authentication for joining', async () => {
-      const response = await app.inject({
-        method: 'POST',
-        url: '/api/tournaments/1/join'
+    it('should throw error when tournament is not in registration phase', async () => {
+      mockDatabaseService.get.mockResolvedValueOnce({
+        id: 1,
+        name: 'Test Tournament',
+        status: 'active',
+        tournament_type: 'single_elimination'
       });
 
-      expect(response.statusCode).toBe(401);
+      await expect(TournamentService.startTournament(1)).rejects.toThrow('Tournament is not in registration phase');
     });
   });
 
-  describe('Tournament Starting', () => {
-    it('should start tournament with participants', async () => {
-      // Create a tournament first
-      const createResponse = await app.inject({
-        method: 'POST',
-        url: '/api/tournaments',
-        headers: {
-          'Authorization': `Bearer ${testToken}`,
-          'Content-Type': 'application/json'
-        },
-        payload: {
-          name: 'Start Test Tournament',
-          maxParticipants: 4
-        }
+  describe('updateMatchResult', () => {
+    it('should update match result successfully', async () => {
+      mockDatabaseService.get.mockResolvedValueOnce({
+        id: 1,
+        tournament_id: 1,
+        player1_id: 1,
+        player2_id: 2,
+        status: 'active'
       });
 
-      expect(createResponse.statusCode).toBe(201);
-      const tournament = JSON.parse(createResponse.payload);
+      mockDatabaseService.run.mockResolvedValue({ lastID: 1, changes: 1 });
+      mockDatabaseService.get.mockResolvedValueOnce({ count: 0 }); // No pending matches
 
-      // Join the tournament with two participants
-      await app.inject({
-        method: 'POST',
-        url: `/api/tournaments/${tournament.id}/join`,
-        headers: {
-          'Authorization': `Bearer ${testToken}`
-        }
-      });
+      await TournamentService.updateMatchResult(1, 1, 5, 3, 'session123');
 
-             // Create another user and join tournament
-       const user2 = await UserService.registerUser(`tournamentuser2_${testCounter}`, `tournament2_${testCounter}@testCounter.com`, 'password123');
-       const user2Id = Number(user2.id);
-       
-       // Manually add second user to tournament participants
-       await DatabaseService.run(
-         'INSERT INTO tournament_participants (tournament_id, user_id) VALUES (?, ?)',
-         [tournament.id, user2Id]
-       );
-
-      // Start the tournament
-      const response = await app.inject({
-        method: 'POST',
-        url: `/api/tournaments/${tournament.id}/start`,
-        headers: {
-          'Authorization': `Bearer ${testToken}`
-        }
-      });
-
-      expect(response.statusCode).toBe(200);
+      expect(mockDatabaseService.run).toHaveBeenCalledWith(
+        expect.stringContaining('UPDATE tournament_matches'),
+        [1, 5, 3, 'completed', 'session123', 1]
+      );
     });
 
-    it('should require authentication for starting', async () => {
-      const response = await app.inject({
-        method: 'POST',
-        url: '/api/tournaments/1/start'
+    it('should throw error for invalid winner', async () => {
+      mockDatabaseService.get.mockResolvedValueOnce({
+        id: 1,
+        tournament_id: 1,
+        player1_id: 1,
+        player2_id: 2,
+        status: 'active'
       });
 
-      expect(response.statusCode).toBe(401);
+      await expect(TournamentService.updateMatchResult(1, 3, 5, 3)).rejects.toThrow('Invalid winner');
+    });
+
+    it('should throw error when match is not active', async () => {
+      mockDatabaseService.get.mockResolvedValueOnce({
+        id: 1,
+        tournament_id: 1,
+        player1_id: 1,
+        player2_id: 2,
+        status: 'completed'
+      });
+
+      await expect(TournamentService.updateMatchResult(1, 1, 5, 3)).rejects.toThrow('Match is not active');
     });
   });
 
-  describe('Tournament Matches', () => {
-    it('should list tournament matches', async () => {
-      // Create and start a tournament first
-      const createResponse = await app.inject({
-        method: 'POST',
-        url: '/api/tournaments',
-        headers: {
-          'Authorization': `Bearer ${testToken}`,
-          'Content-Type': 'application/json'
-        },
-        payload: {
-          name: 'Matches Test Tournament',
-          maxParticipants: 4
-        }
+  describe('getTournamentStats', () => {
+    it('should return tournament statistics', async () => {
+      mockDatabaseService.get
+        .mockResolvedValueOnce({ count: 10 }) // total_tournaments
+        .mockResolvedValueOnce({ count: 3 })  // active_tournaments
+        .mockResolvedValueOnce({ count: 5 })  // completed_tournaments
+        .mockResolvedValueOnce({ count: 25 }) // total_participants
+        .mockResolvedValueOnce({ count: 15 }); // total_matches
+
+      const stats = await TournamentService.getTournamentStats();
+
+      expect(stats).toEqual({
+        total_tournaments: 10,
+        active_tournaments: 3,
+        completed_tournaments: 5,
+        total_participants: 25,
+        total_matches: 15
       });
-
-      expect(createResponse.statusCode).toBe(201);
-      const tournament = JSON.parse(createResponse.payload);
-
-      const response = await app.inject({
-        method: 'GET',
-        url: `/api/tournaments/${tournament.id}/matches`
-      });
-
-      expect(response.statusCode).toBe(200);
-      const matches = JSON.parse(response.payload);
-      expect(Array.isArray(matches)).toBe(true);
-    });
-
-    it('should get tournament brackets', async () => {
-      const createResponse = await app.inject({
-        method: 'POST',
-        url: '/api/tournaments',
-        headers: {
-          'Authorization': `Bearer ${testToken}`,
-          'Content-Type': 'application/json'
-        },
-        payload: {
-          name: 'Brackets Test Tournament',
-          maxParticipants: 8
-        }
-      });
-
-      expect(createResponse.statusCode).toBe(201);
-      const tournament = JSON.parse(createResponse.payload);
-
-      const response = await app.inject({
-        method: 'GET',
-        url: `/api/tournaments/${tournament.id}/brackets`
-      });
-
-      expect(response.statusCode).toBe(200);
-      const brackets = JSON.parse(response.payload);
-      expect(typeof brackets).toBe('object');
     });
   });
 
-  describe('Error Handling', () => {
-    it('should handle invalid tournament ID', async () => {
-      const response = await app.inject({
-        method: 'POST',
-        url: '/api/tournaments/invalid/join',
-        headers: {
-          'Authorization': `Bearer ${testToken}`
-        }
+  describe('leaveTournament', () => {
+    it('should allow user to leave tournament in registration phase', async () => {
+      mockDatabaseService.get.mockResolvedValueOnce({
+        id: 1,
+        name: 'Test Tournament',
+        status: 'registration'
       });
 
-      expect(response.statusCode).toBe(400);
+      mockDatabaseService.run.mockResolvedValueOnce({ lastID: 1, changes: 1 });
+
+      await TournamentService.leaveTournament(1, 1);
+
+      expect(mockDatabaseService.run).toHaveBeenCalledWith(
+        'DELETE FROM tournament_participants WHERE tournament_id = ? AND user_id = ?',
+        [1, 1]
+      );
     });
 
-    it('should handle missing request body', async () => {
-      const response = await app.inject({
-        method: 'POST',
-        url: '/api/tournaments',
-        headers: {
-          'Authorization': `Bearer ${testToken}`,
-          'Content-Type': 'application/json'
-        }
+    it('should throw error when trying to leave active tournament', async () => {
+      mockDatabaseService.get.mockResolvedValueOnce({
+        id: 1,
+        name: 'Test Tournament',
+        status: 'active'
       });
 
-      expect(response.statusCode).toBe(400);
+      await expect(TournamentService.leaveTournament(1, 1)).rejects.toThrow('Cannot leave tournament after it has started');
+    });
+  });
+
+  describe('cancelTournament', () => {
+    it('should cancel tournament successfully', async () => {
+      mockDatabaseService.get.mockResolvedValueOnce({
+        id: 1,
+        name: 'Test Tournament',
+        status: 'registration'
+      });
+
+      mockDatabaseService.run.mockResolvedValueOnce({ lastID: 1, changes: 1 });
+
+      await TournamentService.cancelTournament(1);
+
+      expect(mockDatabaseService.run).toHaveBeenCalledWith(
+        'UPDATE tournaments SET status = ? WHERE id = ?',
+        ['cancelled', 1]
+      );
+    });
+
+    it('should throw error when trying to cancel completed tournament', async () => {
+      mockDatabaseService.get.mockResolvedValueOnce({
+        id: 1,
+        name: 'Test Tournament',
+        status: 'completed'
+      });
+
+      await expect(TournamentService.cancelTournament(1)).rejects.toThrow('Cannot cancel completed tournament');
     });
   });
 });

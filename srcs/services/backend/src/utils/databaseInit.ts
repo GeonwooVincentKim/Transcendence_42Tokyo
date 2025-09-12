@@ -102,33 +102,59 @@ export async function initializeDatabase(): Promise<void> {
     await DatabaseService.run('CREATE INDEX IF NOT EXISTS idx_user_statistics_user_id ON user_statistics(user_id)');
     console.log('Indexes created');
     
-    // Create tournaments table
+    // Create tournament system tables
     await DatabaseService.run(`
       CREATE TABLE IF NOT EXISTS tournaments (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         name TEXT NOT NULL,
         description TEXT,
-        max_participants INTEGER NOT NULL,
+        max_participants INTEGER NOT NULL DEFAULT 8,
         status TEXT NOT NULL DEFAULT 'registration',
+        tournament_type TEXT NOT NULL DEFAULT 'single_elimination',
         created_by INTEGER,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         started_at DATETIME,
         finished_at DATETIME,
+        settings TEXT,
         FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
       )
     `);
     console.log('Tournaments table created');
+
+    // Check if tournament_type column exists, if not add it (migration)
+    try {
+      await DatabaseService.run('SELECT tournament_type FROM tournaments LIMIT 1');
+    } catch (error) {
+      console.log('Adding tournament_type column to existing tournaments table...');
+      await DatabaseService.run('ALTER TABLE tournaments ADD COLUMN tournament_type TEXT NOT NULL DEFAULT "single_elimination"');
+      console.log('tournament_type column added');
+    }
+
+    // Check if settings column exists, if not add it (migration)
+    try {
+      await DatabaseService.run('SELECT settings FROM tournaments LIMIT 1');
+    } catch (error) {
+      console.log('Adding settings column to existing tournaments table...');
+      await DatabaseService.run('ALTER TABLE tournaments ADD COLUMN settings TEXT');
+      console.log('settings column added');
+    }
 
     // Create tournament participants table
     await DatabaseService.run(`
       CREATE TABLE IF NOT EXISTS tournament_participants (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         tournament_id INTEGER NOT NULL,
-        user_id INTEGER NOT NULL,
+        user_id INTEGER,
+        guest_alias TEXT,
+        display_name TEXT NOT NULL,
+        avatar_url TEXT,
         joined_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         eliminated_at DATETIME,
         final_rank INTEGER,
+        seed INTEGER,
+        is_ready BOOLEAN DEFAULT 0,
         UNIQUE (tournament_id, user_id),
+        UNIQUE (tournament_id, guest_alias),
         FOREIGN KEY (tournament_id) REFERENCES tournaments(id) ON DELETE CASCADE,
         FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
       )
@@ -142,30 +168,52 @@ export async function initializeDatabase(): Promise<void> {
         tournament_id INTEGER NOT NULL,
         round INTEGER NOT NULL,
         match_number INTEGER NOT NULL,
+        bracket_position INTEGER,
         player1_id INTEGER,
         player2_id INTEGER,
         winner_id INTEGER,
         status TEXT NOT NULL DEFAULT 'pending',
         player1_score INTEGER DEFAULT 0,
         player2_score INTEGER DEFAULT 0,
+        game_session_id TEXT,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         started_at DATETIME,
         finished_at DATETIME,
+        match_data TEXT,
         FOREIGN KEY (tournament_id) REFERENCES tournaments(id) ON DELETE CASCADE,
-        FOREIGN KEY (player1_id) REFERENCES users(id) ON DELETE SET NULL,
-        FOREIGN KEY (player2_id) REFERENCES users(id) ON DELETE SET NULL,
-        FOREIGN KEY (winner_id) REFERENCES users(id) ON DELETE SET NULL
+        FOREIGN KEY (player1_id) REFERENCES tournament_participants(id) ON DELETE SET NULL,
+        FOREIGN KEY (player2_id) REFERENCES tournament_participants(id) ON DELETE SET NULL,
+        FOREIGN KEY (winner_id) REFERENCES tournament_participants(id) ON DELETE SET NULL
       )
     `);
     console.log('Tournament matches table created');
 
+    // Create tournament brackets table
+    await DatabaseService.run(`
+      CREATE TABLE IF NOT EXISTS tournament_brackets (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        tournament_id INTEGER NOT NULL,
+        bracket_type TEXT NOT NULL,
+        round INTEGER NOT NULL,
+        match_id INTEGER NOT NULL,
+        position_x INTEGER NOT NULL,
+        position_y INTEGER NOT NULL,
+        FOREIGN KEY (tournament_id) REFERENCES tournaments(id) ON DELETE CASCADE,
+        FOREIGN KEY (match_id) REFERENCES tournament_matches(id) ON DELETE CASCADE
+      )
+    `);
+    console.log('Tournament brackets table created');
+
     // Create tournament indexes
     await DatabaseService.run('CREATE INDEX IF NOT EXISTS idx_tournaments_status ON tournaments(status)');
     await DatabaseService.run('CREATE INDEX IF NOT EXISTS idx_tournaments_created_by ON tournaments(created_by)');
+    await DatabaseService.run('CREATE INDEX IF NOT EXISTS idx_tournaments_type ON tournaments(tournament_type)');
     await DatabaseService.run('CREATE INDEX IF NOT EXISTS idx_tournament_participants_tid ON tournament_participants(tournament_id)');
+    await DatabaseService.run('CREATE INDEX IF NOT EXISTS idx_tournament_participants_user_id ON tournament_participants(user_id)');
     await DatabaseService.run('CREATE INDEX IF NOT EXISTS idx_tournament_matches_tid ON tournament_matches(tournament_id)');
     await DatabaseService.run('CREATE INDEX IF NOT EXISTS idx_tournament_matches_round ON tournament_matches(round)');
     await DatabaseService.run('CREATE INDEX IF NOT EXISTS idx_tournament_matches_status ON tournament_matches(status)');
+    await DatabaseService.run('CREATE INDEX IF NOT EXISTS idx_tournament_brackets_tid ON tournament_brackets(tournament_id)');
     console.log('Tournament indexes created');
 
     console.log('Database schema initialized successfully');

@@ -1,0 +1,5 @@
+---
+description: Tournament 기능을 갱신할 때마다, 기존에 존재했었던 Tournament Rooms 와 관련된 데이터를 초기화 시키기 -> 단, Users 정보는 삭제하지 말기
+globs:
+alwaysApply: true
+---

@@ -1,1294 +1,780 @@
-import React, { useState, useEffect } from 'react';
-import { TournamentService } from '../services/tournamentService';
-import type { 
-  Tournament as TournamentType, 
+/**
+ * Tournament Component
+ * 
+ * Comprehensive tournament management interface with support for both registered and guest users
+ */
+
+import React, { useState, useEffect, useCallback } from 'react';
+import { 
+  tournamentService, 
+  Tournament as TournamentData, 
   TournamentParticipant, 
   TournamentMatch, 
-  TournamentBracket,
-  TournamentStats
+  BracketNode,
+  TournamentStats,
+  CreateTournamentInput,
+  JoinTournamentInput
 } from '../services/tournamentService';
 import { AuthService } from '../services/authService';
-import { PongGame } from './PongGame';
-import WebSocketService from '../services/websocketService';
+import { TournamentBracket } from './TournamentBracket';
 
 interface Props {
   onBack: () => void;
 }
 
+interface TournamentFormData {
+  name: string;
+  description: string;
+  max_participants: number;
+  tournament_type: 'single_elimination' | 'double_elimination' | 'round_robin';
+}
+
+interface JoinFormData {
+  display_name: string;
+  guest_alias: string;
+  avatar_url: string;
+}
+
+type ViewMode = 'list' | 'create' | 'detail' | 'bracket' | 'join';
+
 export const Tournament: React.FC<Props> = ({ onBack }) => {
-  const [tournaments, setTournaments] = useState<TournamentType[]>([]);
-  const [selectedTournament, setSelectedTournament] = useState<TournamentType | null>(null);
+  // State management
+  const [view, setView] = useState<ViewMode>('list');
+  const [tournaments, setTournaments] = useState<TournamentData[]>([]);
+  const [selectedTournament, setSelectedTournament] = useState<TournamentData | null>(null);
   const [participants, setParticipants] = useState<TournamentParticipant[]>([]);
   const [matches, setMatches] = useState<TournamentMatch[]>([]);
-  const [brackets, setBrackets] = useState<TournamentBracket[]>([]);
-  const [currentMatch, setCurrentMatch] = useState<TournamentMatch | null>(null);
+  const [bracket, setBracket] = useState<BracketNode[]>([]);
   const [stats, setStats] = useState<TournamentStats | null>(null);
-  const [view, setView] = useState<'list' | 'detail' | 'brackets' | 'game'>('list');
-  const [, setLastUpdate] = useState<number>(Date.now());
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [gameRoomState, setGameRoomState] = useState<any>(null);
-  const [isPlayerReady, setIsPlayerReady] = useState(false);
-  const [gameSyncStatus, setGameSyncStatus] = useState<'disconnected' | 'connecting' | 'connected' | 'waiting' | 'ready' | 'playing'>('disconnected');
-  const [name, setName] = useState('New Tournament');
-  const [maxParticipants, setMaxParticipants] = useState(2);
-  const [description, setDescription] = useState('');
-  const [tournamentParticipants, setTournamentParticipants] = useState<{[tournamentId: number]: TournamentParticipant[]}>({});
-  const [currentGameMatch, setCurrentGameMatch] = useState<TournamentMatch | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
 
-  const token = AuthService.getStoredAuthData()?.token || '';
+  // Form data
+  const [tournamentForm, setTournamentForm] = useState<TournamentFormData>({
+    name: '',
+    description: '',
+    max_participants: 8,
+    tournament_type: 'single_elimination'
+  });
+
+  const [joinForm, setJoinForm] = useState<JoinFormData>({
+    display_name: '',
+    guest_alias: '',
+    avatar_url: ''
+  });
+
+  // Auth state
   const isAuthenticated = AuthService.isAuthenticated();
   const currentUser = AuthService.getUser();
 
+  // Load initial data
   useEffect(() => {
-    if (isAuthenticated) {
       loadTournaments();
-    } else {
-      setError('Please login to access tournaments');
-    }
-  }, [isAuthenticated]);
+    loadStats();
+  }, []);
 
-  useEffect(() => {
-    if (selectedTournament) {
-      loadTournamentDetails(selectedTournament.id);
-    }
-  }, [selectedTournament]);
-
-  // WebSocket 이벤트 핸들러 설정
-  useEffect(() => {
-    const handlePlayerJoined = (data: any) => {
-      console.log('Player joined:', data);
-      setGameRoomState(data.roomState);
-    };
-
-    const handlePlayerLeft = (data: any) => {
-      console.log('Player left:', data);
-      setGameRoomState(data.roomState);
-    };
-
-    const handlePlayerReady = (data: any) => {
-      console.log('Player ready:', data);
-      setGameRoomState(data.roomState);
-    };
-
-    const handleGameStart = (data: any) => {
-      console.log('Game starting:', data);
-      setGameRoomState(data.roomState);
-      setGameSyncStatus('ready');
-      setError('Game starting in 2 seconds...');
-    };
-
-    const handleGamePlaying = (data: any) => {
-      console.log('Game is playing:', data);
-      setGameRoomState(data.roomState);
-      setGameSyncStatus('playing');
-      setError('Game is now playing!');
-      
-      // 양쪽 모두 게임 뷰로 자동 전환
-      if (currentGameMatch) {
-        setView('game');
-      }
-    };
-
-    const handleGameStateUpdate = (data: any) => {
-      console.log('Tournament: Game state update received:', data);
-      // Handle real-time game state synchronization
-      if (data.roomState) {
-        console.log('Tournament: Updating game room state:', data.roomState);
-        setGameRoomState(data.roomState);
-        
-        // Update game sync status based on room state
-        if (data.roomState.gameStarted) {
-          console.log('Tournament: Game started - setting status to playing');
-          setGameSyncStatus('playing');
-        } else if (data.roomState.player1Ready && data.roomState.player2Ready) {
-          console.log('Tournament: Both players ready - setting status to ready');
-          setGameSyncStatus('ready');
-        } else {
-          console.log('Tournament: Waiting for players - setting status to waiting');
-          setGameSyncStatus('waiting');
-        }
-        
-        // Handle game control updates
-        if (data.roomState.gameControl) {
-          console.log('Tournament: Game control state received:', data.roomState.gameControl);
-          // Emit custom event for game component to handle
-          window.dispatchEvent(new CustomEvent('gameControlStateSync', {
-            detail: { gameControl: data.roomState.gameControl }
-          }));
-        }
-        
-        // Force re-render by updating a dummy state
-        setLastUpdate(Date.now());
-        console.log('Tournament: Force re-render triggered');
-      }
-    };
-
-    const handleGameEnd = (data: any) => {
-      console.log('Game ended:', data);
-      setGameRoomState(data.roomState);
-      setGameSyncStatus('disconnected');
-    };
-
-    const handleGameControl = (data: any) => {
-      console.log('Game control action:', data);
-      // Handle immediate game control updates (Start/Pause/Reset)
-      const { action, gameControl } = data;
-      
-      // Emit custom event for game component to handle
-      window.dispatchEvent(new CustomEvent('gameControlSync', {
-        detail: { action, gameControl }
-      }));
-    };
-
-    const handleGameControlUpdate = (data: any) => {
-      console.log('Game control state update:', data);
-      // Handle game control state updates from polling
-      const { gameControl } = data;
-      
-      // Emit custom event for game component to handle
-      window.dispatchEvent(new CustomEvent('gameControlStateSync', {
-        detail: { gameControl }
-      }));
-    };
-
-    const handleTournamentStateUpdate = (data: any) => {
-      console.log('Tournament state update:', data);
-      const { tournamentState } = data;
-      
-      // Update tournament state for Start Tournament synchronization
-      if (selectedTournament && tournamentState.tournament) {
-        setSelectedTournament({
-          ...selectedTournament,
-          status: tournamentState.tournament.status,
-          started_at: tournamentState.tournament.started_at
-        });
-        
-        // Update participants and matches
-        if (tournamentState.participants) {
-          setParticipants(tournamentState.participants);
-        }
-        if (tournamentState.matches) {
-          setMatches(tournamentState.matches);
-        }
-      }
-    };
-
-    // WebSocket 이벤트 리스너 등록
-    WebSocketService.on('player_joined', handlePlayerJoined);
-    WebSocketService.on('player_left', handlePlayerLeft);
-    WebSocketService.on('player_ready', handlePlayerReady);
-    WebSocketService.on('game_start', handleGameStart);
-    WebSocketService.on('game_playing', handleGamePlaying);
-    WebSocketService.on('game_state_update', handleGameStateUpdate);
-    WebSocketService.on('game_end', handleGameEnd);
-    WebSocketService.on('game_control', handleGameControl);
-    WebSocketService.on('game_control_update', handleGameControlUpdate);
-    WebSocketService.on('tournament_state_update', handleTournamentStateUpdate);
-
-    // 컴포넌트 언마운트 시 이벤트 리스너 제거
-    return () => {
-      WebSocketService.off('player_joined', handlePlayerJoined);
-      WebSocketService.off('player_left', handlePlayerLeft);
-      WebSocketService.off('player_ready', handlePlayerReady);
-      WebSocketService.off('game_start', handleGameStart);
-      WebSocketService.off('game_playing', handleGamePlaying);
-      WebSocketService.off('game_state_update', handleGameStateUpdate);
-      WebSocketService.off('game_end', handleGameEnd);
-      WebSocketService.off('game_control', handleGameControl);
-      WebSocketService.off('game_control_update', handleGameControlUpdate);
-      WebSocketService.off('tournament_state_update', handleTournamentStateUpdate);
-    };
-  }, [selectedTournament]);
-
-  // 실시간 업데이트 완전 비활성화 (화면 깜빡임 방지)
-  // useEffect(() => {
-  //   if (isAuthenticated && tournaments.length > 0) {
-  //     const interval = setInterval(() => {
-  //       loadTournaments();
-  //     }, 5000);
-  //     return () => clearInterval(interval);
-  //   }
-  // }, [isAuthenticated, tournaments.length]);
-
-  const loadTournaments = async () => {
+  // Load tournaments
+  const loadTournaments = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
-      const data = await TournamentService.list();
+      const data = await tournamentService.listTournaments();
       setTournaments(data);
-      
-      // Load participants for each tournament
-      const participantsMap: {[tournamentId: number]: TournamentParticipant[]} = {};
-      for (const tournament of data) {
-        try {
-          const participantsData = await TournamentService.getParticipants(tournament.id);
-          participantsMap[tournament.id] = participantsData;
-        } catch (e) {
-          console.warn(`Failed to load participants for tournament ${tournament.id}:`, e);
-          participantsMap[tournament.id] = [];
-        }
-      }
-      setTournamentParticipants(participantsMap);
-    } catch (e: any) {
-      setError(e.message || 'Failed to load tournaments');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load tournaments');
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
-  const loadTournamentDetails = async (tournamentId: number) => {
+  // Load tournament details
+  const loadTournamentDetails = useCallback(async (tournamentId: number) => {
     try {
+      setLoading(true);
       setError(null);
-      const [participantsData, matchesData, bracketsData, currentMatchData, statsData] = await Promise.all([
-        TournamentService.getParticipants(tournamentId),
-        TournamentService.listMatches(tournamentId),
-        TournamentService.getBrackets(tournamentId),
-        TournamentService.getCurrentMatch(tournamentId),
-        TournamentService.getStats(tournamentId)
+      
+      const [tournament, participantsData, matchesData] = await Promise.all([
+        tournamentService.getTournament(tournamentId),
+        tournamentService.getTournamentParticipants(tournamentId),
+        tournamentService.getTournamentMatches(tournamentId)
       ]);
 
+      setSelectedTournament(tournament);
       setParticipants(participantsData);
       setMatches(matchesData);
-      setBrackets(bracketsData);
-      setCurrentMatch(currentMatchData);
-      setStats(statsData);
-    } catch (e: any) {
-      setError(e.message || 'Failed to load tournament details');
-    }
-  };
 
-  const createTournament = async () => {
-    try {
-      if (!isAuthenticated) {
-        setError('Please login to create tournaments');
-        return;
+      // Load bracket if tournament is active or completed
+      if (tournament.status === 'active' || tournament.status === 'completed') {
+        try {
+          const bracketData = await tournamentService.getTournamentBracket(tournamentId);
+          setBracket(bracketData);
+        } catch (err) {
+          console.warn('Failed to load bracket:', err);
+        }
       }
-      
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load tournament details');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  // Load stats
+  const loadStats = useCallback(async () => {
+    try {
+      const data = await tournamentService.getTournamentStats();
+      setStats(data);
+    } catch (err) {
+      console.warn('Failed to load tournament stats:', err);
+    }
+  }, []);
+
+  // Create tournament
+  const handleCreateTournament = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    // Validate form
+    const nameError = tournamentService.validateTournamentName(tournamentForm.name);
+    const participantsError = tournamentService.validateMaxParticipants(tournamentForm.max_participants);
+    
+    if (nameError || participantsError) {
+      setError(nameError || participantsError || 'Validation failed');
+      return;
+    }
+
+    try {
       setLoading(true);
       setError(null);
       
-      await TournamentService.create(token, {
-        name,
-        description,
-        maxParticipants
-      });
-      
-      setName('New Tournament');
-      setMaxParticipants(2);
-      setDescription('');
-      
-      // Reload tournaments and participants
-      await loadTournaments();
-      
-      setError('Tournament created successfully!');
-    } catch (e: any) {
-      setError(e.message || 'Failed to create tournament');
+      const input: CreateTournamentInput = {
+        name: tournamentForm.name.trim(),
+        description: tournamentForm.description.trim() || undefined,
+        max_participants: tournamentForm.max_participants,
+        tournament_type: tournamentForm.tournament_type,
+        created_by: isAuthenticated ? (currentUser?.id ? parseInt(currentUser.id) : undefined) : undefined
+      };
+
+      const newTournament = await tournamentService.createTournament(input);
+      setTournaments(prev => [newTournament, ...prev]);
+      setSuccess('Tournament created successfully!');
+      setTournamentForm({ name: '', description: '', max_participants: 8, tournament_type: 'single_elimination' });
+      setView('list');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to create tournament');
     } finally {
       setLoading(false);
     }
   };
 
-  const joinTournament = async (tournament: TournamentType) => {
-    try {
-      if (!isAuthenticated) {
-        setError('Please login to join tournaments');
-        return;
-      }
-      
-      await TournamentService.join(token, tournament.id);
-      
-      // Update participants for this tournament
-      const participantsData = await TournamentService.getParticipants(tournament.id);
-      setTournamentParticipants(prev => ({
-        ...prev,
-        [tournament.id]: participantsData
-      }));
-      
-      // If viewing this tournament's details, update the detail view
-      if (selectedTournament?.id === tournament.id) {
-        await loadTournamentDetails(tournament.id);
-      }
-      
-      setError('Joined tournament successfully!');
-    } catch (e: any) {
-      setError(e.message || 'Failed to join tournament');
-    }
-  };
+  // Join tournament
+  const handleJoinTournament = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!selectedTournament) return;
 
-  const leaveTournament = async (tournamentId: number) => {
+    // Validate form
+    const displayNameError = tournamentService.validateDisplayName(joinForm.display_name);
+    const guestAliasError = !isAuthenticated ? tournamentService.validateGuestAlias(joinForm.guest_alias) : null;
+    
+    if (displayNameError || guestAliasError) {
+      setError(displayNameError || guestAliasError || 'Validation failed');
+        return;
+      }
+      
     try {
-      await TournamentService.leave(token, tournamentId);
-      
-      // Update participants for this tournament
-      const participantsData = await TournamentService.getParticipants(tournamentId);
-      setTournamentParticipants(prev => ({
-        ...prev,
-        [tournamentId]: participantsData
-      }));
-      
-      if (selectedTournament?.id === tournamentId) {
-        await loadTournamentDetails(tournamentId);
-      }
-      setError('Left tournament successfully!');
-    } catch (e: any) {
-      setError(e.message || 'Failed to leave tournament');
-    }
-  };
-
-  const startTournament = async (tournament: TournamentType) => {
-    try {
-      // 토너먼트 시작 전 조건 확인
-      if (tournament.status !== 'registration') {
-        setError('Tournament cannot be started in current state');
-        return;
-      }
-      
-      // 참가자 수 확인 (최소 2명 필요)
-      if (participants.length < 2) {
-        setError(`Tournament needs at least 2 participants to start. Current: ${participants.length}`);
-        return;
-      }
-      
-      // 참가자 수가 최대 인원을 초과하지 않는지 확인
-      if (participants.length > tournament.max_participants) {
-        setError(`Too many participants. Max: ${tournament.max_participants}, Current: ${participants.length}`);
-        return;
-      }
-      
       setLoading(true);
       setError(null);
       
-      await TournamentService.start(token, tournament.id);
-      
-      if (selectedTournament?.id === tournament.id) {
-        await loadTournamentDetails(tournament.id);
-        // 브래킷 뷰로 자동 이동
-        setView('brackets');
-      }
-      
-      setError('Tournament started successfully!');
-      await loadTournaments();
-    } catch (e: any) {
-      console.error('Tournament start error:', e);
-      setError(e.message || 'Failed to start tournament. Please check tournament requirements.');
+      const input: JoinTournamentInput = {
+        display_name: joinForm.display_name.trim(),
+        guest_alias: !isAuthenticated ? joinForm.guest_alias.trim() : undefined,
+        avatar_url: joinForm.avatar_url.trim() || undefined
+      };
+
+      await tournamentService.joinTournament(selectedTournament.id, input);
+      setSuccess('Successfully joined tournament!');
+      setJoinForm({ display_name: '', guest_alias: '', avatar_url: '' });
+      await loadTournamentDetails(selectedTournament.id);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to join tournament');
     } finally {
       setLoading(false);
     }
   };
 
-  const startMatch = async (matchId: number) => {
+  // Leave tournament
+  const handleLeaveTournament = async () => {
     if (!selectedTournament) return;
     
     try {
-      await TournamentService.startMatch(token, selectedTournament.id, matchId);
+      setLoading(true);
+      setError(null);
+      
+      await tournamentService.leaveTournament(
+        selectedTournament.id,
+        isAuthenticated ? (currentUser?.id ? parseInt(currentUser.id) : undefined) : undefined,
+        !isAuthenticated ? joinForm.guest_alias : undefined
+      );
+      
+      setSuccess('Successfully left tournament!');
       await loadTournamentDetails(selectedTournament.id);
-      setError('Match started successfully!');
-    } catch (error: any) {
-      setError(error.message || 'Failed to start match');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to leave tournament');
+    } finally {
+      setLoading(false);
     }
   };
 
-  const playGame = async (match: TournamentMatch) => {
+  // Start tournament
+  const handleStartTournament = async () => {
     if (!selectedTournament) return;
     
     try {
-      console.log('playGame called with match:', match);
-      console.log('selectedTournament.id:', selectedTournament.id);
-      console.log('match.id:', match.id);
-      console.log('match.id type:', typeof match.id);
+      setLoading(true);
+      setError(null);
       
-      // 매치를 활성 상태로 변경
-      await TournamentService.startMatch(token, selectedTournament.id, match.id);
-      
-      // WebSocket 연결 및 게임 룸 참가
-      setGameSyncStatus('connecting');
-      setError('Connecting to game room...');
-      
-      const currentUser = AuthService.getUser();
-      if (!currentUser) {
-        throw new Error('User not authenticated');
-      }
-      
-      await WebSocketService.connect(selectedTournament.id, match.id, currentUser.id);
-      
-      // 게임 매치 설정하고 게임 뷰로 전환
-      setCurrentGameMatch(match);
-      setView('game');
-      setGameSyncStatus('connected');
-      setError('Connected to game room! Waiting for opponent...');
-      
-    } catch (error: any) {
-      setError(error.message || 'Failed to start game');
-      setGameSyncStatus('disconnected');
-    }
-  };
-
-  const handleGameComplete = async (winnerId: number, _loserId: number, player1Score: number, player2Score: number) => {
-    if (!selectedTournament || !currentGameMatch) return;
-    
-    try {
-      // 게임 결과를 토너먼트에 보고
-      await TournamentService.reportMatchResult(token, selectedTournament.id, currentGameMatch.id, winnerId, player1Score, player2Score);
-      
-      // WebSocket으로 게임 종료 알림
-      WebSocketService.endGame({
-        winnerId,
-        player1Score,
-        player2Score,
-        matchId: currentGameMatch.id
-      });
-      
-      // 토너먼트 상세 정보 새로고침
+      await tournamentService.startTournament(selectedTournament.id);
+      setSuccess('Tournament started successfully!');
       await loadTournamentDetails(selectedTournament.id);
-      
-      // 게임 뷰에서 브래킷 뷰로 돌아가기
-      setCurrentGameMatch(null);
-      setView('brackets');
-      setGameSyncStatus('disconnected');
-      
-      // WebSocket 연결 종료
-      WebSocketService.disconnect();
-      
-      setError('Game completed! Tournament updated.');
-    } catch (error: any) {
-      setError(error.message || 'Failed to report game result');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to start tournament');
+    } finally {
+      setLoading(false);
     }
   };
 
-
-
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'registration': return 'text-blue-600';
-      case 'active': return 'text-green-600';
-      case 'completed': return 'text-gray-600';
-      default: return 'text-gray-600';
-    }
+  // View tournament details
+  const handleViewTournament = (tournament: TournamentData) => {
+    setSelectedTournament(tournament);
+    setView('detail');
+    loadTournamentDetails(tournament.id);
   };
 
-  const getMatchStatusColor = (status: string) => {
-    switch (status) {
-      case 'pending': return 'text-yellow-600';
-      case 'active': return 'text-blue-600';
-      case 'completed': return 'text-green-600';
-      default: return 'text-gray-600';
-    }
+  // Clear messages
+  const clearMessages = () => {
+    setError(null);
+    setSuccess(null);
   };
 
-  const renderTournamentList = () => {
-    // 현재 사용자가 참가한 토너먼트가 있는지 확인
-    const hasJoinedTournament = tournaments.some(t => {
-      const participants = tournamentParticipants[t.id] || [];
-      return currentUser && participants.some(p => p.user_id === parseInt(currentUser.id));
-    });
-
-    // 현재 사용자가 생성한 토너먼트가 있는지 확인
-    const hasCreatedTournament = tournaments.some(t => {
-      return currentUser && (t.created_by === parseInt(currentUser.id) || t.created_by?.toString() === currentUser.id);
-    });
-
-    // 디버깅을 위한 콘솔 로그
-    // Debug logging removed to reduce console noise
-
-    return (
-      <div className="space-y-4">
-        {isAuthenticated && !hasJoinedTournament && !hasCreatedTournament && (
-          <div className="w-full max-w-4xl bg-gray-800 p-6 rounded">
-            <h3 className="text-xl font-semibold mb-4">Create Tournament</h3>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-            <input 
-              className="px-3 py-2 text-black rounded" 
-              placeholder="Tournament Name" 
-              value={name} 
-              onChange={(e) => setName(e.target.value)} 
-            />
-            <div className="flex flex-col">
-              <input 
-                className="px-3 py-2 text-black rounded" 
-                type="number" 
-                min={2} 
-                max={16} 
-                value={maxParticipants} 
-                onChange={(e) => setMaxParticipants(parseInt(e.target.value || '2', 10))} 
-              />
-              <span className="text-xs text-gray-400 mt-1">Max participants (2-16)</span>
-            </div>
+  // Render tournament list
+  const renderTournamentList = () => (
+    <div className="space-y-6">
+      <div className="flex justify-between items-center">
+        <h2 className="text-2xl font-bold text-gray-900">Tournaments</h2>
+        <div className="flex gap-2">
             <button 
-              className="px-4 py-2 bg-green-600 rounded hover:bg-green-700" 
-              onClick={createTournament}
+            onClick={() => setView('create')}
+            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
             >
-              Create
+            Create Tournament
             </button>
-          </div>
-          <textarea 
-            className="px-3 py-2 text-black rounded w-full mb-4" 
-            placeholder="Description (optional)" 
-            value={description} 
-            onChange={(e) => setDescription(e.target.value)} 
-          />
-          </div>
-        )}
-
-        <div className="w-full max-w-4xl bg-gray-800 p-6 rounded">
-        <div className="flex justify-between items-center mb-4">
-          <h3 className="text-xl font-semibold">Tournaments</h3>
           <button
-            onClick={loadTournaments}
-            className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded text-sm transition-colors"
+            onClick={onBack}
+            className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
           >
-            🔄 Refresh
+            Back to Game
           </button>
         </div>
-        {loading ? (
-          <div className="text-center py-8">Loading tournaments...</div>
-        ) : error ? (
-          <div className="text-red-400 text-center py-4">{error}</div>
-        ) : tournaments.length === 0 ? (
-          <div className="text-center py-8 text-gray-400">No tournaments found</div>
-        ) : (
-          <div className="grid gap-4">
-            {tournaments.map(t => (
-              <div key={t.id} className="bg-gray-700 p-4 rounded">
-                <div className="flex items-center justify-between mb-2">
-                  <div>
-                    <h4 className="text-lg font-semibold">{t.name}</h4>
-                    <p className="text-sm text-gray-300">{t.description || 'No description'}</p>
                   </div>
-                  <div className="text-right">
-                    <div className={`font-semibold ${getStatusColor(t.status)}`}>
-                      {t.status.charAt(0).toUpperCase() + t.status.slice(1)}
+
+      {/* Stats */}
+      {stats && (
+        <div className="grid grid-cols-1 md:grid-cols-5 gap-4 p-4 bg-gray-50 rounded-lg">
+          <div className="text-center">
+            <div className="text-2xl font-bold text-blue-600">{stats.total_tournaments}</div>
+            <div className="text-sm text-gray-600">Total Tournaments</div>
                     </div>
-                    <div className="text-sm text-gray-400">
-                      {(() => {
-                        const currentTournamentParticipants = tournamentParticipants[t.id] || [];
-                        return `${currentTournamentParticipants.length}/${t.max_participants} participants`;
-                      })()}
-                      {/* 디버깅 정보 */}
-                      <div className="text-xs text-gray-500 mt-1">
-                        Debug: Tournament {t.id} has {tournamentParticipants[t.id]?.length || 0} participants
-                        {tournamentParticipants[t.id] && tournamentParticipants[t.id].length > 0 && (
-                          <div>Participants: {tournamentParticipants[t.id].map(p => `User ${p.user_id}`).join(', ')}</div>
-                        )}
+          <div className="text-center">
+            <div className="text-2xl font-bold text-green-600">{stats.active_tournaments}</div>
+            <div className="text-sm text-gray-600">Active</div>
                       </div>
+          <div className="text-center">
+            <div className="text-2xl font-bold text-gray-600">{stats.completed_tournaments}</div>
+            <div className="text-sm text-gray-600">Completed</div>
                     </div>
-                    <div className="text-xs text-gray-500 mt-1">
-                      {t.status === 'registration' && 'Open for joining'}
-                      {t.status === 'active' && 'In progress'}
-                      {t.status === 'completed' && 'Finished'}
+          <div className="text-center">
+            <div className="text-2xl font-bold text-purple-600">{stats.total_participants}</div>
+            <div className="text-sm text-gray-600">Participants</div>
                     </div>
+          <div className="text-center">
+            <div className="text-2xl font-bold text-orange-600">{stats.total_matches}</div>
+            <div className="text-sm text-gray-600">Matches</div>
                   </div>
                 </div>
-                <div className="flex gap-2">
-                  {(() => {
-                    const currentTournamentParticipants = tournamentParticipants[t.id] || [];
-                    const isCurrentUserParticipant = currentUser && currentTournamentParticipants.some(p => p.user_id === parseInt(currentUser.id));
-                    const participantCount = currentTournamentParticipants.length;
-                    
-                    return (
-                      <>
-                        {isCurrentUserParticipant ? (
-                          <button 
-                            className="px-3 py-1 bg-red-600 rounded hover:bg-red-700" 
-                            onClick={() => leaveTournament(t.id)}
-                          >
-                            Leave
-                          </button>
-                        ) : (
-                          <button 
-                            className="px-3 py-1 bg-blue-600 rounded hover:bg-blue-700" 
-                            onClick={() => joinTournament(t)}
-                          >
-                            Join
-                          </button>
-                        )}
-                  {t.status === 'registration' && (
+      )}
+
+      {/* Tournament list */}
+      <div className="grid gap-4">
+        {tournaments.map((tournament) => (
+          <div key={tournament.id} className="p-6 bg-white rounded-lg shadow-md border">
+            <div className="flex justify-between items-start">
+              <div className="flex-1">
+                <h3 className="text-xl font-semibold text-gray-900">{tournament.name}</h3>
+                {tournament.description && (
+                  <p className="text-gray-600 mt-1">{tournament.description}</p>
+                )}
+                <div className="flex items-center gap-4 mt-2 text-sm text-gray-500">
+                  <span>{tournamentService.getTournamentTypeDisplayName(tournament.tournament_type)}</span>
+                  <span>•</span>
+                  <span>{tournament.max_participants} participants</span>
+                  <span>•</span>
+                  <span className={`px-2 py-1 rounded-full text-xs ${tournamentService.getTournamentStatusColor(tournament.status)}`}>
+                    {tournamentService.getTournamentStatusDisplayName(tournament.status)}
+                  </span>
+                </div>
+              </div>
                     <button 
-                      className={`px-3 py-1 rounded ${
-                        participantCount >= 2 
-                          ? 'bg-purple-600 hover:bg-purple-700' 
-                          : 'bg-gray-500 cursor-not-allowed'
-                      }`}
-                      onClick={() => participantCount >= 2 && startTournament(t)}
-                      disabled={participantCount < 2}
-                      title={participantCount < 2 ? `Need at least 2 participants to start. Current: ${participantCount}` : 'Start tournament'}
-                    >
-                      Start
-                    </button>
-                  )}
-                      </>
-                    );
-                  })()}
-                  <button 
-                    className="px-3 py-1 bg-gray-600 rounded hover:bg-gray-700" 
-                    onClick={() => {
-                      setSelectedTournament(t);
-                      setView('detail');
-                    }}
+                onClick={() => handleViewTournament(tournament)}
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
                   >
                     View Details
-                  </button>
-                  <button 
-                    className="px-3 py-1 bg-indigo-600 rounded hover:bg-indigo-700" 
-                    onClick={() => {
-                      setSelectedTournament(t);
-                      setView('brackets');
-                    }}
-                  >
-                    View Brackets
                   </button>
                 </div>
               </div>
             ))}
+      </div>
+
+      {tournaments.length === 0 && !loading && (
+        <div className="text-center py-12">
+          <p className="text-gray-500 text-lg">No tournaments found</p>
+          <p className="text-gray-400 mt-2">Create the first tournament to get started!</p>
           </div>
         )}
-        </div>
       </div>
     );
-  };
 
-  const renderTournamentDetail = () => {
-    if (!selectedTournament) return null;
-
-    return (
-      <div className="space-y-6">
-        <div className="flex items-center justify-between">
-          <h2 className="text-2xl font-bold">{selectedTournament.name}</h2>
-          <div className="flex gap-2">
-            <button 
-              onClick={() => setView('brackets')} 
-              className="px-4 py-2 bg-blue-600 rounded hover:bg-blue-700"
-            >
-              View Brackets
-            </button>
+  // Render create tournament form
+  const renderCreateTournament = () => (
+    <div className="max-w-2xl mx-auto">
+      <div className="flex justify-between items-center mb-6">
+        <h2 className="text-2xl font-bold text-gray-900">Create Tournament</h2>
             <button 
               onClick={() => setView('list')} 
-              className="px-4 py-2 bg-gray-600 rounded hover:bg-gray-700"
+          className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
             >
               Back to List
             </button>
           </div>
+
+      <form onSubmit={handleCreateTournament} className="space-y-6">
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">
+            Tournament Name *
+          </label>
+          <input
+            type="text"
+            value={tournamentForm.name}
+            onChange={(e) => setTournamentForm(prev => ({ ...prev, name: e.target.value }))}
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            placeholder="Enter tournament name"
+            maxLength={100}
+            required
+          />
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Tournament Info */}
-          <div className="bg-gray-800 p-6 rounded">
-            <h3 className="text-xl font-semibold mb-4">Tournament Information</h3>
-            <div className="space-y-3">
-              <div className="flex justify-between">
-                <span className="text-gray-400">Status:</span>
-                <span className={`font-semibold ${getStatusColor(selectedTournament.status)}`}>
-                  {selectedTournament.status.charAt(0).toUpperCase() + selectedTournament.status.slice(1)}
-                </span>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">
+            Description
+          </label>
+          <textarea
+            value={tournamentForm.description}
+            onChange={(e) => setTournamentForm(prev => ({ ...prev, description: e.target.value }))}
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            placeholder="Enter tournament description (optional)"
+            rows={3}
+            maxLength={500}
+          />
               </div>
-              <div className="flex justify-between">
-                <span className="text-gray-400">Max Participants:</span>
-                <span>{selectedTournament.max_participants}</span>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Max Participants *
+            </label>
+            <input
+              type="number"
+              value={tournamentForm.max_participants}
+              onChange={(e) => setTournamentForm(prev => ({ ...prev, max_participants: parseInt(e.target.value) || 2 }))}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              min="2"
+              max="64"
+              required
+            />
               </div>
-              <div className="flex justify-between">
-                <span className="text-gray-400">Current Participants:</span>
-                <span>{participants.length}</span>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Tournament Type *
+            </label>
+            <select
+              value={tournamentForm.tournament_type}
+              onChange={(e) => setTournamentForm(prev => ({ ...prev, tournament_type: e.target.value as 'single_elimination' | 'double_elimination' | 'round_robin' }))}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            >
+              <option value="single_elimination">Single Elimination</option>
+              <option value="double_elimination">Double Elimination</option>
+              <option value="round_robin">Round Robin</option>
+            </select>
               </div>
-              <div className="flex justify-between">
-                <span className="text-gray-400">Created:</span>
-                <span>{new Date(selectedTournament.created_at).toLocaleDateString()}</span>
-              </div>
-              {selectedTournament.started_at && (
-                <div className="flex justify-between">
-                  <span className="text-gray-400">Started:</span>
-                  <span>{new Date(selectedTournament.started_at).toLocaleDateString()}</span>
-                </div>
-              )}
-              {selectedTournament.finished_at && (
-                <div className="flex justify-between">
-                  <span className="text-gray-400">Finished:</span>
-                  <span>{new Date(selectedTournament.finished_at).toLocaleDateString()}</span>
-                </div>
-              )}
             </div>
             
-            {selectedTournament.status === 'registration' && (
-              <div className="mt-4">
+        <div className="flex gap-4">
                 <button 
-                  onClick={() => startTournament(selectedTournament)}
-                  disabled={loading || participants.length < 2}
-                  className="w-full px-4 py-2 bg-green-600 rounded hover:bg-green-700 disabled:bg-gray-600 disabled:cursor-not-allowed"
-                >
-                  {loading ? 'Starting...' : 'Start Tournament'}
+            type="submit"
+            disabled={loading}
+            className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          >
+            {loading ? 'Creating...' : 'Create Tournament'}
+          </button>
+          <button
+            type="button"
+            onClick={() => setView('list')}
+            className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
+          >
+            Cancel
                 </button>
               </div>
-            )}
+      </form>
           </div>
+  );
 
-          {/* Statistics */}
-          {stats && (
-            <div className="bg-gray-800 p-6 rounded">
-              <h3 className="text-xl font-semibold mb-4">Tournament Statistics</h3>
-              <div className="space-y-3">
-                <div className="flex justify-between">
-                  <span className="text-gray-400">Total Matches:</span>
-                  <span>{stats.totalMatches}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-400">Completed:</span>
-                  <span className="text-green-400">{stats.completedMatches}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-400">Active:</span>
-                  <span className="text-blue-400">{stats.activeMatches}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-400">Pending:</span>
-                  <span className="text-yellow-400">{stats.pendingMatches}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-400">Progress:</span>
-                  <span>{Math.round(stats.progress * 100)}%</span>
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
+  // Render tournament details
+  const renderTournamentDetails = () => {
+    if (!selectedTournament) return null;
 
-        {/* Participants */}
-        <div className="bg-gray-800 p-6 rounded">
-          <h3 className="text-xl font-semibold mb-4">Participants ({participants.length})</h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {participants.map(participant => (
-              <div key={participant.id} className="bg-gray-700 p-4 rounded">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <div className="font-medium">{participant.username || `User ${participant.user_id}`}</div>
-                    <div className="text-sm text-gray-400">
-                      Joined: {new Date(participant.joined_at).toLocaleDateString()}
-                    </div>
-                  </div>
-                  {participant.final_rank && (
-                    <div className="text-right">
-                      <div className="text-lg font-bold text-yellow-400">#{participant.final_rank}</div>
-                      <div className="text-xs text-gray-400">Final Rank</div>
-                    </div>
-                  )}
-                  {participant.eliminated_at && (
-                    <div className="text-right">
-                      <div className="text-sm text-red-400">Eliminated</div>
-                      <div className="text-xs text-gray-400">
-                        {new Date(participant.eliminated_at).toLocaleDateString()}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Current Match */}
-        {currentMatch && (
-          <div className="bg-gray-800 p-6 rounded">
-            <h3 className="text-xl font-semibold mb-4">Current Match</h3>
-            <div className="bg-gray-700 p-4 rounded">
-              <div className="flex items-center justify-between mb-2">
-                <div className="text-sm text-gray-400">
-                  Round {currentMatch.round} - Match {currentMatch.match_number}
-                </div>
-                <div className={`text-sm font-semibold ${getMatchStatusColor(currentMatch.status)}`}>
-                  {currentMatch.status.charAt(0).toUpperCase() + currentMatch.status.slice(1)}
-                </div>
-              </div>
-              <div className="grid grid-cols-3 gap-4 text-center">
-                <div>
-                  <div className="font-medium">
-                    {currentMatch.player1_username || `Player ${currentMatch.player1_id}`}
-                  </div>
-                  <div className="text-lg font-bold">{currentMatch.player1_score}</div>
-                </div>
-                <div className="text-center">
-                  <div className="text-lg font-bold">VS</div>
-                  {currentMatch.winner_username && (
-                    <div className="text-sm text-green-400">
-                      Winner: {currentMatch.winner_username}
-                    </div>
-                  )}
-                </div>
-                <div>
-                  <div className="font-medium">
-                    {currentMatch.player2_username || `Player ${currentMatch.player2_id}`}
-                  </div>
-                  <div className="text-lg font-bold">{currentMatch.player2_score}</div>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* All Matches */}
-        <div className="bg-gray-800 p-6 rounded">
-          <h3 className="text-xl font-semibold mb-4">All Matches</h3>
-          <div className="space-y-2">
-            {matches.map(match => (
-              <div key={match.id} className="bg-gray-700 p-4 rounded">
-                <div className="flex items-center justify-between mb-2">
-                  <div className="text-sm text-gray-400">
-                    Round {match.round} - Match {match.match_number}
-                  </div>
-                  <div className={`text-sm font-semibold ${getMatchStatusColor(match.status)}`}>
-                    {match.status.charAt(0).toUpperCase() + match.status.slice(1)}
-                  </div>
-                </div>
-                <div className="grid grid-cols-3 gap-4 text-center">
-                  <div>
-                    <div className="font-medium">
-                      {match.player1_username || `Player ${match.player1_id}`}
-                    </div>
-                    <div className="text-lg font-bold">{match.player1_score}</div>
-                  </div>
-                  <div className="text-center">
-                    <div className="text-lg font-bold">VS</div>
-                    {match.winner_username && (
-                      <div className="text-sm text-green-400">
-                        Winner: {match.winner_username}
-                      </div>
-                    )}
-                  </div>
-                  <div>
-                    <div className="font-medium">
-                      {match.player2_username || `Player ${match.player2_id}`}
-                    </div>
-                    <div className="text-lg font-bold">{match.player2_score}</div>
-                  </div>
-                </div>
-                {match.status === 'pending' && (
-                  <div className="text-center mt-4 space-x-2">
-                    <button 
-                      onClick={() => startMatch(match.id)}
-                      className="px-4 py-2 bg-blue-600 rounded hover:bg-blue-700"
-                    >
-                      Start Match
-                    </button>
-                    <button 
-                      onClick={() => playGame(match)}
-                      className="px-4 py-2 bg-green-600 rounded hover:bg-green-700"
-                    >
-                      🎮 Play Game
-                    </button>
-                  </div>
-                )}
-                {match.status === 'active' && (
-                  <div className="text-center mt-4">
-                    <button 
-                      onClick={() => playGame(match)}
-                      className="px-4 py-2 bg-green-600 rounded hover:bg-green-700"
-                    >
-                      🎮 Play Game
-                    </button>
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Tournament Brackets Preview */}
-        {selectedTournament.status !== 'registration' && brackets.length > 0 && (
-          <div className="bg-gray-800 p-6 rounded">
-            <h3 className="text-xl font-semibold mb-4">Tournament Brackets Preview</h3>
-            <div className="space-y-6">
-              {brackets.slice(0, 2).map(round => (
-                <div key={round.round} className="border-b border-gray-700 pb-4 last:border-b-0">
-                  <h4 className="text-lg font-semibold mb-3 text-center text-blue-400">
-                    {round.round === 1 ? 'First Round' : 
-                     round.round === 2 ? 'Quarter Finals' :
-                     round.round === 3 ? 'Semi Finals' :
-                     round.round === 4 ? 'Finals' : `Round ${round.round}`}
-                  </h4>
-                  <div className="grid gap-3">
-                    {round.matches.slice(0, 4).map(match => (
-                      <div key={match.id} className="bg-gray-700 p-3 rounded text-sm">
-                        <div className="flex items-center justify-between">
-                          <span className="font-medium">
-                            {match.player1_username || `Player ${match.player1_id}`}
-                          </span>
-                          <span className="text-gray-400">VS</span>
-                          <span className="font-medium">
-                            {match.player2_username || `Player ${match.player2_id}`}
-                          </span>
-                        </div>
-                        <div className="text-center mt-1">
-                          <span className={`text-xs px-2 py-1 rounded ${
-                            match.status === 'completed' ? 'bg-green-600' :
-                            match.status === 'active' ? 'bg-blue-600' :
-                            'bg-gray-600'
-                          }`}>
-                            {match.status.charAt(0).toUpperCase() + match.status.slice(1)}
-                          </span>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              ))}
-              <div className="text-center">
-                <button 
-                  onClick={() => setView('brackets')} 
-                  className="px-4 py-2 bg-indigo-600 rounded hover:bg-indigo-700"
-                >
-                  View Full Brackets
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-      </div>
-    );
-  };
-
-  const renderGameView = () => {
-    if (!selectedTournament || !currentGameMatch) return null;
+    const canJoin = selectedTournament.status === 'registration' && participants.length < selectedTournament.max_participants;
+    const canStart = selectedTournament.status === 'registration' && participants.length >= 2;
+    const isParticipant = isAuthenticated 
+      ? participants.some(p => p.user_id === currentUser?.id)
+      : false;
 
     return (
       <div className="space-y-6">
-        <div className="flex items-center justify-between">
-          <h2 className="text-2xl font-bold">
-            {selectedTournament.name} - Match {currentGameMatch.match_number}
-          </h2>
-          <button 
-            onClick={() => {
-              setCurrentGameMatch(null);
-              setView('brackets');
-            }} 
-            className="px-4 py-2 bg-gray-600 rounded hover:bg-gray-700"
-          >
-            Back to Brackets
-          </button>
+        <div className="flex justify-between items-start">
+                <div>
+            <h2 className="text-2xl font-bold text-gray-900">{selectedTournament.name}</h2>
+            {selectedTournament.description && (
+              <p className="text-gray-600 mt-1">{selectedTournament.description}</p>
+            )}
+            <div className="flex items-center gap-4 mt-2 text-sm text-gray-500">
+              <span>{tournamentService.getTournamentTypeDisplayName(selectedTournament.tournament_type)}</span>
+              <span>•</span>
+              <span>{participants.length}/{selectedTournament.max_participants} participants</span>
+              <span>•</span>
+              <span className={`px-2 py-1 rounded-full text-xs ${tournamentService.getTournamentStatusColor(selectedTournament.status)}`}>
+                {tournamentService.getTournamentStatusDisplayName(selectedTournament.status)}
+              </span>
+                </div>
+                  </div>
+          <div className="flex gap-2">
+            {canJoin && !isParticipant && (
+              <button
+                onClick={() => setView('join')}
+                className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+              >
+                Join Tournament
+              </button>
+            )}
+            {isParticipant && selectedTournament.status === 'registration' && (
+                    <button 
+                onClick={handleLeaveTournament}
+                disabled={loading}
+                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 transition-colors"
+                    >
+                Leave Tournament
+                    </button>
+            )}
+            {canStart && (
+                    <button 
+                onClick={handleStartTournament}
+                disabled={loading}
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
+                    >
+                Start Tournament
+                    </button>
+                )}
+                    <button 
+              onClick={() => setView('list')}
+              className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
+                    >
+              Back to List
+                    </button>
+          </div>
         </div>
 
-        <div className="bg-gray-800 p-6 rounded">
-          <h3 className="text-xl font-semibold mb-4">Match Information</h3>
-          <div className="grid grid-cols-2 gap-4 mb-6">
-            <div className="text-center">
-              <div className="text-lg font-semibold">
-                {currentGameMatch.player1_username || `Player ${currentGameMatch.player1_id}`}
+        {/* Participants */}
+        <div className="bg-white rounded-lg shadow-md border p-6">
+          <h3 className="text-lg font-semibold text-gray-900 mb-4">Participants</h3>
+          <div className="grid gap-2">
+            {participants.map((participant) => (
+              <div key={participant.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                <div className="flex items-center gap-3">
+                  {participant.avatar_url ? (
+                    <img src={participant.avatar_url} alt={participant.display_name} className="w-8 h-8 rounded-full" />
+                  ) : (
+                    <div className="w-8 h-8 bg-gray-300 rounded-full flex items-center justify-center">
+                      <span className="text-sm font-medium text-gray-600">
+                        {participant.display_name.charAt(0).toUpperCase()}
+                      </span>
+                  </div>
+                  )}
+                  <div>
+                    <div className="font-medium text-gray-900">{participant.display_name}</div>
+                    {participant.guest_alias && (
+                      <div className="text-sm text-gray-500">Guest: {participant.guest_alias}</div>
+                    )}
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  {participant.final_rank && (
+                    <span className="px-2 py-1 bg-yellow-100 text-yellow-800 text-xs rounded-full">
+                      Rank #{participant.final_rank}
+                    </span>
+                  )}
+                  {participant.is_ready && (
+                    <span className="px-2 py-1 bg-green-100 text-green-800 text-xs rounded-full">
+                      Ready
+                    </span>
+                  )}
+                </div>
               </div>
-              <div className="text-sm text-gray-400">Player 1</div>
-            </div>
-            <div className="text-center">
-              <div className="text-lg font-semibold">
-                {currentGameMatch.player2_username || `Player ${currentGameMatch.player2_id}`}
-              </div>
-              <div className="text-sm text-gray-400">Player 2</div>
-            </div>
-          </div>
-          
-          <div className="text-center">
-            <div className="text-2xl font-bold mb-4">VS</div>
-            <div className="text-sm text-gray-400 mb-4">
-              Round {currentGameMatch.round} - Match {currentGameMatch.match_number}
-            </div>
+            ))}
           </div>
         </div>
 
-        {/* 실제 PongGame 컴포넌트 */}
-        <div className="bg-gray-800 p-6 rounded">
-          <h3 className="text-xl font-semibold mb-4">Tournament Match</h3>
-          <div className="text-center mb-4">
-            <p className="text-gray-400">
-              {currentGameMatch.player1_username || `Player ${currentGameMatch.player1_id}`} vs {currentGameMatch.player2_username || `Player ${currentGameMatch.player2_id}`}
-            </p>
-            <div className="mt-2 p-2 bg-blue-900 rounded">
-              <p className="text-blue-300 text-sm">
-                🔗 WebSocket Status: {gameSyncStatus.toUpperCase()}
-              </p>
-              {gameRoomState && (
-                <div className="mt-2 text-xs text-gray-400">
-                  <p>Players: {gameRoomState.player1Id ? 'Player 1' : 'None'} vs {gameRoomState.player2Id ? 'Player 2' : 'None'}</p>
-                  <p>Ready Status: P1: {gameRoomState.player1Ready ? '✅' : '❌'} | P2: {gameRoomState.player2Ready ? '✅' : '❌'}</p>
-                  <p>Game Status: {gameRoomState.status}</p>
+        {/* Matches */}
+        {matches.length > 0 && (
+          <div className="bg-white rounded-lg shadow-md border p-6">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">Matches</h3>
+            <div className="space-y-4">
+              {matches.map((match) => (
+                <div key={match.id} className="p-4 border rounded-lg">
+                  <div className="flex justify-between items-center mb-2">
+                    <span className="text-sm font-medium text-gray-600">
+                      Round {match.round} • Match {match.match_number}
+                          </span>
+                    <span className={`px-2 py-1 rounded-full text-xs ${tournamentService.getMatchStatusColor(match.status)}`}>
+                      {tournamentService.getMatchStatusDisplayName(match.status)}
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <div className="flex-1">
+                      <div className="flex justify-between">
+                          <span className="font-medium">
+                          {match.player1_id ? participants.find(p => p.id === match.player1_id)?.display_name || 'TBD' : 'Bye'}
+                          </span>
+                        <span className="font-bold text-lg">{match.player1_score}</span>
+                        </div>
+                      <div className="flex justify-between">
+                        <span className="font-medium">
+                          {match.player2_id ? participants.find(p => p.id === match.player2_id)?.display_name || 'TBD' : 'Bye'}
+                          </span>
+                        <span className="font-bold text-lg">{match.player2_score}</span>
+                        </div>
+                      </div>
+                  </div>
                 </div>
-              )}
-              {gameSyncStatus === 'connected' && !isPlayerReady && (
-                <button 
-                  onClick={() => {
-                    WebSocketService.setPlayerReady(true);
-                    setIsPlayerReady(true);
-                  }}
-                  className="mt-2 px-4 py-2 bg-green-600 rounded hover:bg-green-700 text-sm"
-                >
-                  ✅ I'm Ready!
-                </button>
-              )}
+              ))}
             </div>
           </div>
-          
-          {/* 실제 PongGame 컴포넌트 */}
-          <div className="flex justify-center">
-            {gameSyncStatus === 'playing' ? (
-              <PongGame 
-                width={800} 
-                height={400}
-                onGameEnd={(winner, leftScore, rightScore) => {
-                  // 게임 종료 시 토너먼트 결과 처리
-                  const winnerId = winner === 'left' ? currentGameMatch.player1_id : currentGameMatch.player2_id;
-                  const loserId = winner === 'left' ? currentGameMatch.player2_id : currentGameMatch.player1_id;
-                  handleGameComplete(winnerId || 0, loserId || 0, leftScore, rightScore);
-                }}
-              />
-            ) : (
-              <div className="w-[800px] h-[400px] bg-gray-900 border border-gray-600 rounded flex items-center justify-center">
-                <div className="text-center">
-                  <div className="text-2xl mb-4">
-                    {gameSyncStatus === 'connecting' && '🔗 Connecting...'}
-                    {gameSyncStatus === 'connected' && '⏳ Waiting for opponent...'}
-                    {gameSyncStatus === 'ready' && '🚀 Game starting...'}
-                    {gameSyncStatus === 'waiting' && '⏳ Waiting for both players to be ready...'}
-                  </div>
-                  <div className="text-gray-400">
-                    {gameSyncStatus === 'connected' && 'Make sure both players click "I\'m Ready!"'}
-                    {gameSyncStatus === 'ready' && 'Game will start automatically in 2 seconds...'}
-                    {gameSyncStatus === 'waiting' && 'Both players need to join and be ready'}
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-          
-          {/* 게임 컨트롤 */}
-          <div className="mt-4 text-center">
-            <p className="text-sm text-gray-400 mb-2">
-              Use W/S keys for left player, Arrow Up/Down for right player
-            </p>
-            
-            {/* 게임 컨트롤 버튼들 */}
-            {gameSyncStatus === 'playing' && (
-              <div className="flex justify-center gap-4 mb-4">
+        )}
+
+        {/* Bracket */}
+        {bracket.length > 0 && (
+          <div className="bg-white rounded-lg shadow-md border p-6">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-semibold text-gray-900">Tournament Bracket</h3>
                 <button 
-                  onClick={() => {
-                    if (currentGameMatch && currentUser) {
-                      WebSocketService.sendGameControl('start');
-                    }
-                  }}
-                  className="px-4 py-2 bg-green-600 rounded hover:bg-green-700"
+                onClick={() => setView('bracket')}
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
                 >
-                  Start Game
-                </button>
-                <button 
-                  onClick={() => {
-                    if (currentGameMatch && currentUser) {
-                      WebSocketService.sendGameControl('pause');
-                    }
-                  }}
-                  className="px-4 py-2 bg-yellow-600 rounded hover:bg-yellow-700"
-                >
-                  Pause Game
-                </button>
-                <button 
-                  onClick={() => {
-                    if (currentGameMatch && currentUser) {
-                      WebSocketService.sendGameControl('reset');
-                    }
-                  }}
-                  className="px-4 py-2 bg-red-600 rounded hover:bg-red-700"
-                >
-                  Reset Game
+                View Full Bracket
                 </button>
               </div>
-            )}
-            
-            <button 
-              onClick={() => {
-                setCurrentGameMatch(null);
-                setView('brackets');
-              }}
-              className="px-4 py-2 bg-gray-600 rounded hover:bg-gray-700"
-            >
-              Cancel Game
-            </button>
+            {/* Simplified bracket preview */}
+            <div className="text-center text-gray-500">
+              Bracket visualization available in full view
+            </div>
           </div>
-        </div>
+        )}
       </div>
     );
   };
 
-  const renderTournamentBrackets = () => {
+  // Render join tournament form
+  const renderJoinTournament = () => {
+    if (!selectedTournament) return null;
+
+    return (
+      <div className="max-w-md mx-auto">
+        <div className="flex justify-between items-center mb-6">
+          <h2 className="text-2xl font-bold text-gray-900">Join Tournament</h2>
+          <button 
+            onClick={() => setView('detail')}
+            className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
+          >
+            Back
+          </button>
+        </div>
+
+        <div className="bg-white rounded-lg shadow-md border p-6 mb-6">
+          <h3 className="text-lg font-semibold text-gray-900">{selectedTournament.name}</h3>
+          <p className="text-gray-600 mt-1">{selectedTournament.description}</p>
+          <div className="flex items-center gap-4 mt-2 text-sm text-gray-500">
+            <span>{tournamentService.getTournamentTypeDisplayName(selectedTournament.tournament_type)}</span>
+            <span>•</span>
+            <span>{participants.length}/{selectedTournament.max_participants} participants</span>
+            </div>
+          </div>
+          
+        <form onSubmit={handleJoinTournament} className="space-y-6">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Display Name *
+            </label>
+            <input
+              type="text"
+              value={joinForm.display_name}
+              onChange={(e) => setJoinForm(prev => ({ ...prev, display_name: e.target.value }))}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              placeholder="Enter your display name"
+              maxLength={50}
+              required
+            />
+        </div>
+
+          {!isAuthenticated && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Guest Alias *
+              </label>
+              <input
+                type="text"
+                value={joinForm.guest_alias}
+                onChange={(e) => setJoinForm(prev => ({ ...prev, guest_alias: e.target.value }))}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                placeholder="Enter a unique alias"
+                maxLength={50}
+                pattern="[a-zA-Z0-9_-]+"
+                required
+              />
+              <p className="text-xs text-gray-500 mt-1">
+                Only letters, numbers, underscores, and hyphens allowed
+              </p>
+                </div>
+              )}
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Avatar URL
+            </label>
+            <input
+              type="url"
+              value={joinForm.avatar_url}
+              onChange={(e) => setJoinForm(prev => ({ ...prev, avatar_url: e.target.value }))}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              placeholder="Enter avatar URL (optional)"
+            />
+          </div>
+          
+          <div className="flex gap-4">
+                <button 
+              type="submit"
+              disabled={loading}
+              className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
+              {loading ? 'Joining...' : 'Join Tournament'}
+                </button>
+                <button 
+              type="button"
+              onClick={() => setView('detail')}
+              className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
+            >
+              Cancel
+                </button>
+              </div>
+        </form>
+      </div>
+    );
+  };
+
+  // Handle match click
+  const handleMatchClick = (match: TournamentMatch) => {
+    console.log('Match clicked:', match);
+    // TODO: Implement match details modal or navigation
+  };
+
+  // Render bracket view
+  const renderBracket = () => {
     if (!selectedTournament) return null;
 
     return (
       <div className="space-y-6">
-        <div className="flex items-center justify-between">
-          <h2 className="text-2xl font-bold">{selectedTournament.name} - Brackets</h2>
+        <div className="flex justify-between items-center">
+          <h2 className="text-2xl font-bold text-gray-900">{selectedTournament.name} - Bracket</h2>
           <button 
             onClick={() => setView('detail')} 
-            className="px-4 py-2 bg-gray-600 rounded hover:bg-gray-700"
+            className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
           >
-            Back to Detail
+            Back to Details
           </button>
         </div>
 
-        <div className="bg-gray-800 p-6 rounded">
-          <div className="space-y-8">
-            {brackets.map(round => (
-              <div key={round.round} className="border-b border-gray-700 pb-6 last:border-b-0">
-                <h3 className="text-xl font-semibold mb-4 text-center">
-                  {round.round === 1 ? 'First Round' : 
-                   round.round === 2 ? 'Quarter Finals' :
-                   round.round === 3 ? 'Semi Finals' :
-                   round.round === 4 ? 'Finals' : `Round ${round.round}`}
-                </h3>
-                <div className="grid gap-4">
-                  {round.matches.map(match => (
-                    <div key={match.id} className="bg-gray-700 p-4 rounded">
-                      <div className="flex items-center justify-between mb-2">
-                        <div className="text-sm text-gray-400">
-                          Match {match.match_number}
+        <div className="bg-white rounded-lg shadow-md border p-6">
+          <TournamentBracket
+            bracket={bracket}
+            matches={matches}
+            tournamentType={selectedTournament.tournament_type}
+            onMatchClick={handleMatchClick}
+          />
                         </div>
-                        <div className={`text-sm font-semibold ${getMatchStatusColor(match.status)}`}>
-                          {match.status.charAt(0).toUpperCase() + match.status.slice(1)}
                         </div>
-                      </div>
-                      <div className="grid grid-cols-3 gap-4 text-center">
-                        <div className={`p-2 rounded ${match.winner_id === match.player1_id ? 'bg-green-800' : 'bg-gray-600'}`}>
-                          <div className="font-medium">
-                            {match.player1_username || `Player ${match.player1_id}`}
-                          </div>
-                          <div className="text-lg font-bold">{match.player1_score}</div>
-                        </div>
-                        <div className="text-center flex items-center justify-center">
-                          <div className="text-lg font-bold">VS</div>
-                        </div>
-                        <div className={`p-2 rounded ${match.winner_id === match.player2_id ? 'bg-green-800' : 'bg-gray-600'}`}>
-                          <div className="font-medium">
-                            {match.player2_username || `Player ${match.player2_id}`}
-                          </div>
-                          <div className="text-lg font-bold">{match.player2_score}</div>
-                        </div>
-                      </div>
-                      {match.winner_username && (
-                        <div className="text-center mt-2">
-                          <div className="text-sm text-green-400">
-                            Winner: {match.winner_username}
-                          </div>
-                        </div>
-                      )}
-                      
-                      {/* Match Action Buttons */}
-                      {match.status === 'pending' && (
-                        <div className="text-center mt-3 space-x-2">
-                          <button 
-                            onClick={() => startMatch(match.id)}
-                            className="px-4 py-2 bg-blue-600 rounded hover:bg-blue-700 transition-colors"
-                          >
-                            🚀 Start Match
-                          </button>
-                          <button 
-                            onClick={() => playGame(match)}
-                            className="px-4 py-2 bg-green-600 rounded hover:bg-green-700 transition-colors"
-                          >
-                            🎮 Play Game
-                          </button>
-                        </div>
-                      )}
-                      
-                      {match.status === 'active' && (
-                        <div className="text-center mt-3">
-                          <button 
-                            onClick={() => playGame(match)}
-                            className="px-4 py-2 bg-green-600 rounded hover:bg-green-700 transition-colors"
-                          >
-                            🎮 Play Game
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            ))}
-            
-            {/* Tournament Control Buttons */}
-            {selectedTournament.status === 'registration' && participants.length >= 2 && (
-              <div className="text-center pt-6 border-t border-gray-700">
-                <button 
-                  onClick={() => startTournament(selectedTournament)}
-                  disabled={loading}
-                  className="px-8 py-4 bg-green-600 hover:bg-green-700 disabled:bg-gray-600 rounded-lg font-semibold text-lg transition-colors"
-                >
-                  {loading ? '🚀 Starting Tournament...' : '🚀 Start Tournament'}
-                </button>
-                <p className="text-sm text-gray-400 mt-2">
-                  Ready to begin with {participants.length} participants
-                </p>
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
     );
   };
 
   return (
-    <div className="min-h-screen bg-gray-900 text-white p-6">
-      <div className="max-w-6xl mx-auto">
-        <div className="text-center mb-8">
-          <h1 className="text-4xl font-bold mb-2">Tournament System</h1>
-          <p className="text-gray-400">Manage and participate in Pong tournaments</p>
-          
-          {!isAuthenticated && (
-            <div className="mt-4 p-4 bg-red-900 border border-red-700 rounded-lg max-w-2xl mx-auto">
-              <h3 className="text-lg font-semibold text-red-200 mb-2">⚠️ Authentication Required</h3>
-              <p className="text-sm text-red-100">Please login to create and join tournaments</p>
+    <div className="min-h-screen bg-gray-50 p-6">
+      <div className="max-w-7xl mx-auto">
+        {/* Messages */}
+        {(error || success) && (
+          <div className="mb-6">
+            {error && (
+              <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-lg flex justify-between items-center">
+                <span>{error}</span>
+                <button onClick={clearMessages} className="text-red-700 hover:text-red-900">
+                  ×
+                          </button>
+                        </div>
+                      )}
+            {success && (
+              <div className="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded-lg flex justify-between items-center">
+                <span>{success}</span>
+                <button onClick={clearMessages} className="text-green-700 hover:text-green-900">
+                  ×
+                          </button>
+                        </div>
+                      )}
+              </div>
+            )}
+
+        {/* Loading overlay */}
+        {loading && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-lg p-6 flex items-center gap-3">
+              <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
+              <span>Loading...</span>
+            </div>
             </div>
           )}
-          
-          {isAuthenticated && (
-            <div className="mt-4 p-4 bg-blue-900 border border-blue-700 rounded-lg max-w-2xl mx-auto">
-              <h3 className="text-lg font-semibold text-blue-200 mb-2">How Tournaments Work</h3>
-              <ul className="text-sm text-blue-100 text-left space-y-1">
-                <li>• Create a tournament with 2-16 participants</li>
-                <li>• Join tournaments during registration phase</li>
-                <li>• Start tournament when ready (minimum 2 players)</li>
-                <li>• Single-elimination bracket system</li>
-                <li>• Play matches and advance through rounds</li>
-              </ul>
-            </div>
-          )}
-        </div>
 
-        {error && (
-          <div className={`border px-4 py-3 rounded mb-6 ${
-            error.includes('successfully') 
-              ? 'bg-green-900 border-green-700 text-green-200' 
-              : 'bg-red-900 border-red-700 text-red-200'
-          }`}>
-            {error}
-            <button 
-              onClick={() => setError(null)} 
-              className={`float-right font-bold hover:opacity-80 ${
-                error.includes('successfully') 
-                  ? 'text-green-200 hover:text-green-100' 
-                  : 'text-red-200 hover:text-red-100'
-              }`}
-            >
-              ×
-            </button>
-          </div>
-        )}
-
+        {/* Main content */}
         {view === 'list' && renderTournamentList()}
-        {view === 'detail' && renderTournamentDetail()}
-        {view === 'brackets' && renderTournamentBrackets()}
-        {view === 'game' && renderGameView()}
-
-        <div className="text-center mt-8">
-          <button 
-            onClick={onBack} 
-            className="px-6 py-3 bg-gray-600 rounded hover:bg-gray-700 text-lg"
-          >
-            Back to Menu
-          </button>
-        </div>
+        {view === 'create' && renderCreateTournament()}
+        {view === 'detail' && renderTournamentDetails()}
+        {view === 'join' && renderJoinTournament()}
+        {view === 'bracket' && renderBracket()}
       </div>
     </div>
   );
 };
-
-

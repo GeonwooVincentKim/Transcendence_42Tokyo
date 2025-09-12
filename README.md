@@ -112,7 +112,7 @@ Trascendence/
 - **Classic Pong mechanics** with modern enhancements
 - **Real-time multiplayer** support
 - **AI opponent** for single-player mode
-- **Tournament system** with single-elimination brackets
+- **Tournament system** with multiple bracket types
 - **Score tracking** and statistics
 - **Game state persistence**
 
@@ -124,11 +124,31 @@ Trascendence/
 - **User profiles** and statistics
 - **Tournament management** interface
 
+### Tournament System
+- **Multiple Tournament Types**:
+  - Single Elimination (most common)
+  - Double Elimination (coming soon)
+  - Round Robin (coming soon)
+- **Guest User Support**: Players can join tournaments without registration using unique aliases
+- **Interactive Bracket Visualization**: Zoom, pan, and navigate tournament brackets
+- **Real-time Updates**: Live match results and tournament progress
+- **Tournament Management**:
+  - Create tournaments with custom settings
+  - Join/leave tournaments
+  - Start tournaments when ready
+  - Cancel tournaments if needed
+- **Match Integration**: Seamless integration with the game system
+- **Statistics Tracking**: Comprehensive tournament and player statistics
+
 ### Technical Features
 - **WebSocket** real-time communication
 - **JWT-based authentication**
 - **Database persistence**
 - **Tournament bracket generation**
+- **Guest user support** for tournaments
+- **Multiple tournament types** (Single Elimination, Double Elimination, Round Robin)
+- **Interactive bracket visualization**
+- **Real-time match updates**
 - **Error handling** and logging
 - **Performance optimization**
 
@@ -306,14 +326,18 @@ POST   /api/auth/login      # User login
 GET    /api/users/profile   # Get user profile
 
 # Tournament API
-GET    /api/tournaments     # List tournaments
-POST   /api/tournaments     # Create tournament
-GET    /api/tournaments/:id # Get tournament details
-POST   /api/tournaments/:id/join  # Join tournament
-POST   /api/tournaments/:id/start # Start tournament
-GET    /api/tournaments/:id/matches # Get tournament matches
-GET    /api/tournaments/:id/brackets # Get tournament brackets
+GET    /api/tournaments                    # List tournaments
+POST   /api/tournaments                    # Create tournament
+GET    /api/tournaments/:id                # Get tournament details
+POST   /api/tournaments/:id/join           # Join tournament
+POST   /api/tournaments/:id/leave          # Leave tournament
+POST   /api/tournaments/:id/start          # Start tournament
+POST   /api/tournaments/:id/cancel         # Cancel tournament
+GET    /api/tournaments/:id/participants   # Get tournament participants
+GET    /api/tournaments/:id/matches        # Get tournament matches
+GET    /api/tournaments/:id/bracket        # Get tournament bracket
 POST   /api/tournaments/:id/matches/:matchId/result # Submit match result
+GET    /api/tournaments/stats              # Get tournament statistics
 ```
 
 ## 🐛 Troubleshooting

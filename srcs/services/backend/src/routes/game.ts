@@ -342,4 +342,254 @@ export async function gameRoutes(fastify: FastifyInstance) {
       });
     }
   });
+
+  /**
+   * GET /api/game/:tournamentId/:matchId/state
+   * Get current game state for polling
+   */
+  fastify.get<{ Params: { tournamentId: string; matchId: string } }>('/api/game/:tournamentId/:matchId/state', async (request, reply) => {
+    try {
+      const { tournamentId, matchId } = request.params;
+      const { userId } = request.query as { userId: string };
+      
+      console.log(`Game state request: tournamentId=${tournamentId}, matchId=${matchId}, userId=${userId}`);
+      
+      // Get or create game room state from global map
+      const roomId = `${tournamentId}-${matchId}`;
+      let gameRoom = (fastify as any).gameRooms?.get(roomId);
+      
+      if (!gameRoom) {
+        // Create new game room if it doesn't exist
+        gameRoom = {
+          roomState: {
+            roomId,
+            players: [],
+            player1Ready: false,
+            player2Ready: false,
+            player1Id: null,
+            player2Id: null,
+            gameStarted: false,
+            gameState: null,
+            lastUpdate: Date.now()
+          },
+          gameControl: {
+            isPaused: false,
+            isStarted: false,
+            isReset: false
+          }
+        };
+        
+        // Initialize gameRooms map if it doesn't exist
+        if (!(fastify as any).gameRooms) {
+          (fastify as any).gameRooms = new Map();
+        }
+        
+        (fastify as any).gameRooms.set(roomId, gameRoom);
+        console.log(`Created new game room: ${roomId}`);
+      }
+      
+      // Ensure player IDs are included in response
+      const enhancedRoomState = {
+        ...gameRoom.roomState,
+        player1Id: gameRoom.players?.player1?.userId || null,
+        player2Id: gameRoom.players?.player2?.userId || null
+      };
+      
+      return reply.status(200).send({
+        roomState: enhancedRoomState,
+        gameControl: gameRoom.gameControl || { isPaused: false, isStarted: false, isReset: false }
+      });
+    } catch (error) {
+      console.error('Game state error:', error);
+      return reply.status(500).send({
+        error: 'Failed to get game state',
+        message: error instanceof Error ? error.message : 'Unknown error occurred'
+      });
+    }
+  });
+
+  /**
+   * POST /api/game/:tournamentId/:matchId/ready
+   * Set player ready status
+   */
+  fastify.post<{ Params: { tournamentId: string; matchId: string }; Body: { ready: boolean } }>('/api/game/:tournamentId/:matchId/ready', async (request, reply) => {
+    try {
+      const { tournamentId, matchId } = request.params;
+      const { ready, userId } = request.body as { ready: boolean; userId: string };
+      
+      console.log(`Player ready: tournamentId=${tournamentId}, matchId=${matchId}, userId=${userId}, ready=${ready}`);
+      
+      // Get or create game room state
+      const roomId = `${tournamentId}-${matchId}`;
+      let gameRoom = (fastify as any).gameRooms?.get(roomId);
+      
+      console.log(`Game room exists: ${!!gameRoom}, roomId: ${roomId}`);
+      if (gameRoom) {
+        console.log(`Existing game room players:`, gameRoom.players);
+      }
+      
+      if (!gameRoom) {
+        // Create new game room if it doesn't exist
+        gameRoom = {
+          roomState: {
+            roomId,
+            players: [],
+            player1Ready: false,
+            player2Ready: false,
+            player1Id: null,
+            player2Id: null,
+            gameStarted: false,
+            gameState: null,
+            lastUpdate: Date.now()
+          },
+          gameControl: {
+            isPaused: false,
+            isStarted: false,
+            isReset: false
+          },
+          players: {
+            player1: null,
+            player2: null
+          }
+        };
+        
+        // Initialize gameRooms map if it doesn't exist
+        if (!(fastify as any).gameRooms) {
+          (fastify as any).gameRooms = new Map();
+        }
+        
+        (fastify as any).gameRooms.set(roomId, gameRoom);
+        console.log(`Created new game room for ready: ${roomId}`);
+      }
+      
+      // Ensure players object exists
+      if (!gameRoom.players) {
+        gameRoom.players = {
+          player1: null,
+          player2: null
+        };
+        console.log(`Initialized players object for room: ${roomId}`);
+      }
+      
+      // Initialize players if not set
+      if (!gameRoom.players.player1) {
+        gameRoom.players.player1 = { userId, ready: ready };
+        console.log(`Initialized player1: ${userId}, ready: ${ready}`);
+      } else if (!gameRoom.players.player2 && gameRoom.players.player1.userId !== userId) {
+        gameRoom.players.player2 = { userId, ready: ready };
+        console.log(`Initialized player2: ${userId}, ready: ${ready}`);
+      } else {
+        // Update existing player ready status
+        if (gameRoom.players.player1?.userId === userId) {
+          gameRoom.players.player1.ready = ready;
+          console.log(`Updated player1 ready status: ${ready}`);
+        } else if (gameRoom.players.player2?.userId === userId) {
+          gameRoom.players.player2.ready = ready;
+          console.log(`Updated player2 ready status: ${ready}`);
+        }
+      }
+      
+      // Update room state
+      gameRoom.roomState = {
+        ...gameRoom.roomState,
+        player1Ready: gameRoom.players.player1?.ready || false,
+        player2Ready: gameRoom.players.player2?.ready || false,
+        player1Id: gameRoom.players.player1?.userId || null,
+        player2Id: gameRoom.players.player2?.userId || null
+      };
+      
+      return reply.status(200).send({
+        message: 'Player ready status updated',
+        roomState: gameRoom.roomState
+      });
+    } catch (error) {
+      console.error('Player ready error:', error);
+      return reply.status(500).send({
+        error: 'Failed to update player ready status',
+        message: error instanceof Error ? error.message : 'Unknown error occurred'
+      });
+    }
+  });
+
+  /**
+   * POST /api/game/:tournamentId/:matchId/control
+   * Send game control action (start, pause, reset)
+   */
+  fastify.post<{ Params: { tournamentId: string; matchId: string }; Body: { action: 'start' | 'pause' | 'reset' } }>('/api/game/:tournamentId/:matchId/control', async (request, reply) => {
+    try {
+      const { tournamentId, matchId } = request.params;
+      const { action, userId } = request.body as { action: 'start' | 'pause' | 'reset'; userId: string };
+      
+      console.log(`Game control: tournamentId=${tournamentId}, matchId=${matchId}, userId=${userId}, action=${action}`);
+      
+      // Get or create game room control state
+      const roomId = `${tournamentId}-${matchId}`;
+      let gameRoom = (fastify as any).gameRooms?.get(roomId);
+      
+      if (!gameRoom) {
+        // Create new game room if it doesn't exist
+        gameRoom = {
+          roomState: {
+            roomId,
+            players: [],
+            player1Ready: false,
+            player2Ready: false,
+            player1Id: null,
+            player2Id: null,
+            gameStarted: false,
+            gameState: null,
+            lastUpdate: Date.now()
+          },
+          gameControl: {
+            isPaused: false,
+            isStarted: false,
+            isReset: false
+          }
+        };
+        
+        // Initialize gameRooms map if it doesn't exist
+        if (!(fastify as any).gameRooms) {
+          (fastify as any).gameRooms = new Map();
+        }
+        
+        (fastify as any).gameRooms.set(roomId, gameRoom);
+        console.log(`Created new game room for control: ${roomId}`);
+      }
+      
+      // Initialize game control if not exists
+      if (!gameRoom.gameControl) {
+        gameRoom.gameControl = { isPaused: false, isStarted: false, isReset: false };
+      }
+      
+      // Update control state based on action
+      switch (action) {
+        case 'start':
+          gameRoom.gameControl.isStarted = true;
+          gameRoom.gameControl.isPaused = false;
+          gameRoom.roomState = { ...gameRoom.roomState, gameStarted: true };
+          break;
+        case 'pause':
+          gameRoom.gameControl.isPaused = true;
+          break;
+        case 'reset':
+          gameRoom.gameControl.isReset = true;
+          gameRoom.gameControl.isStarted = false;
+          gameRoom.gameControl.isPaused = false;
+          gameRoom.roomState = { ...gameRoom.roomState, gameStarted: false };
+          break;
+      }
+      
+      return reply.status(200).send({
+        message: 'Game control action processed',
+        gameControl: gameRoom.gameControl,
+        roomState: gameRoom.roomState
+      });
+    } catch (error) {
+      console.error('Game control error:', error);
+      return reply.status(500).send({
+        error: 'Failed to process game control action',
+        message: error instanceof Error ? error.message : 'Unknown error occurred'
+      });
+    }
+  });
 } 

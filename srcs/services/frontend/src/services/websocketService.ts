@@ -86,7 +86,7 @@ class WebSocketService {
     this.pollingInterval = setInterval(() => {
       this.pollGameState();
       this.pollTournamentState();
-    }, 500); // Poll every 500ms for better synchronization
+    }, 200); // Poll every 200ms for faster synchronization
   }
 
   /**
@@ -175,6 +175,7 @@ class WebSocketService {
    * Handle tournament state updates from polling
    */
   private handleTournamentStateUpdate(tournamentState: any) {
+    console.log('Handling tournament state update:', tournamentState);
     // Emit tournament state update for Start Tournament synchronization
     this.emit('tournament_state_update', { tournamentState });
   }
@@ -198,8 +199,14 @@ class WebSocketService {
    * Set player ready status via HTTP
    */
   async setPlayerReady(ready: boolean) {
+    console.log('setPlayerReady called with:', { ready, tournamentId: this.tournamentId, matchId: this.matchId, userId: this.userId });
+    
     if (!this.tournamentId || !this.matchId || !this.userId) {
-      console.error('Cannot set ready status: missing connection info');
+      console.error('Cannot set ready status: missing connection info', {
+        tournamentId: this.tournamentId,
+        matchId: this.matchId,
+        userId: this.userId
+      });
       return;
     }
 
@@ -241,38 +248,55 @@ class WebSocketService {
 
     console.log(`Game control action '${action}' requested by user ${this.userId}`);
     
-    // Emit game control event for immediate UI update
-    // This will be handled by the frontend to synchronize both players
-    this.emit('game_control', { 
-      action, 
-      userId: this.userId,
-      timestamp: Date.now(),
-      gameControl: {
-        isPaused: action === 'pause',
-        isStarted: action === 'start',
-        isReset: action === 'reset',
-        lastControlUpdate: Date.now()
+    try {
+      // Get JWT token from localStorage
+      const token = localStorage.getItem('token');
+      if (!token) {
+        console.error('No JWT token found');
+        return;
       }
-    });
-    
-    // Also emit a general state update to trigger polling refresh
-    this.emit('game_state_update', { 
-      roomState: {
-        roomId: `${this.tournamentId}-${this.matchId}`,
-        players: [],
-        player1Ready: false,
-        player2Ready: false,
-        gameStarted: action === 'start',
-        gameState: null,
+
+      // Call the backend API
+      const response = await fetch(`http://localhost:8000/api/game/${this.tournamentId}/${this.matchId}/control`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ action })
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const result = await response.json();
+      console.log('Game control API response:', result);
+      
+      // Emit game control event for immediate UI update
+      this.emit('game_control', { 
+        action, 
+        userId: this.userId,
+        timestamp: Date.now(),
+        gameControl: result.gameControl
+      });
+      
+    } catch (error) {
+      console.error('Failed to send game control:', error);
+      
+      // Fallback: emit local event anyway
+      this.emit('game_control', { 
+        action, 
+        userId: this.userId,
+        timestamp: Date.now(),
         gameControl: {
           isPaused: action === 'pause',
           isStarted: action === 'start',
           isReset: action === 'reset',
           lastControlUpdate: Date.now()
-        },
-        lastUpdate: Date.now()
-      }
-    });
+        }
+      });
+    }
   }
 
   /**
@@ -358,6 +382,17 @@ class WebSocketService {
    */
   getRoomId(): string | null {
     return this.roomId;
+  }
+
+  /**
+   * Manually refresh game and tournament state
+   */
+  refreshState(): void {
+    if (this.tournamentId && this.matchId && this.userId) {
+      console.log('Manual refresh triggered');
+      this.pollGameState();
+      this.pollTournamentState();
+    }
   }
 }
 
