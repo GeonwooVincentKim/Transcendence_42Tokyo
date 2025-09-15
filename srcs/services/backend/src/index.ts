@@ -1,13 +1,13 @@
 import Fastify from 'fastify';
 import cors from '@fastify/cors';
-import fastifyWebsocket from '@fastify/websocket';
 import jwt from '@fastify/jwt';
+import { createServer } from 'http';
 import { authRoutes } from './routes/auth';
 import { gameRoutes } from './routes/game';
 import { tournamentRoutes } from './routes/tournament';
-import { websocketRoutes } from './routes/websocket';
 import { DatabaseService } from './services/databaseService';
 import { initializeDatabase } from './utils/databaseInit';
+import SocketIOService from './services/socketIOService';
 
 /**
  * Pong Game Backend Server
@@ -32,6 +32,8 @@ const server = Fastify({
       }
 });
 
+// Socket.IO will be attached to Fastify's underlying HTTP server
+
 /**
  * Register CORS plugin for frontend integration
  * Allows requests from any origin in development
@@ -45,10 +47,7 @@ server.register(cors, {
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
 });
 
-/**
- * Register WebSocket plugin for real-time game communication
- */
-server.register(fastifyWebsocket);
+// Socket.IO will be initialized after server setup
 
 /**
  * Health check endpoint
@@ -129,22 +128,8 @@ server.get('/api/stats', async (request, reply) => {
   }
 });
 
-// Global game room state for synchronization
-const gameRooms = new Map<string, {
-  players: Map<string, any>;
-  player1Ready: boolean;
-  player2Ready: boolean;
-  gameStarted: boolean;
-  gameState?: any;
-  lastUpdate?: number;
-  // Game control synchronization
-  gameControl?: {
-    isPaused: boolean;
-    isStarted: boolean;
-    isReset: boolean;
-    lastControlUpdate?: number;
-  };
-}>();
+// Socket.IO service instance
+let socketIOService: SocketIOService;
 
 // Game state polling endpoint moved to game.ts routes
 
@@ -156,100 +141,7 @@ const gameRooms = new Map<string, {
 
 // Tournament state endpoint moved to tournament.ts routes
 
-/**
- * WebSocket endpoint for tournament game rooms
- * Handles real-time game synchronization between players
- */
-server.register(async function (fastify) {
-  fastify.get('/ws/game/:tournamentId/:matchId', { websocket: true }, (connection, req) => {
-    const tournamentId = (req.params as any).tournamentId;
-    const matchId = (req.params as any).matchId;
-    const userId = (req.query as any)?.userId as string || 'anonymous';
-    const roomId = `${tournamentId}-${matchId}`;
-
-    console.log(`WebSocket connection established: tournament ${tournamentId}, match ${matchId}, user ${userId}`);
-
-    // Get or create game room
-    let room = gameRooms.get(roomId);
-    if (!room) {
-      room = {
-        players: new Map(),
-        player1Ready: false,
-        player2Ready: false,
-        gameStarted: false
-      };
-      gameRooms.set(roomId, room);
-    }
-
-    // Add player to room
-    room.players.set(userId, connection);
-
-    // Send welcome message immediately
-    try {
-      connection.socket.send(JSON.stringify({
-        type: 'connected',
-        message: 'Connected to game room',
-        tournamentId: parseInt(tournamentId),
-        matchId: parseInt(matchId)
-      }));
-    } catch (error) {
-      console.error('Error sending welcome message:', error);
-    }
-
-    // Handle incoming messages
-    connection.socket.on('message', (data: any) => {
-      try {
-        const message = JSON.parse(data.toString());
-        console.log(`Received message from user ${userId}:`, message);
-
-        switch (message.type) {
-          case 'join_room':
-            // Send room joined confirmation
-            try {
-              connection.socket.send(JSON.stringify({
-                type: 'player_joined',
-                userId,
-                message: `Player ${userId} joined the game room`
-              }));
-            } catch (error) {
-              console.error('Error sending join confirmation:', error);
-            }
-            break;
-            
-          case 'ping':
-            // Respond with pong
-            try {
-              connection.socket.send(JSON.stringify({ type: 'pong' }));
-            } catch (error) {
-              console.error('Error sending pong:', error);
-            }
-            break;
-            
-          default:
-            console.log(`Unknown message type: ${message.type}`);
-        }
-      } catch (error) {
-        console.error('Error parsing WebSocket message:', error);
-      }
-    });
-
-    // Handle connection close
-    connection.socket.on('close', () => {
-      console.log(`WebSocket connection closed for user ${userId}`);
-      room.players.delete(userId);
-      
-      // Clean up empty room
-      if (room.players.size === 0) {
-        gameRooms.delete(roomId);
-      }
-    });
-
-    // Handle connection error
-    connection.socket.on('error', (error: any) => {
-      console.error(`WebSocket error for user ${userId}:`, error);
-    });
-  });
-});
+// Socket.IO endpoints are handled by SocketIOService
 
 /**
  * Start the server
@@ -290,11 +182,12 @@ const start = async () => {
     // Register tournament routes
     await server.register(tournamentRoutes);
     
-    // WebSocket routes are now handled directly in index.ts
-    
-    // HTTP polling APIs are now defined outside start() function for proper registration
-    
+    // Start HTTP server with Fastify
     await server.listen({ port, host });
+    
+    // Initialize Socket.IO service with Fastify's underlying HTTP server
+    socketIOService = new SocketIOService(server.server);
+    server.log.info('Socket.IO service initialized');
 
     server.log.info(`Server listening on http://${host}:${port}`);
     server.log.info('Available endpoints:');
@@ -324,7 +217,7 @@ const start = async () => {
     server.log.info(`  - POST /api/game/:tournamentId/:matchId/ready (player ready status)`);
     server.log.info(`  - POST /api/game/:tournamentId/:matchId/control (game control sync)`);
     server.log.info(`  - GET  /api/tournaments/:id/state (tournament state polling)`);
-    server.log.info(`  - WS   /ws (WebSocket for real-time game)`);
+    server.log.info(`  - Socket.IO server on port ${port} (real-time game communication)`);
   } catch (err) {
     server.log.error('Failed to start server:', err);
     console.error('Detailed error:', err);

@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>WebSocket Test</title>
+</head>
+<body>
+    <h1>WebSocket Connection Test</h1>
+    <div id="status">Connecting...</div>
+    <div id="messages"></div>
+    
+    <script>
+        const statusDiv = document.getElementById('status');
+        const messagesDiv = document.getElementById('messages');
+        
+        function addMessage(message) {
+            const p = document.createElement('p');
+            p.textContent = new Date().toLocaleTimeString() + ': ' + message;
+            messagesDiv.appendChild(p);
+        }
+        
+        // Test WebSocket connection
+        const ws = new WebSocket('ws://localhost:8000/ws/game/22/1');
+        
+        ws.onopen = function(event) {
+            statusDiv.textContent = '✅ Connected successfully!';
+            statusDiv.style.color = 'green';
+            addMessage('WebSocket connection opened');
+            
+            // Send a test message
+            ws.send(JSON.stringify({ type: 'ping' }));
+            addMessage('Sent ping message');
+        };
+        
+        ws.onmessage = function(event) {
+            addMessage('Received: ' + event.data);
+        };
+        
+        ws.onerror = function(error) {
+            statusDiv.textContent = '❌ Connection failed';
+            statusDiv.style.color = 'red';
+            addMessage('WebSocket error: ' + error);
+        };
+        
+        ws.onclose = function(event) {
+            statusDiv.textContent = '🔌 Connection closed';
+            statusDiv.style.color = 'orange';
+            addMessage('WebSocket closed: ' + event.code + ' ' + event.reason);
+        };
+    </script>
+</body>
+</html>

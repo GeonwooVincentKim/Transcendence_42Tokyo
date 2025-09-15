@@ -13,8 +13,8 @@ interface GameRoom {
   players: Map<string, any>; // Socket.IO socket
   gameState: {
     status: 'waiting' | 'ready' | 'playing' | 'finished';
-    player1Id?: number;
-    player2Id?: number;
+    player1Id?: string; // Changed to string to support unique player IDs
+    player2Id?: string; // Changed to string to support unique player IDs
     player1Ready: boolean;
     player2Ready: boolean;
     gameData?: any;
@@ -130,12 +130,11 @@ class SocketIOService {
     // Join Socket.IO room for efficient broadcasting
     socket.join(roomId);
 
-    // Determine player position
-    const userIdNum = userId === 'anonymous' ? 0 : parseInt(userId);
+    // Determine player position - use string userId instead of numeric conversion
     if (!room.gameState.player1Id) {
-      room.gameState.player1Id = userIdNum;
-    } else if (!room.gameState.player2Id && room.gameState.player1Id !== userIdNum) {
-      room.gameState.player2Id = userIdNum;
+      room.gameState.player1Id = userId;
+    } else if (!room.gameState.player2Id && room.gameState.player1Id !== userId) {
+      room.gameState.player2Id = userId;
     }
 
     console.log(`Player ${userId} joined room ${roomId}`, {
@@ -175,12 +174,11 @@ class SocketIOService {
     this.playerRooms.delete(userId);
 
     // Reset player positions if needed
-    const userIdNum = userId === 'anonymous' ? 0 : parseInt(userId);
-    if (room.gameState.player1Id === userIdNum) {
+    if (room.gameState.player1Id === userId) {
       room.gameState.player1Id = undefined;
       room.gameState.player1Ready = false;
     }
-    if (room.gameState.player2Id === userIdNum) {
+    if (room.gameState.player2Id === userId) {
       room.gameState.player2Id = undefined;
       room.gameState.player2Ready = false;
     }
@@ -211,10 +209,9 @@ class SocketIOService {
     if (!room) return;
 
     // Set ready status
-    const userIdNum = userId === 'anonymous' ? 0 : parseInt(userId);
-    if (room.gameState.player1Id === userIdNum) {
+    if (room.gameState.player1Id === userId) {
       room.gameState.player1Ready = ready;
-    } else if (room.gameState.player2Id === userIdNum) {
+    } else if (room.gameState.player2Id === userId) {
       room.gameState.player2Ready = ready;
     }
 

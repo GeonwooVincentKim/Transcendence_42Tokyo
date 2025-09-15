@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import SocketIOService from '../services/socketIOService';
 
 interface MultiplayerPongProps {
   roomId: string;
@@ -10,7 +11,7 @@ export const MultiplayerPong: React.FC<MultiplayerPongProps> = ({
   playerSide 
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const wsRef = useRef<WebSocket | null>(null);
+  const socketServiceRef = useRef<SocketIOService | null>(null);
   const [gameState, setGameState] = useState({
     leftPaddle: { y: 200 },
     rightPaddle: { y: 200 },
@@ -23,105 +24,80 @@ export const MultiplayerPong: React.FC<MultiplayerPongProps> = ({
   const [connected, setConnected] = useState(false);
   const [keys, setKeys] = useState<Set<string>>(new Set());
 
-  // Connect to backend WebSocket server directly
-  // Parse roomId to extract tournamentId and matchId for proper route
+  // Connect to Socket.IO server
   useEffect(() => {
     // Parse roomId format: "tournamentId-matchId" (e.g., "14-4")
     const [tournamentId, matchId] = roomId.split('-');
-    const wsUrl = `ws://localhost:8000/ws/game/${tournamentId}/${matchId}`;
-    console.log('Connecting to WebSocket:', wsUrl);
-    const ws = new WebSocket(wsUrl);
-    wsRef.current = ws;
+    // Generate unique userId for each connection to avoid conflicts
+    const userId = `player_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    
+    console.log('Connecting to Socket.IO server for room:', roomId);
+    
+    const socketService = new SocketIOService();
+    socketServiceRef.current = socketService;
 
-    let pingInterval: NodeJS.Timeout | null = null;
-
-    console.log('WebSocket connection established!!!!!!');
-    ws.onopen = () => {
-      console.log('WebSocket OPEN');
-      setConnected(true);
-      
-      // Send join room message immediately after connection
-      ws.send(JSON.stringify({ type: 'join_room' }));
-      
-      // Start ping interval
-      pingInterval = setInterval(() => {
-        if (ws.readyState === WebSocket.OPEN) {
-          ws.send(JSON.stringify({ type: 'ping' }));
-        }
-      }, 20000); // 20 seconds
-    };
-
-    ws.onmessage = (event) => {
-      console.log('WebSocket MESSAGE:', event.data);
-      const data = JSON.parse(event.data);
-      // Optionally handle pong here if needed
-      if (data.type === 'pong') return;
-      switch (data.type) {
-        case 'connected':
-          console.log('Connected to game room:', data.message);
-          break;
-        case 'player_joined':
-          console.log('Player joined:', data.message);
-          break;
-        case 'game_start':
-          setGameState({ ...data.data, status: 'playing' });
-          break;
-        case 'paddle_update':
-          if (data.data.player === 'left') {
-            setGameState(prev => ({
-              ...prev,
-              leftPaddle: { y: data.data.y }
-            }));
-          } else {
-            setGameState(prev => ({
-              ...prev,
-              rightPaddle: { y: data.data.y }
-            }));
-          }
-          break;
-        case 'game_state_update':
-          setGameState(prev => ({ ...data.data, status: prev.status }));
-          break;
-        case 'game_pause':
-          setGameState(prev => ({ ...prev, status: 'paused' }));
-          break;
-        case 'game_reset':
-          setGameState(prev => ({
-            ...prev,
-            leftScore: 0,
-            rightScore: 0,
-            ball: { x: 400, y: 200, dx: 5, dy: 3 },
-            leftPaddle: { y: 200 },
-            rightPaddle: { y: 200 },
-            status: 'ready',
-            winner: undefined
-          }));
-          break;
-        case 'game_end':
-          setGameState(prev => ({
-            ...prev,
-            status: 'finished',
-            winner: data.data.winner,
-            leftScore: data.data.leftScore,
-            rightScore: data.data.rightScore
-          }));
-          break;
+    // Set up event handlers
+    socketService.setEventHandlers({
+      onConnected: (data) => {
+        console.log('Socket.IO connected:', data);
+        setConnected(true);
+      },
+      onPlayerJoined: (data) => {
+        console.log('Player joined:', data.message);
+      },
+      onPlayerLeft: (data) => {
+        console.log('Player left:', data.message);
+      },
+      onPlayerReady: (data) => {
+        console.log('Player ready:', data);
+      },
+      onGameStart: (data) => {
+        console.log('Game start:', data);
+        setGameState(prev => ({ ...prev, status: 'playing' }));
+      },
+      onGamePlaying: (data) => {
+        console.log('Game playing:', data);
+        setGameState(prev => ({ ...prev, status: 'playing' }));
+      },
+      onGameStateUpdate: (data) => {
+        console.log('Game state update:', data);
+        setGameState(prev => ({ ...data.gameState, status: prev.status }));
+      },
+      onGameEnd: (data) => {
+        console.log('Game end:', data);
+        setGameState(prev => ({
+          ...prev,
+          status: 'finished',
+          winner: data.gameResult.winner,
+          leftScore: data.gameResult.leftScore,
+          rightScore: data.gameResult.rightScore
+        }));
+      },
+      onPong: () => {
+        // Handle pong response
+      },
+      onDisconnect: (reason) => {
+        console.log('Socket.IO disconnected:', reason);
+        setConnected(false);
+      },
+      onError: (error) => {
+        console.error('Socket.IO error:', error);
+        setConnected(false);
       }
-    };
+    });
 
-    ws.onclose = () => {
-      console.log('WebSocket CLOSE');
-      setConnected(false);
-    };
-
-    ws.onerror = (error) => {
-      console.error('WebSocket ERROR:', error);
-      setConnected(false);
-    };
+    // Connect to server
+    socketService.connect(parseInt(tournamentId), parseInt(matchId), userId)
+      .then(() => {
+        console.log('Socket.IO connection established');
+      })
+      .catch((error) => {
+        console.error('Failed to connect to Socket.IO:', error);
+        setConnected(false);
+      });
 
     return () => {
-      ws.close();
-      if (pingInterval) clearInterval(pingInterval);
+      socketService.disconnect();
     };
   }, [roomId]);
 
@@ -150,10 +126,7 @@ export const MultiplayerPong: React.FC<MultiplayerPongProps> = ({
 
   // Paddle movement handling
   useEffect(() => {
-    if (!connected || !wsRef.current) return;
-
-    // Check if WebSocket is in OPEN state before sending
-    if (wsRef.current.readyState !== WebSocket.OPEN) return;
+    if (!connected || !socketServiceRef.current) return;
 
     // Only allow paddle movement when game is playing
     if (gameState.status !== 'playing') return;
@@ -172,13 +145,13 @@ export const MultiplayerPong: React.FC<MultiplayerPongProps> = ({
           newY += paddleSpeed;
         }
         
-        // Send paddle position to server only if WebSocket is ready
-        if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-          wsRef.current.send(JSON.stringify({
+        // Send paddle position to server via Socket.IO
+        if (socketServiceRef.current && socketServiceRef.current.isConnected()) {
+          socketServiceRef.current.sendGameStateUpdate({
             type: 'paddle_move',
             player: playerSide,
             y: newY
-          }));
+          });
         }
       }
     });
@@ -229,28 +202,26 @@ export const MultiplayerPong: React.FC<MultiplayerPongProps> = ({
 
   // Game control functions
   const handlePause = () => {
-    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-      wsRef.current.send(JSON.stringify({
+    if (socketServiceRef.current && socketServiceRef.current.isConnected()) {
+      socketServiceRef.current.sendGameStateUpdate({
         type: 'game_pause'
-      }));
+      });
     }
   };
 
   const handleReset = () => {
-    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-      wsRef.current.send(JSON.stringify({
+    if (socketServiceRef.current && socketServiceRef.current.isConnected()) {
+      socketServiceRef.current.sendGameStateUpdate({
         type: 'game_reset'
-      }));
+      });
     }
   };
 
-  // Sends a 'game_start' message to the server when the Start button is clicked.
+  // Sends a 'player_ready' message to the server when the Start button is clicked.
   // This is used to signal that the player is ready to begin the multiplayer game.
   const handleStart = () => {
-    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-      wsRef.current.send(JSON.stringify({
-        type: 'game_start'
-      }));
+    if (socketServiceRef.current && socketServiceRef.current.isConnected()) {
+      socketServiceRef.current.sendPlayerReady(true);
     }
   };
 

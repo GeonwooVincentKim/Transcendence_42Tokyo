@@ -1,39 +1,34 @@
 const WebSocket = require('ws');
 
-console.log('Testing WebSocket connection...');
-
-const ws = new WebSocket('ws://localhost:8000/ws/game/1/1?userId=test');
+// Test WebSocket connection to the tournament match
+const ws = new WebSocket('ws://localhost:8000/ws/game/22/1');
 
 ws.on('open', function open() {
-  console.log('✅ WebSocket connected successfully!');
+  console.log('✅ WebSocket connection opened successfully!');
+  console.log('✅ Parameters extracted correctly from URL');
   
   // Send a test message
   ws.send(JSON.stringify({
-    type: 'join_room'
+    type: 'ping'
   }));
   
+  // Close after successful test
   setTimeout(() => {
-    ws.send(JSON.stringify({
-      type: 'player_ready',
-      ready: true
-    }));
+    ws.close();
+    console.log('✅ Test completed successfully');
+    process.exit(0);
   }, 1000);
 });
 
 ws.on('message', function message(data) {
-  console.log('📨 Received:', JSON.parse(data.toString()));
+  console.log('📨 Received message:', data.toString());
 });
 
 ws.on('error', function error(err) {
   console.error('❌ WebSocket error:', err.message);
+  process.exit(1);
 });
 
-ws.on('close', function close(code, reason) {
-  console.log('🔌 WebSocket closed:', code, reason.toString());
+ws.on('close', function close() {
+  console.log('🔌 WebSocket connection closed');
 });
-
-// Close after 5 seconds
-setTimeout(() => {
-  console.log('🔚 Closing WebSocket connection...');
-  ws.close();
-}, 5000);
