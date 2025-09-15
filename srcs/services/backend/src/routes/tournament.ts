@@ -784,4 +784,36 @@ export async function tournamentRoutes(fastify: FastifyInstance) {
       });
     }
   });
+
+  // Clear all tournament data (admin function)
+  fastify.delete('/api/tournaments/clear', {
+    schema: {
+      description: 'Clear all tournament data (preserves user data)',
+      tags: ['tournaments'],
+      response: {
+        200: {
+          type: 'object',
+          properties: {
+            success: { type: 'boolean' },
+            message: { type: 'string' }
+          }
+        },
+        500: {
+          type: 'object',
+          properties: {
+            success: { type: 'boolean' },
+            error: { type: 'string' }
+          }
+        }
+      }
+    }
+  }, async (request, reply) => {
+    try {
+      await TournamentService.clearAllTournamentData();
+      reply.send({ success: true, message: 'All tournament data cleared successfully' });
+    } catch (error) {
+      console.error('Error clearing tournament data:', error);
+      reply.code(500).send({ success: false, error: 'Failed to clear tournament data' });
+    }
+  });
 }

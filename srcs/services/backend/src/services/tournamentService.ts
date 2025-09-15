@@ -151,7 +151,14 @@ export class TournamentService {
       [name, description, max_participants, tournament_type, created_by, settingsJson]
     );
 
-    const tournament = await this.getTournament(result.lastID!);
+    console.log('Tournament creation result:', result);
+    
+    const tournamentId = result.lastInsertRowid || result.lastID;
+    if (!tournamentId) {
+      throw new Error('Failed to get tournament ID from creation result');
+    }
+
+    const tournament = await this.getTournament(tournamentId);
     if (!tournament) {
       throw new Error('Failed to create tournament');
     }
@@ -225,11 +232,13 @@ export class TournamentService {
       throw new Error('Display name is required');
     }
 
-    if (!user_id && !guest_alias) {
+    // For guest users, user_id can be null/undefined, but guest_alias must be provided
+    // For registered users, user_id must be provided, guest_alias should be null/undefined
+    if (!user_id && (!guest_alias || guest_alias.trim().length === 0)) {
       throw new Error('Either user_id or guest_alias is required');
     }
 
-    if (user_id && guest_alias) {
+    if (user_id && guest_alias && guest_alias.trim().length > 0) {
       throw new Error('Cannot provide both user_id and guest_alias');
     }
 
@@ -291,7 +300,12 @@ export class TournamentService {
       [tournament_id, user_id, guest_alias, display_name, avatar_url]
     );
 
-    const participant = await this.getParticipant((result as any).lastID!);
+    const participantId = result.lastInsertRowid || result.lastID;
+    if (!participantId) {
+      throw new Error('Failed to get participant ID from creation result');
+    }
+
+    const participant = await this.getParticipant(participantId);
     if (!participant) {
       throw new Error('Failed to join tournament');
     }
@@ -303,7 +317,7 @@ export class TournamentService {
    * Leave a tournament
    */
   static async leaveTournament(tournamentId: number, userId?: number, guestAlias?: string): Promise<void> {
-    if (!userId && !guestAlias) {
+    if (!userId && (!guestAlias || guestAlias.trim().length === 0)) {
       throw new Error('Either user_id or guest_alias is required');
     }
 
@@ -328,7 +342,7 @@ export class TournamentService {
     }
 
     const result = await DatabaseService.run(query, params);
-    if ((result as any).changes === 0) {
+    if (result.changes === 0) {
       throw new Error('Participant not found in tournament');
     }
   }
@@ -337,7 +351,7 @@ export class TournamentService {
    * Get tournament participants
    */
   static async getTournamentParticipants(tournamentId: number): Promise<TournamentParticipant[]> {
-    const rows = await (DatabaseService as any).all(
+    const rows = await DatabaseService.query(
       'SELECT * FROM tournament_participants WHERE tournament_id = ? ORDER BY joined_at ASC',
       [tournamentId]
     );
@@ -504,7 +518,7 @@ export class TournamentService {
    * Get tournament matches
    */
   static async getTournamentMatches(tournamentId: number): Promise<TournamentMatch[]> {
-    const rows = await (DatabaseService as any).all(
+    const rows = await DatabaseService.query(
       'SELECT * FROM tournament_matches WHERE tournament_id = ? ORDER BY round ASC, match_number ASC',
       [tournamentId]
     );
@@ -685,6 +699,24 @@ export class TournamentService {
     });
 
     return bracket;
+  }
+
+  /**
+   * Clear all tournament data (preserves user data)
+   */
+  static async clearAllTournamentData(): Promise<void> {
+    try {
+      // Delete in order to respect foreign key constraints
+      await DatabaseService.run('DELETE FROM tournament_brackets');
+      await DatabaseService.run('DELETE FROM tournament_matches');
+      await DatabaseService.run('DELETE FROM tournament_participants');
+      await DatabaseService.run('DELETE FROM tournaments');
+      
+      console.log('All tournament data cleared successfully');
+    } catch (error) {
+      console.error('Error clearing tournament data:', error);
+      throw error;
+    }
   }
 
   /**
