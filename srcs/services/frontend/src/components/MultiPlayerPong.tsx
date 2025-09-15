@@ -52,16 +52,85 @@ export const MultiplayerPong: React.FC<MultiplayerPongProps> = ({
         console.log('Player ready:', data);
       },
       onGameStart: (data) => {
-        console.log('Game start:', data);
-        setGameState(prev => ({ ...prev, status: 'playing' }));
+        console.log('🎮 Game start event received:', data);
+        // Update status based on server's roomState
+        const serverStatus = data.roomState?.status === 'ready' ? 'playing' : data.roomState?.status || 'playing';
+        setGameState(prev => ({ ...prev, status: serverStatus }));
+        console.log('🎮 Game state updated to:', serverStatus);
       },
       onGamePlaying: (data) => {
-        console.log('Game playing:', data);
-        setGameState(prev => ({ ...prev, status: 'playing' }));
+        console.log('🎮 Game playing event received:', data);
+        
+        // Update status and initialize game data from server
+        const serverStatus = data.roomState?.status || 'playing';
+        const gameData = data.gameState || {};
+        
+        setGameState(prev => {
+          const safePrev = prev || {};
+          return {
+            leftPaddle: gameData.leftPaddle || safePrev.leftPaddle || { y: 200 },
+            rightPaddle: gameData.rightPaddle || safePrev.rightPaddle || { y: 200 },
+            ball: gameData.ball || safePrev.ball || { x: 400, y: 200, dx: 5, dy: 3 },
+            leftScore: typeof gameData.leftScore === 'number' ? gameData.leftScore : (safePrev.leftScore || 0),
+            rightScore: typeof gameData.rightScore === 'number' ? gameData.rightScore : (safePrev.rightScore || 0),
+            status: serverStatus,
+            winner: safePrev.winner
+          };
+        });
+        
+        console.log('🎮 Game state updated to:', serverStatus, 'with initial game data:', gameData);
       },
       onGameStateUpdate: (data) => {
         console.log('Game state update:', data);
-        setGameState(prev => ({ ...data.gameState, status: prev.status }));
+        console.log('Game state update data.gameState:', data.gameState);
+        console.log('Game state update data.gameState.type:', data.gameState?.type);
+        
+        // Check if this is a paddle move message
+        if (data.gameState && data.gameState.type === 'paddle_move') {
+          const paddleMove = data.gameState;
+          console.log('Paddle move received in onGameStateUpdate:', paddleMove);
+          
+          setGameState(prev => {
+            const safePrev = prev || {};
+            const newState = {
+              leftPaddle: safePrev.leftPaddle || { y: 200 },
+              rightPaddle: safePrev.rightPaddle || { y: 200 },
+              ball: safePrev.ball || { x: 400, y: 200, dx: 5, dy: 3 },
+              leftScore: safePrev.leftScore || 0,
+              rightScore: safePrev.rightScore || 0,
+              status: safePrev.status || 'ready',
+              winner: safePrev.winner
+            };
+            
+            // Update the appropriate paddle position
+            if (paddleMove.player === 'left' && typeof paddleMove.y === 'number') {
+              newState.leftPaddle = { y: paddleMove.y };
+              console.log('Updated left paddle to y:', paddleMove.y);
+            } else if (paddleMove.player === 'right' && typeof paddleMove.y === 'number') {
+              newState.rightPaddle = { y: paddleMove.y };
+              console.log('Updated right paddle to y:', paddleMove.y);
+            }
+            
+            return newState;
+          });
+          return;
+        }
+        
+        // Handle full game state updates
+        const gameData = data.gameState || data.roomState?.gameData || data;
+        
+        setGameState(prev => ({
+          ...prev,
+          ...gameData,
+          // Ensure paddles and ball have proper structure with defaults
+          leftPaddle: gameData?.leftPaddle || prev.leftPaddle || { y: 200 },
+          rightPaddle: gameData?.rightPaddle || prev.rightPaddle || { y: 200 },
+          ball: gameData?.ball || prev.ball || { x: 400, y: 200, dx: 5, dy: 3 },
+          leftScore: gameData?.leftScore !== undefined ? gameData.leftScore : prev.leftScore,
+          rightScore: gameData?.rightScore !== undefined ? gameData.rightScore : prev.rightScore,
+          // Keep current status unless explicitly provided
+          status: gameData?.status || prev.status
+        }));
       },
       onGameEnd: (data) => {
         console.log('Game end:', data);
@@ -136,8 +205,16 @@ export const MultiplayerPong: React.FC<MultiplayerPongProps> = ({
     
     keysToCheck.forEach(key => {
       if (keys.has(key)) {
-        const currentY = playerSide === 'left' ? gameState.leftPaddle.y : gameState.rightPaddle.y;
-        let newY = currentY;
+        // Add comprehensive defensive checks for paddle existence
+        const safeGameState = gameState || {};
+        const leftPaddle = (safeGameState.leftPaddle && typeof safeGameState.leftPaddle === 'object') 
+          ? safeGameState.leftPaddle 
+          : { y: 200 };
+        const rightPaddle = (safeGameState.rightPaddle && typeof safeGameState.rightPaddle === 'object') 
+          ? safeGameState.rightPaddle 
+          : { y: 200 };
+        const currentY = playerSide === 'left' ? leftPaddle.y : rightPaddle.y;
+        let newY = typeof currentY === 'number' ? currentY : 200;
         
         if ((key === 'w' || key === 'arrowup') && newY > 0) {
           newY -= paddleSpeed;
@@ -145,6 +222,21 @@ export const MultiplayerPong: React.FC<MultiplayerPongProps> = ({
           newY += paddleSpeed;
         }
         
+        // Update local game state safely
+        setGameState(prev => {
+          const safePrev = prev || {};
+          return {
+            leftPaddle: safePrev.leftPaddle || { y: 200 },
+            rightPaddle: safePrev.rightPaddle || { y: 200 },
+            ball: safePrev.ball || { x: 400, y: 200, dx: 5, dy: 3 },
+            leftScore: safePrev.leftScore || 0,
+            rightScore: safePrev.rightScore || 0,
+            status: safePrev.status || 'ready',
+            winner: safePrev.winner,
+            [playerSide === 'left' ? 'leftPaddle' : 'rightPaddle']: { y: newY }
+          };
+        });
+
         // Send paddle position to server via Socket.IO
         if (socketServiceRef.current && socketServiceRef.current.isConnected()) {
           socketServiceRef.current.sendGameStateUpdate({
@@ -166,18 +258,57 @@ export const MultiplayerPong: React.FC<MultiplayerPongProps> = ({
     if (!ctx) return;
 
     const renderLoop = () => {
+      // Don't render if game state is not properly initialized
+      if (!gameState || typeof gameState !== 'object') {
+        console.log('Game state not initialized, skipping render');
+        return;
+      }
+      
+      // Debug logging
+      console.log('Rendering with gameState:', gameState);
       // Clear canvas
       ctx.fillStyle = '#000';
       ctx.fillRect(0, 0, 800, 400);
 
+      // Add comprehensive defensive checks for game state
+      const safeGameState = gameState || {};
+      
+      // Ensure paddles have y property
+      let leftPaddle = { y: 200 };
+      let rightPaddle = { y: 200 };
+      
+      if (safeGameState.leftPaddle && typeof safeGameState.leftPaddle === 'object' && typeof safeGameState.leftPaddle.y === 'number') {
+        leftPaddle = { y: safeGameState.leftPaddle.y };
+      }
+      
+      if (safeGameState.rightPaddle && typeof safeGameState.rightPaddle === 'object' && typeof safeGameState.rightPaddle.y === 'number') {
+        rightPaddle = { y: safeGameState.rightPaddle.y };
+      }
+      
+      // Ensure ball has x, y properties
+      let ball = { x: 400, y: 200, dx: 5, dy: 3 };
+      if (safeGameState.ball && typeof safeGameState.ball === 'object') {
+        ball = {
+          x: typeof safeGameState.ball.x === 'number' ? safeGameState.ball.x : 400,
+          y: typeof safeGameState.ball.y === 'number' ? safeGameState.ball.y : 200,
+          dx: typeof safeGameState.ball.dx === 'number' ? safeGameState.ball.dx : 5,
+          dy: typeof safeGameState.ball.dy === 'number' ? safeGameState.ball.dy : 3
+        };
+      }
+      
+      const leftScore = typeof safeGameState.leftScore === 'number' ? safeGameState.leftScore : 0;
+      const rightScore = typeof safeGameState.rightScore === 'number' ? safeGameState.rightScore : 0;
+      
+      console.log('Safe rendering values:', { leftPaddle, rightPaddle, ball, leftScore, rightScore });
+
       // Draw paddles
       ctx.fillStyle = '#fff';
-      ctx.fillRect(10, gameState.leftPaddle.y, 10, 100);
-      ctx.fillRect(780, gameState.rightPaddle.y, 10, 100);
+      ctx.fillRect(10, leftPaddle.y, 10, 100);
+      ctx.fillRect(780, rightPaddle.y, 10, 100);
 
       // Draw ball
       ctx.beginPath();
-      ctx.arc(gameState.ball.x, gameState.ball.y, 5, 0, 2 * Math.PI);
+      ctx.arc(ball.x, ball.y, 5, 0, 2 * Math.PI);
       ctx.fillStyle = '#fff';
       ctx.fill();
 
@@ -192,8 +323,8 @@ export const MultiplayerPong: React.FC<MultiplayerPongProps> = ({
       // Draw scores
       ctx.font = '24px Arial';
       ctx.fillStyle = '#fff';
-      ctx.fillText(gameState.leftScore.toString(), 200, 30);
-      ctx.fillText(gameState.rightScore.toString(), 600, 30);
+      ctx.fillText(leftScore.toString(), 200, 30);
+      ctx.fillText(rightScore.toString(), 600, 30);
     };
 
     const interval = setInterval(renderLoop, 16);

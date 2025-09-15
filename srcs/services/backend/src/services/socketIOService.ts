@@ -244,6 +244,7 @@ class SocketIOService {
       console.log(`Starting game in room ${roomId}`);
       
       // Notify all players to start game
+      console.log(`Broadcasting game_start to room ${roomId} with ${room.players.size} players`);
       this.broadcastToRoom(roomId, 'game_start', {
         roomState: room.gameState,
         message: 'Both players ready! Starting game...'
@@ -252,8 +253,22 @@ class SocketIOService {
       // Set game status to playing after a short delay
       setTimeout(() => {
         room.gameState.status = 'playing';
+        
+        // Initialize game data
+        const initialGameData = {
+          leftPaddle: { y: 200 },
+          rightPaddle: { y: 200 },
+          ball: { x: 400, y: 200, dx: 5, dy: 3 },
+          leftScore: 0,
+          rightScore: 0
+        };
+        
+        room.gameState.gameData = initialGameData;
+        
+        console.log(`Broadcasting game_playing to room ${roomId} with ${room.players.size} players`);
         this.broadcastToRoom(roomId, 'game_playing', {
           roomState: room.gameState,
+          gameState: initialGameData,
           message: 'Game is now playing!'
         });
       }, 2000);
@@ -277,15 +292,49 @@ class SocketIOService {
     const room = this.gameRooms.get(roomId);
     if (!room) return;
 
-    room.gameState.gameData = gameState;
+    // Handle different types of game state updates
+    if (gameState.type === 'paddle_move') {
+      // Handle paddle movement
+      console.log('Paddle move from player:', userId, gameState);
+      
+      // Update room's game data with paddle position
+      if (!room.gameState.gameData) {
+        room.gameState.gameData = {
+          leftPaddle: { y: 200 },
+          rightPaddle: { y: 200 },
+          ball: { x: 400, y: 200, dx: 5, dy: 3 },
+          leftScore: 0,
+          rightScore: 0
+        };
+      }
+      
+      // Update the specific paddle position
+      if (gameState.player === 'left') {
+        room.gameState.gameData.leftPaddle = { y: gameState.y };
+      } else if (gameState.player === 'right') {
+        room.gameState.gameData.rightPaddle = { y: gameState.y };
+      }
 
-    // Broadcast to other players (not the sender)
-    const socket = room.players.get(userId);
-    if (socket) {
-      socket.to(roomId).emit('game_state_update', {
-        gameState,
-        fromPlayer: userId
-      });
+      // Broadcast paddle move to other players (not the sender)
+      const socket = room.players.get(userId);
+      if (socket) {
+        socket.to(roomId).emit('game_state_update', {
+          gameState: gameState,
+          fromPlayer: userId
+        });
+      }
+    } else {
+      // Handle other game state updates
+      room.gameState.gameData = gameState;
+
+      // Broadcast to other players (not the sender)
+      const socket = room.players.get(userId);
+      if (socket) {
+        socket.to(roomId).emit('game_state_update', {
+          gameState: gameState,
+          fromPlayer: userId
+        });
+      }
     }
   }
 
@@ -321,6 +370,23 @@ class SocketIOService {
    */
   getIO() {
     return this.io;
+  }
+
+  /**
+   * Clear all tournament game rooms and player mappings
+   * This is used when cleaning up tournament data
+   */
+  clearAllGameRooms(): void {
+    console.log('Clearing all game rooms...');
+    console.log(`Clearing ${this.gameRooms.size} game rooms and ${this.playerRooms.size} player mappings`);
+    
+    // Clear all game rooms
+    this.gameRooms.clear();
+    
+    // Clear all player room mappings
+    this.playerRooms.clear();
+    
+    console.log('✅ All game rooms cleared successfully');
   }
 }
 

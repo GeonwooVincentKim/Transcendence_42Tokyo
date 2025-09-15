@@ -592,4 +592,60 @@ export async function gameRoutes(fastify: FastifyInstance) {
       });
     }
   });
+
+  /**
+   * DELETE /api/game/rooms/clear
+   * Clear all in-memory game rooms (admin function)
+   */
+  fastify.delete('/api/game/rooms/clear', {
+    schema: {
+      description: 'Clear all in-memory game rooms',
+      tags: ['game'],
+      response: {
+        200: {
+          type: 'object',
+          properties: {
+            success: { type: 'boolean' },
+            message: { type: 'string' },
+            clearedRooms: { type: 'number' }
+          }
+        },
+        500: {
+          type: 'object',
+          properties: {
+            success: { type: 'boolean' },
+            error: { type: 'string' }
+          }
+        }
+      }
+    }
+  }, async (request, reply) => {
+    try {
+      // Clear Fastify game rooms
+      const gameRooms = (fastify as any).gameRooms;
+      let clearedCount = 0;
+      
+      if (gameRooms) {
+        clearedCount = gameRooms.size;
+        gameRooms.clear();
+        console.log(`Cleared ${clearedCount} Fastify game rooms`);
+      }
+
+      // Clear Socket.IO game rooms if service is available
+      const socketIOService = (fastify as any).socketIOService;
+      if (socketIOService && typeof socketIOService.clearAllGameRooms === 'function') {
+        socketIOService.clearAllGameRooms();
+        console.log('Cleared Socket.IO game rooms');
+      }
+
+      reply.send({ 
+        success: true, 
+        message: 'All game rooms cleared successfully',
+        clearedRooms: clearedCount
+      });
+    } catch (error) {
+      console.error('Error clearing game rooms:', error);
+      reply.code(500).send({ success: false, error: 'Failed to clear game rooms' });
+    }
+  });
 } 

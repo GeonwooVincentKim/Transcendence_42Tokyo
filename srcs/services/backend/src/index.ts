@@ -187,6 +187,9 @@ const start = async () => {
     
     // Initialize Socket.IO service with Fastify's underlying HTTP server
     socketIOService = new SocketIOService(server.server);
+    
+    // Make Socket.IO service available to routes for cleanup
+    (server as any).socketIOService = socketIOService;
     server.log.info('Socket.IO service initialized');
 
     server.log.info(`Server listening on http://${host}:${port}`);
