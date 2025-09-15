@@ -15,13 +15,14 @@ export async function websocketRoutes(fastify: FastifyInstance) {
       console.log(`WebSocket connection attempt for tournament ${tournamentId}, match ${matchId}`);
       
       // Extract user ID from query parameters (in real implementation, use JWT)
-      const userId = (req.query as any)?.userId as string;
-      if (!userId) {
-        connection.socket.close(1008, 'User ID required');
-        return;
-      }
+      const userId = (req.query as any)?.userId as string || 'anonymous';
 
       console.log(`WebSocket connection established for user ${userId}`);
+
+      // Set up connection immediately
+      connection.socket.on('open', () => {
+        console.log(`WebSocket connection opened for user ${userId}`);
+      });
 
       // Handle incoming messages
       connection.socket.on('message', (message: any) => {
@@ -31,7 +32,7 @@ export async function websocketRoutes(fastify: FastifyInstance) {
 
           switch (data.type) {
             case 'join_room':
-              wsService.joinGameRoom(connection.socket, userId, parseInt(tournamentId), parseInt(matchId));
+              wsService.joinGameRoom(connection, userId, parseInt(tournamentId), parseInt(matchId));
               break;
               
             case 'leave_room':

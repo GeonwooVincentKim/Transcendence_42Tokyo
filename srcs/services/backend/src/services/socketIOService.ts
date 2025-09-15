@@ -1,12 +1,16 @@
 /**
- * WebSocket Service for Real-time Game Synchronization
+ * Socket.IO Service for Real-time Game Synchronization
+ * Provides automatic fallback and reconnection capabilities
  */
+
+import { Server as SocketIOServer } from 'socket.io';
+import { Server as HTTPServer } from 'http';
 
 interface GameRoom {
   id: string;
   tournamentId: number;
   matchId: number;
-  players: Map<string, any>; // Fastify WebSocket connection
+  players: Map<string, any>; // Socket.IO socket
   gameState: {
     status: 'waiting' | 'ready' | 'playing' | 'finished';
     player1Id?: number;
@@ -17,16 +21,89 @@ interface GameRoom {
   };
 }
 
-class WebSocketService {
+class SocketIOService {
+  private io: SocketIOServer;
   private gameRooms: Map<string, GameRoom> = new Map();
   private playerRooms: Map<string, string> = new Map(); // userId -> roomId
 
-  constructor() {}
+  constructor(httpServer: HTTPServer) {
+    this.io = new SocketIOServer(httpServer, {
+      cors: {
+        origin: process.env.NODE_ENV === 'production'
+          ? ['http://localhost:3000', 'http://localhost:80', 'http://frontend:80']
+          : ['http://localhost:3000', 'http://localhost:3002', 'http://localhost:5173', 'http://127.0.0.1:3000', 'http://127.0.0.1:3002', 'http://127.0.0.1:5173'],
+        methods: ['GET', 'POST'],
+        credentials: true
+      },
+      transports: ['websocket', 'polling'], // Enable fallback to polling
+      allowEIO3: true // Backward compatibility
+    });
+
+    this.setupSocketHandlers();
+  }
+
+  /**
+   * Setup Socket.IO event handlers
+   */
+  private setupSocketHandlers() {
+    this.io.on('connection', (socket) => {
+      console.log(`Socket.IO connection established: ${socket.id}`);
+
+      // Handle joining game room
+      socket.on('join_game_room', (data: { tournamentId: number, matchId: number, userId: string }) => {
+        this.joinGameRoom(socket, data.tournamentId, data.matchId, data.userId);
+      });
+
+      // Handle leaving game room
+      socket.on('leave_game_room', (data: { userId: string }) => {
+        this.leaveGameRoom(data.userId);
+      });
+
+      // Handle player ready status
+      socket.on('player_ready', (data: { userId: string, ready: boolean }) => {
+        this.setPlayerReady(data.userId, data.ready);
+      });
+
+      // Handle game state updates
+      socket.on('game_state_update', (data: { userId: string, gameState: any }) => {
+        this.updateGameState(data.userId, data.gameState);
+      });
+
+      // Handle game end
+      socket.on('game_end', (data: { userId: string, gameResult: any }) => {
+        this.endGame(data.userId, data.gameResult);
+      });
+
+      // Handle ping for connection health
+      socket.on('ping', () => {
+        socket.emit('pong');
+      });
+
+      // Handle disconnection
+      socket.on('disconnect', (reason) => {
+        console.log(`Socket.IO disconnected: ${socket.id}, reason: ${reason}`);
+        // Find and remove player from any room
+        for (const [userId, roomId] of this.playerRooms.entries()) {
+          const room = this.gameRooms.get(roomId);
+          if (room && room.players.get(userId) === socket) {
+            this.leaveGameRoom(userId);
+            break;
+          }
+        }
+      });
+
+      // Send welcome message
+      socket.emit('connected', {
+        message: 'Connected to Socket.IO server',
+        socketId: socket.id
+      });
+    });
+  }
 
   /**
    * Join a game room
    */
-  joinGameRoom(connection: any, userId: string, tournamentId: number, matchId: number) {
+  private joinGameRoom(socket: any, tournamentId: number, matchId: number, userId: string) {
     const roomId = `tournament-${tournamentId}-match-${matchId}`;
     
     // Get or create game room
@@ -47,8 +124,11 @@ class WebSocketService {
     }
 
     // Add player to room
-    room.players.set(userId, connection);
+    room.players.set(userId, socket);
     this.playerRooms.set(userId, roomId);
+
+    // Join Socket.IO room for efficient broadcasting
+    socket.join(roomId);
 
     // Determine player position
     const userIdNum = userId === 'anonymous' ? 0 : parseInt(userId);
@@ -65,8 +145,7 @@ class WebSocketService {
     });
 
     // Notify all players in room
-    this.broadcastToRoom(roomId, {
-      type: 'player_joined',
+    this.broadcastToRoom(roomId, 'player_joined', {
       userId,
       roomState: room.gameState,
       message: `Player ${userId} joined the game room`
@@ -79,12 +158,17 @@ class WebSocketService {
   /**
    * Leave a game room
    */
-  leaveGameRoom(userId: string) {
+  private leaveGameRoom(userId: string) {
     const roomId = this.playerRooms.get(userId);
     if (!roomId) return;
 
     const room = this.gameRooms.get(roomId);
     if (!room) return;
+
+    const socket = room.players.get(userId);
+    if (socket) {
+      socket.leave(roomId);
+    }
 
     // Remove player from room
     room.players.delete(userId);
@@ -104,8 +188,7 @@ class WebSocketService {
     console.log(`Player ${userId} left room ${roomId}`);
 
     // Notify remaining players
-    this.broadcastToRoom(roomId, {
-      type: 'player_left',
+    this.broadcastToRoom(roomId, 'player_left', {
       userId,
       roomState: room.gameState,
       message: `Player ${userId} left the game room`
@@ -120,7 +203,7 @@ class WebSocketService {
   /**
    * Player ready status
    */
-  setPlayerReady(userId: string, ready: boolean) {
+  private setPlayerReady(userId: string, ready: boolean) {
     const roomId = this.playerRooms.get(userId);
     if (!roomId) return;
 
@@ -138,8 +221,7 @@ class WebSocketService {
     console.log(`Player ${userId} ready status: ${ready}`, room.gameState);
 
     // Notify all players
-    this.broadcastToRoom(roomId, {
-      type: 'player_ready',
+    this.broadcastToRoom(roomId, 'player_ready', {
       userId,
       ready,
       roomState: room.gameState
@@ -165,8 +247,7 @@ class WebSocketService {
       console.log(`Starting game in room ${roomId}`);
       
       // Notify all players to start game
-      this.broadcastToRoom(roomId, {
-        type: 'game_start',
+      this.broadcastToRoom(roomId, 'game_start', {
         roomState: room.gameState,
         message: 'Both players ready! Starting game...'
       });
@@ -174,8 +255,7 @@ class WebSocketService {
       // Set game status to playing after a short delay
       setTimeout(() => {
         room.gameState.status = 'playing';
-        this.broadcastToRoom(roomId, {
-          type: 'game_playing',
+        this.broadcastToRoom(roomId, 'game_playing', {
           roomState: room.gameState,
           message: 'Game is now playing!'
         });
@@ -186,29 +266,14 @@ class WebSocketService {
   /**
    * Broadcast message to all players in a room
    */
-  private broadcastToRoom(roomId: string, message: any) {
-    const room = this.gameRooms.get(roomId);
-    if (!room) return;
-
-    const messageStr = JSON.stringify(message);
-    
-    room.players.forEach((connection, userId) => {
-      try {
-        if (connection.socket.readyState === 1) { // WebSocket.OPEN = 1
-          connection.socket.send(messageStr);
-        }
-      } catch (error) {
-        console.error(`Failed to send message to player ${userId}:`, error);
-        // Remove disconnected player
-        this.leaveGameRoom(userId);
-      }
-    });
+  private broadcastToRoom(roomId: string, event: string, data: any) {
+    this.io.to(roomId).emit(event, data);
   }
 
   /**
    * Handle game state updates
    */
-  updateGameState(userId: string, gameState: any) {
+  private updateGameState(userId: string, gameState: any) {
     const roomId = this.playerRooms.get(userId);
     if (!roomId) return;
 
@@ -218,27 +283,19 @@ class WebSocketService {
     room.gameState.gameData = gameState;
 
     // Broadcast to other players (not the sender)
-    room.players.forEach((connection, otherUserId) => {
-      if (otherUserId !== userId) {
-        try {
-          if (connection.socket.readyState === 1) { // WebSocket.OPEN = 1
-            connection.socket.send(JSON.stringify({
-              type: 'game_state_update',
-              gameState,
-              fromPlayer: userId
-            }));
-          }
-        } catch (error) {
-          console.error(`Failed to send game state to player ${otherUserId}:`, error);
-        }
-      }
-    });
+    const socket = room.players.get(userId);
+    if (socket) {
+      socket.to(roomId).emit('game_state_update', {
+        gameState,
+        fromPlayer: userId
+      });
+    }
   }
 
   /**
    * Handle game end
    */
-  endGame(userId: string, gameResult: any) {
+  private endGame(userId: string, gameResult: any) {
     const roomId = this.playerRooms.get(userId);
     if (!roomId) return;
 
@@ -247,8 +304,7 @@ class WebSocketService {
 
     room.gameState.status = 'finished';
 
-    this.broadcastToRoom(roomId, {
-      type: 'game_end',
+    this.broadcastToRoom(roomId, 'game_end', {
       gameResult,
       roomState: room.gameState,
       message: 'Game finished!'
@@ -262,6 +318,13 @@ class WebSocketService {
     const room = this.gameRooms.get(roomId);
     return room ? room.gameState : null;
   }
+
+  /**
+   * Get Socket.IO server instance
+   */
+  getIO() {
+    return this.io;
+  }
 }
 
-export default WebSocketService;
+export default SocketIOService;

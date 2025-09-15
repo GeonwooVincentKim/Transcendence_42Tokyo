@@ -39,6 +39,10 @@ export const MultiplayerPong: React.FC<MultiplayerPongProps> = ({
     ws.onopen = () => {
       console.log('WebSocket OPEN');
       setConnected(true);
+      
+      // Send join room message immediately after connection
+      ws.send(JSON.stringify({ type: 'join_room' }));
+      
       // Start ping interval
       pingInterval = setInterval(() => {
         if (ws.readyState === WebSocket.OPEN) {
@@ -53,6 +57,12 @@ export const MultiplayerPong: React.FC<MultiplayerPongProps> = ({
       // Optionally handle pong here if needed
       if (data.type === 'pong') return;
       switch (data.type) {
+        case 'connected':
+          console.log('Connected to game room:', data.message);
+          break;
+        case 'player_joined':
+          console.log('Player joined:', data.message);
+          break;
         case 'game_start':
           setGameState({ ...data.data, status: 'playing' });
           break;

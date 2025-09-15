@@ -157,208 +157,98 @@ const gameRooms = new Map<string, {
 // Tournament state endpoint moved to tournament.ts routes
 
 /**
- * WebSocket endpoint for tournament game rooms (DISABLED - using HTTP polling instead)
+ * WebSocket endpoint for tournament game rooms
  * Handles real-time game synchronization between players
  */
-server.get('/ws/game/:tournamentId/:matchId', { websocket: true }, (connection, req) => {
-  // Extract parameters from URL using multiple methods
-  const url = req.url || req.raw?.url || '';
-  console.log('WebSocket URL:', url);
-  console.log('req.raw.url:', req.raw?.url);
-  console.log('req.params:', req.params);
-  
-  let tournamentId = '';
-  let matchId = '';
-  
-  // Method 1: Try to get from req.params (Fastify WebSocket)
-  if (req.params && (req.params as any).tournamentId && (req.params as any).matchId) {
-    tournamentId = (req.params as any).tournamentId;
-    matchId = (req.params as any).matchId;
-    console.log('Extracted from params:', { tournamentId, matchId });
-  }
-  // Method 2: Extract from URL using regex
-  else if (url) {
-    const urlMatch = url.match(/\/ws\/game\/(\d+)\/(\d+)/);
-    if (urlMatch) {
-      tournamentId = urlMatch[1];
-      matchId = urlMatch[2];
-      console.log('Extracted from URL:', { tournamentId, matchId });
+server.register(async function (fastify) {
+  fastify.get('/ws/game/:tournamentId/:matchId', { websocket: true }, (connection, req) => {
+    const tournamentId = (req.params as any).tournamentId;
+    const matchId = (req.params as any).matchId;
+    const userId = (req.query as any)?.userId as string || 'anonymous';
+    const roomId = `${tournamentId}-${matchId}`;
+
+    console.log(`WebSocket connection established: tournament ${tournamentId}, match ${matchId}, user ${userId}`);
+
+    // Get or create game room
+    let room = gameRooms.get(roomId);
+    if (!room) {
+      room = {
+        players: new Map(),
+        player1Ready: false,
+        player2Ready: false,
+        gameStarted: false
+      };
+      gameRooms.set(roomId, room);
     }
-  }
-  // Method 3: Try to extract from headers or other sources
-  else {
-    console.log('Could not extract parameters from URL:', url);
-    console.log('Attempting to extract from request headers...');
-    // For now, let's try to extract from the request path
-    const path = req.raw?.url || '';
-    const pathMatch = path.match(/\/ws\/game\/(\d+)\/(\d+)/);
-    if (pathMatch) {
-      tournamentId = pathMatch[1];
-      matchId = pathMatch[2];
-      console.log('Extracted from path:', { tournamentId, matchId });
-    } else {
-      console.log('Could not extract parameters, closing connection');
-      connection.socket.end();
-      return;
+
+    // Add player to room
+    room.players.set(userId, connection);
+
+    // Send welcome message immediately
+    try {
+      connection.socket.send(JSON.stringify({
+        type: 'connected',
+        message: 'Connected to game room',
+        tournamentId: parseInt(tournamentId),
+        matchId: parseInt(matchId)
+      }));
+    } catch (error) {
+      console.error('Error sending welcome message:', error);
     }
-  }
-  
-  const userId = (req.query as any)?.userId as string || 'anonymous';
-  const roomId = `${tournamentId}-${matchId}`;
-  
-  console.log(`WebSocket connection attempt for tournament ${tournamentId}, match ${matchId}, user ${userId}`);
-  console.log(`WebSocket connection established for user ${userId}`);
 
-  // Get or create game room
-  let room = gameRooms.get(roomId);
-  if (!room) {
-    room = {
-      players: new Map(),
-      player1Ready: false,
-      player2Ready: false,
-      gameStarted: false
-    };
-    gameRooms.set(roomId, room);
-  }
+    // Handle incoming messages
+    connection.socket.on('message', (data: any) => {
+      try {
+        const message = JSON.parse(data.toString());
+        console.log(`Received message from user ${userId}:`, message);
 
-  // Add player to room
-  room.players.set(userId, connection);
-
-  // Broadcast to all players in room
-  const broadcastToRoom = (message: any) => {
-    room.players.forEach((playerConnection, playerId) => {
-      if (playerConnection.readyState === 1) { // WebSocket.OPEN
-        playerConnection.send(JSON.stringify(message));
+        switch (message.type) {
+          case 'join_room':
+            // Send room joined confirmation
+            try {
+              connection.socket.send(JSON.stringify({
+                type: 'player_joined',
+                userId,
+                message: `Player ${userId} joined the game room`
+              }));
+            } catch (error) {
+              console.error('Error sending join confirmation:', error);
+            }
+            break;
+            
+          case 'ping':
+            // Respond with pong
+            try {
+              connection.socket.send(JSON.stringify({ type: 'pong' }));
+            } catch (error) {
+              console.error('Error sending pong:', error);
+            }
+            break;
+            
+          default:
+            console.log(`Unknown message type: ${message.type}`);
+        }
+      } catch (error) {
+        console.error('Error parsing WebSocket message:', error);
       }
     });
-  };
 
-  // Handle incoming messages
-  connection.socket.on('message', (message: any) => {
-    try {
-      const data = JSON.parse(message.toString());
-      console.log(`Received message from user ${userId}:`, data);
-
-      switch (data.type) {
-        case 'join_room':
-          // Send room joined confirmation to all players
-          broadcastToRoom({
-            type: 'player_joined',
-            userId,
-            roomState: {
-              status: 'waiting',
-              player1Id: room.players.size >= 1 ? parseInt(Array.from(room.players.keys())[0]) : null,
-              player2Id: room.players.size >= 2 ? parseInt(Array.from(room.players.keys())[1]) : null,
-              player1Ready: room.player1Ready,
-              player2Ready: room.player2Ready
-            },
-            message: `Player ${userId} joined the game room`
-          });
-          break;
-          
-        case 'player_ready':
-          // Update ready status
-          if (room.players.size >= 1 && Array.from(room.players.keys())[0] === userId) {
-            room.player1Ready = data.ready;
-          } else if (room.players.size >= 2 && Array.from(room.players.keys())[1] === userId) {
-            room.player2Ready = data.ready;
-          }
-
-          console.log(`Player ${userId} ready: ${data.ready}, Room state:`, {
-            player1Ready: room.player1Ready,
-            player2Ready: room.player2Ready,
-            totalPlayers: room.players.size
-          });
-
-          // Broadcast ready status to all players
-          broadcastToRoom({
-            type: 'player_ready',
-            userId,
-            ready: data.ready,
-            roomState: {
-              status: 'waiting',
-              player1Id: room.players.size >= 1 ? parseInt(Array.from(room.players.keys())[0]) : null,
-              player2Id: room.players.size >= 2 ? parseInt(Array.from(room.players.keys())[1]) : null,
-              player1Ready: room.player1Ready,
-              player2Ready: room.player2Ready
-            }
-          });
-          
-          // If both players are ready and game hasn't started, start game for ALL players
-          if (room.player1Ready && room.player2Ready && !room.gameStarted && room.players.size >= 2) {
-            room.gameStarted = true;
-            console.log(`Starting game for room ${roomId} - both players ready!`);
-            
-            // Send game start to all players
-            setTimeout(() => {
-              broadcastToRoom({
-                type: 'game_start',
-                roomState: {
-                  status: 'ready',
-                  player1Id: parseInt(Array.from(room.players.keys())[0]),
-                  player2Id: parseInt(Array.from(room.players.keys())[1]),
-                  player1Ready: true,
-                  player2Ready: true
-                },
-                message: 'Both players ready! Starting game...'
-              });
-              
-              // Send game playing to all players after 2 seconds
-              setTimeout(() => {
-                broadcastToRoom({
-                  type: 'game_playing',
-                  roomState: {
-                    status: 'playing',
-                    player1Id: parseInt(Array.from(room.players.keys())[0]),
-                    player2Id: parseInt(Array.from(room.players.keys())[1]),
-                    player1Ready: true,
-                    player2Ready: true
-                  },
-                  message: 'Game is now playing!'
-                });
-              }, 2000);
-            }, 1000);
-          }
-          break;
-          
-        default:
-          console.log(`Unknown message type: ${data.type}`);
+    // Handle connection close
+    connection.socket.on('close', () => {
+      console.log(`WebSocket connection closed for user ${userId}`);
+      room.players.delete(userId);
+      
+      // Clean up empty room
+      if (room.players.size === 0) {
+        gameRooms.delete(roomId);
       }
-    } catch (error) {
-      console.error('Error parsing WebSocket message:', error);
-    }
-  });
+    });
 
-  // Handle connection close
-  connection.socket.on('close', () => {
-    console.log(`WebSocket connection closed for user ${userId}`);
-    room.players.delete(userId);
-    
-    // Reset ready status for this player
-    if (room.players.size >= 1 && Array.from(room.players.keys())[0] === userId) {
-      room.player1Ready = false;
-    } else if (room.players.size >= 2 && Array.from(room.players.keys())[1] === userId) {
-      room.player2Ready = false;
-    }
-    
-    // Clean up empty room
-    if (room.players.size === 0) {
-      gameRooms.delete(roomId);
-    }
+    // Handle connection error
+    connection.socket.on('error', (error: any) => {
+      console.error(`WebSocket error for user ${userId}:`, error);
+    });
   });
-
-  // Handle connection error
-  connection.socket.on('error', (error: any) => {
-    console.error(`WebSocket error for user ${userId}:`, error);
-  });
-
-  // Send welcome message
-  connection.socket.send(JSON.stringify({
-    type: 'connected',
-    message: 'Connected to game room',
-    tournamentId: parseInt(tournamentId),
-    matchId: parseInt(matchId)
-  }));
 });
 
 /**
@@ -400,9 +290,9 @@ const start = async () => {
     // Register tournament routes
     await server.register(tournamentRoutes);
     
-    // HTTP polling APIs are now defined outside start() function for proper registration
-    
     // WebSocket routes are now handled directly in index.ts
+    
+    // HTTP polling APIs are now defined outside start() function for proper registration
     
     await server.listen({ port, host });
 
