@@ -34,7 +34,7 @@ const MatchBox: React.FC<MatchBoxProps> = ({ node, position, onClick }) => {
 
   const getPlayerDisplayName = (participant?: TournamentParticipant) => {
     if (!participant) return 'TBD';
-    return participant.display_name;
+    return participant.display_name || 'Unknown Player';
   };
 
   const getPlayerAvatar = (participant?: TournamentParticipant) => {
@@ -42,7 +42,7 @@ const MatchBox: React.FC<MatchBoxProps> = ({ node, position, onClick }) => {
       return (
         <div className="w-6 h-6 bg-gray-300 rounded-full flex items-center justify-center">
           <span className="text-xs font-medium text-gray-600">
-            {participant ? participant.display_name.charAt(0).toUpperCase() : '?'}
+            {participant && participant.display_name ? participant.display_name.charAt(0).toUpperCase() : '?'}
           </span>
         </div>
       );

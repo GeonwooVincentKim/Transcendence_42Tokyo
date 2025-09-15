@@ -23,10 +23,14 @@ export const MultiplayerPong: React.FC<MultiplayerPongProps> = ({
   const [connected, setConnected] = useState(false);
   const [keys, setKeys] = useState<Set<string>>(new Set());
 
-  // Use the current host for WebSocket connection so nginx can proxy /ws/ to the backend
-  // This ensures the frontend works in both local and production environments
+  // Connect to backend WebSocket server directly
+  // Parse roomId to extract tournamentId and matchId for proper route
   useEffect(() => {
-    const ws = new WebSocket(`ws://${window.location.host}/ws/game/` + roomId);
+    // Parse roomId format: "tournamentId-matchId" (e.g., "14-4")
+    const [tournamentId, matchId] = roomId.split('-');
+    const wsUrl = `ws://localhost:8000/ws/game/${tournamentId}/${matchId}`;
+    console.log('Connecting to WebSocket:', wsUrl);
+    const ws = new WebSocket(wsUrl);
     wsRef.current = ws;
 
     let pingInterval: NodeJS.Timeout | null = null;

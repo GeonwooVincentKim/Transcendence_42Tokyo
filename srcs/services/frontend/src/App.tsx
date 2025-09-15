@@ -331,7 +331,16 @@ function App() {
       <div className="min-h-screen bg-gray-900 text-white flex items-center justify-center">
         <div className="text-center">
           <h1 className="text-4xl mb-8">Tournament</h1>
-          <Tournament onBack={() => setView('game')} />
+          <Tournament 
+            onBack={() => setView('game')} 
+            onStartMatch={(_tournamentId, _matchId, roomId) => {
+              // Set up for tournament match
+              setRoomId(roomId);
+              setPlayerSide('left'); // Default to left player
+              setGameMode('multiplayer');
+              setView('game');
+            }}
+          />
         </div>
       </div>
     );

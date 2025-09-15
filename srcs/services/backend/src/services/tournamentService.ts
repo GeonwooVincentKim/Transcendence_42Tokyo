@@ -132,8 +132,8 @@ export class TournamentService {
       throw new Error('Invalid tournament type');
     }
 
-    // Check if user exists (if provided)
-    if (created_by) {
+    // Check if user exists (if provided and not 0)
+    if (created_by && created_by > 0) {
       const user = await DatabaseService.get(
         'SELECT id FROM users WHERE id = ? AND is_active = 1',
         [created_by]
@@ -144,11 +144,13 @@ export class TournamentService {
     }
 
     const settingsJson = settings ? JSON.stringify(settings) : null;
+    // Convert created_by 0 to null for guest users
+    const createdByValue = created_by && created_by > 0 ? created_by : null;
 
     const result = await DatabaseService.run(
       `INSERT INTO tournaments (name, description, max_participants, tournament_type, created_by, settings)
        VALUES (?, ?, ?, ?, ?, ?)`,
-      [name, description, max_participants, tournament_type, created_by, settingsJson]
+      [name, description, max_participants, tournament_type, createdByValue, settingsJson]
     );
 
     console.log('Tournament creation result:', result);

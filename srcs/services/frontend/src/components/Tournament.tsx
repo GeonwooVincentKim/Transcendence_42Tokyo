@@ -20,6 +20,7 @@ import { TournamentBracket } from './TournamentBracket';
 
 interface Props {
   onBack: () => void;
+  onStartMatch?: (tournamentId: number, matchId: number, roomId: string) => void;
 }
 
 interface TournamentFormData {
@@ -37,7 +38,7 @@ interface JoinFormData {
 
 type ViewMode = 'list' | 'create' | 'detail' | 'bracket' | 'join';
 
-export const Tournament: React.FC<Props> = ({ onBack }) => {
+export const Tournament: React.FC<Props> = ({ onBack, onStartMatch }) => {
   // State management
   const [view, setView] = useState<ViewMode>('list');
   const [tournaments, setTournaments] = useState<TournamentData[]>([]);
@@ -188,6 +189,7 @@ export const Tournament: React.FC<Props> = ({ onBack }) => {
       
       const input: JoinTournamentInput = {
         display_name: joinForm.display_name.trim(),
+        user_id: isAuthenticated ? parseInt(currentUser?.id || '0') : undefined,
         guest_alias: !isAuthenticated ? joinForm.guest_alias.trim() : undefined,
         avatar_url: joinForm.avatar_url.trim() || undefined
       };
@@ -702,7 +704,31 @@ export const Tournament: React.FC<Props> = ({ onBack }) => {
   // Handle match click
   const handleMatchClick = (match: TournamentMatch) => {
     console.log('Match clicked:', match);
-    // TODO: Implement match details modal or navigation
+    
+    if (!selectedTournament) {
+      console.error('No tournament selected');
+      return;
+    }
+
+    // Check if match is ready to start (has both players and is pending)
+    if (match.status === 'pending' && match.player1_id && match.player2_id) {
+      const roomId = `${selectedTournament.id}-${match.id}`;
+      console.log('Starting match with roomId:', roomId);
+      
+      if (onStartMatch) {
+        onStartMatch(selectedTournament.id, match.id, roomId);
+      } else {
+        // Fallback: show alert for now
+        alert(`Match ${match.id} is ready to start! Room ID: ${roomId}`);
+      }
+    } else {
+      console.log('Match not ready to start:', {
+        status: match.status,
+        player1_id: match.player1_id,
+        player2_id: match.player2_id
+      });
+      alert('This match is not ready to start yet. Both players must be assigned and match must be pending.');
+    }
   };
 
   // Render bracket view

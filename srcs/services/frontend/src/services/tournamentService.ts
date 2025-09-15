@@ -121,10 +121,17 @@ class TournamentService {
     
     const defaultOptions: RequestInit = {
       headers: {
-        'Content-Type': 'application/json',
         ...options.headers,
       },
     };
+
+    // Only set Content-Type for requests with a body
+    if (options.body) {
+      defaultOptions.headers = {
+        'Content-Type': 'application/json',
+        ...defaultOptions.headers,
+      };
+    }
 
     const response = await fetch(url, { ...defaultOptions, ...options });
     
@@ -226,6 +233,7 @@ class TournamentService {
   async startTournament(id: number): Promise<void> {
     await this.request(`/api/tournaments/${id}/start`, {
       method: 'POST',
+      body: JSON.stringify({}),
     });
   }
 

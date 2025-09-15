@@ -161,76 +161,52 @@ const gameRooms = new Map<string, {
  * Handles real-time game synchronization between players
  */
 server.get('/ws/game/:tournamentId/:matchId', { websocket: true }, (connection, req) => {
-  // Extract parameters from URL - use different methods to get URL
+  // Extract parameters from URL using multiple methods
   const url = req.url || req.raw?.url || '';
   console.log('WebSocket URL:', url);
   console.log('req.raw.url:', req.raw?.url);
-  console.log('req.routerPath:', (req as any).routerPath);
   console.log('req.params:', req.params);
-  console.log('req.raw?.method:', req.raw?.method);
-  console.log('req.raw?.headers:', req.raw?.headers);
   
   let tournamentId = '';
   let matchId = '';
   
-  // Try multiple methods to extract URL
-  let extractedUrl = url;
-  
-  // Method 1: Direct URL
-  if (!extractedUrl) {
-    extractedUrl = req.raw?.url || '';
+  // Method 1: Try to get from req.params (Fastify WebSocket)
+  if (req.params && (req.params as any).tournamentId && (req.params as any).matchId) {
+    tournamentId = (req.params as any).tournamentId;
+    matchId = (req.params as any).matchId;
+    console.log('Extracted from params:', { tournamentId, matchId });
   }
-  
-  // Method 2: From routerPath
-  if (!extractedUrl && (req as any).routerPath) {
-    extractedUrl = (req as any).routerPath;
-  }
-  
-  // Method 3: From params if available
-  if (!extractedUrl && req.params) {
-  const params = req.params as any;
-    if (params.tournamentId && params.matchId) {
-      tournamentId = params.tournamentId;
-      matchId = params.matchId;
-      console.log('Extracted from params:', { tournamentId, matchId });
-    }
-  }
-  
-  // Method 4: Try to extract from URL pattern
-  if (!tournamentId || !matchId) {
-    const urlMatch = extractedUrl.match(/\/ws\/game\/(\d+)\/(\d+)/);
+  // Method 2: Extract from URL using regex
+  else if (url) {
+    const urlMatch = url.match(/\/ws\/game\/(\d+)\/(\d+)/);
     if (urlMatch) {
       tournamentId = urlMatch[1];
       matchId = urlMatch[2];
       console.log('Extracted from URL:', { tournamentId, matchId });
+    }
+  }
+  // Method 3: Try to extract from headers or other sources
+  else {
+    console.log('Could not extract parameters from URL:', url);
+    console.log('Attempting to extract from request headers...');
+    // For now, let's try to extract from the request path
+    const path = req.raw?.url || '';
+    const pathMatch = path.match(/\/ws\/game\/(\d+)\/(\d+)/);
+    if (pathMatch) {
+      tournamentId = pathMatch[1];
+      matchId = pathMatch[2];
+      console.log('Extracted from path:', { tournamentId, matchId });
     } else {
-      console.log('Could not extract parameters from URL:', extractedUrl);
-      
-      // Method 5: Try to extract from headers (Fastify WebSocket workaround)
-      const headers = req.raw?.headers;
-      if (headers && headers['sec-websocket-protocol']) {
-        const protocol = headers['sec-websocket-protocol'];
-        console.log('WebSocket protocol:', protocol);
-      }
-      
-      // Method 6: Try manual hardcoded extraction for testing
-      console.log('Attempting hardcoded extraction for testing...');
-      tournamentId = '2';
-      matchId = '3';
-      console.log('Using hardcoded values for testing:', { tournamentId, matchId });
+      console.log('Could not extract parameters, closing connection');
+      connection.socket.end();
+      return;
     }
   }
   
-  const userId = (req.query as any)?.userId as string;
+  const userId = (req.query as any)?.userId as string || 'anonymous';
   const roomId = `${tournamentId}-${matchId}`;
   
   console.log(`WebSocket connection attempt for tournament ${tournamentId}, match ${matchId}, user ${userId}`);
-  
-  if (!userId) {
-    console.log('No userId provided, closing connection');
-    return;
-  }
-
   console.log(`WebSocket connection established for user ${userId}`);
 
   // Get or create game room

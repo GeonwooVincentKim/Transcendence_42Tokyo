@@ -581,6 +581,11 @@ export async function tournamentRoutes(fastify: FastifyInstance) {
         },
         required: ['id']
       },
+      body: {
+        type: 'object',
+        properties: {},
+        additionalProperties: false
+      },
       response: {
         200: {
           type: 'object',
@@ -773,7 +778,7 @@ export async function tournamentRoutes(fastify: FastifyInstance) {
       }
 
       await TournamentService.cancelTournament(tournamentId);
-      reply.send({
+      reply.send({ 
         success: true,
         message: 'Tournament cancelled successfully'
       });
