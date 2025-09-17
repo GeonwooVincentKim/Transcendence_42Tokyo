@@ -594,6 +594,35 @@ export async function gameRoutes(fastify: FastifyInstance) {
   });
 
   /**
+   * POST /api/game/:tournamentId/:matchId/start-loop
+   * Manually start game loop for debugging
+   */
+  fastify.post<{ Params: { tournamentId: string; matchId: string } }>('/api/game/:tournamentId/:matchId/start-loop', async (request, reply) => {
+    try {
+      const { tournamentId, matchId } = request.params;
+      const roomId = `tournament-${tournamentId}-match-${matchId}`;
+      
+      const socketIOService = (fastify as any).socketIOService;
+      if (socketIOService) {
+        // Force start game loop
+        (socketIOService as any).startGameLoop(roomId);
+        console.log(`Manually started game loop for room ${roomId}`);
+      }
+      
+      return reply.status(200).send({
+        message: 'Game loop started manually',
+        roomId: roomId
+      });
+    } catch (error) {
+      console.error('Error starting game loop:', error);
+      return reply.status(500).send({
+        error: 'Failed to start game loop',
+        message: error instanceof Error ? error.message : 'Unknown error occurred'
+      });
+    }
+  });
+
+  /**
    * DELETE /api/game/rooms/clear
    * Clear all in-memory game rooms (admin function)
    */

@@ -116,6 +116,38 @@ export const MultiplayerPong: React.FC<MultiplayerPongProps> = ({
           return;
         }
         
+        // Check if this is a game reset message
+        if (data.gameState && data.type === 'game_reset') {
+          console.log('Game reset received in onGameStateUpdate:', data.gameState);
+          
+          setGameState(prev => ({
+            ...prev,
+            // Reset to initial game state
+            leftPaddle: { y: 200 },
+            rightPaddle: { y: 200 },
+            ball: { x: 400, y: 200, dx: 5, dy: 3 },
+            leftScore: 0,
+            rightScore: 0,
+            status: 'ready', // Reset to ready state
+            winner: undefined
+          }));
+          
+          // Force immediate re-render by triggering a state update
+          setTimeout(() => {
+            setGameState(currentState => ({
+              ...currentState,
+              // Ensure the reset state is properly applied
+              leftPaddle: { y: 200 },
+              rightPaddle: { y: 200 },
+              ball: { x: 400, y: 200, dx: 5, dy: 3 },
+              leftScore: 0,
+              rightScore: 0,
+              status: 'ready'
+            }));
+          }, 100);
+          return;
+        }
+        
         // Handle full game state updates
         const gameData = data.gameState || data.roomState?.gameData || data;
         
@@ -349,6 +381,19 @@ export const MultiplayerPong: React.FC<MultiplayerPongProps> = ({
   };
 
   const handleReset = () => {
+    // Immediately update local state for instant UI feedback
+    setGameState(prev => ({
+      ...prev,
+      leftPaddle: { y: 200 },
+      rightPaddle: { y: 200 },
+      ball: { x: 400, y: 200, dx: 5, dy: 3 },
+      leftScore: 0,
+      rightScore: 0,
+      status: 'ready',
+      winner: undefined
+    }));
+    
+    // Send reset message to server
     if (socketServiceRef.current && socketServiceRef.current.isConnected()) {
       socketServiceRef.current.sendGameStateUpdate({
         type: 'game_reset'

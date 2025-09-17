@@ -153,6 +153,14 @@ class SocketIOService {
 
     // Check if both players are ready
     this.checkGameReadiness(roomId);
+    
+    // Auto-start game loop if both players are present (for debugging)
+    if (room.players.size === 2) {
+      console.log(`Auto-starting game loop for room ${roomId} with 2 players`);
+      setTimeout(() => {
+        this.startGameLoop(roomId);
+      }, 1000);
+    }
   }
 
   /**
@@ -329,6 +337,30 @@ class SocketIOService {
           fromPlayer: userId
         });
       }
+    } else if (gameState.type === 'game_reset') {
+      // Handle game reset
+      console.log('Game reset requested by player:', userId);
+      
+      // Reset game data to initial state
+      room.gameState.gameData = {
+        leftPaddle: { y: 200 },
+        rightPaddle: { y: 200 },
+        ball: { x: 400, y: 200, dx: 5, dy: 3 },
+        leftScore: 0,
+        rightScore: 0
+      };
+      
+      // Stop current game loop
+      this.stopGameLoop(roomId);
+      
+      // Broadcast reset to all players in the room
+      this.broadcastToRoom(roomId, 'game_state_update', {
+        gameState: room.gameState.gameData,
+        fromPlayer: 'server',
+        type: 'game_reset'
+      });
+      
+      console.log('Game reset completed for room:', roomId);
     } else {
       // Handle other game state updates
       room.gameState.gameData = gameState;
@@ -384,7 +416,7 @@ class SocketIOService {
   /**
    * Start game loop for a room
    */
-  private startGameLoop(roomId: string) {
+  public startGameLoop(roomId: string) {
     const room = this.gameRooms.get(roomId);
     if (!room || !room.gameState.gameData) return;
 
@@ -396,10 +428,11 @@ class SocketIOService {
 
     console.log(`Starting game loop for room ${roomId}`);
     
-    // Game loop runs at 60 FPS (16.67ms intervals)
+    // Game loop runs at 30 FPS (33ms intervals) for better debugging
     const gameLoop = setInterval(() => {
+      console.log(`Game loop tick for room ${roomId}`);
       this.updateGamePhysics(roomId);
-    }, 16);
+    }, 33);
 
     this.gameLoops.set(roomId, gameLoop);
   }
@@ -422,10 +455,16 @@ class SocketIOService {
   private updateGamePhysics(roomId: string) {
     const room = this.gameRooms.get(roomId);
     if (!room || !room.gameState.gameData || room.gameState.status !== 'playing') {
+      console.log(`Game physics update skipped for room ${roomId}:`, {
+        roomExists: !!room,
+        hasGameData: !!room?.gameState?.gameData,
+        status: room?.gameState?.status
+      });
       return;
     }
 
     const gameData = room.gameState.gameData;
+    console.log(`Updating game physics for room ${roomId}, ball position:`, gameData.ball);
     
     // Update ball position
     gameData.ball.x += gameData.ball.dx;
@@ -468,6 +507,13 @@ class SocketIOService {
     }
 
     // Broadcast updated game state to all players in the room
+    console.log(`Broadcasting game state update to room ${roomId}:`, {
+      ball: gameData.ball,
+      leftScore: gameData.leftScore,
+      rightScore: gameData.rightScore,
+      players: room.players.size
+    });
+    
     this.broadcastToRoom(roomId, 'game_state_update', {
       gameState: gameData,
       fromPlayer: 'server'
