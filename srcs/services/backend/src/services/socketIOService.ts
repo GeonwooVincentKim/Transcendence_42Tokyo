@@ -24,7 +24,8 @@ interface GameRoom {
 class SocketIOService {
   private io: SocketIOServer;
   private gameRooms: Map<string, GameRoom> = new Map();
-  private playerRooms: Map<string, string> = new Map(); // userId -> roomId
+  private playerRooms: Map<string, string> = new Map();
+  private gameLoops: Map<string, NodeJS.Timeout> = new Map(); // userId -> roomId
 
   constructor(httpServer: HTTPServer) {
     this.io = new SocketIOServer(httpServer, {
@@ -194,6 +195,8 @@ class SocketIOService {
 
     // Clean up empty room
     if (room.players.size === 0) {
+      // Stop game loop if room is empty
+      this.stopGameLoop(roomId);
       this.gameRooms.delete(roomId);
     }
   }
@@ -271,6 +274,9 @@ class SocketIOService {
           gameState: initialGameData,
           message: 'Game is now playing!'
         });
+        
+        // Start game loop for this room
+        this.startGameLoop(roomId);
       }, 2000);
     }
   }
@@ -349,6 +355,9 @@ class SocketIOService {
     if (!room) return;
 
     room.gameState.status = 'finished';
+    
+    // Stop game loop when game ends
+    this.stopGameLoop(roomId);
 
     this.broadcastToRoom(roomId, 'game_end', {
       gameResult,
@@ -373,12 +382,121 @@ class SocketIOService {
   }
 
   /**
+   * Start game loop for a room
+   */
+  private startGameLoop(roomId: string) {
+    const room = this.gameRooms.get(roomId);
+    if (!room || !room.gameState.gameData) return;
+
+    // Clear existing game loop if any
+    const existingLoop = this.gameLoops.get(roomId);
+    if (existingLoop) {
+      clearInterval(existingLoop);
+    }
+
+    console.log(`Starting game loop for room ${roomId}`);
+    
+    // Game loop runs at 60 FPS (16.67ms intervals)
+    const gameLoop = setInterval(() => {
+      this.updateGamePhysics(roomId);
+    }, 16);
+
+    this.gameLoops.set(roomId, gameLoop);
+  }
+
+  /**
+   * Stop game loop for a room
+   */
+  private stopGameLoop(roomId: string) {
+    const gameLoop = this.gameLoops.get(roomId);
+    if (gameLoop) {
+      clearInterval(gameLoop);
+      this.gameLoops.delete(roomId);
+      console.log(`Stopped game loop for room ${roomId}`);
+    }
+  }
+
+  /**
+   * Update game physics (ball movement, collisions, scoring)
+   */
+  private updateGamePhysics(roomId: string) {
+    const room = this.gameRooms.get(roomId);
+    if (!room || !room.gameState.gameData || room.gameState.status !== 'playing') {
+      return;
+    }
+
+    const gameData = room.gameState.gameData;
+    
+    // Update ball position
+    gameData.ball.x += gameData.ball.dx;
+    gameData.ball.y += gameData.ball.dy;
+
+    // Ball collision with top and bottom walls
+    if (gameData.ball.y <= 5 || gameData.ball.y >= 395) {
+      gameData.ball.dy = -gameData.ball.dy;
+    }
+
+    // Ball collision with left paddle
+    if (gameData.ball.x <= 20 && 
+        gameData.ball.x >= 10 && 
+        gameData.ball.y >= gameData.leftPaddle.y && 
+        gameData.ball.y <= gameData.leftPaddle.y + 100) {
+      gameData.ball.dx = -gameData.ball.dx;
+      // Add some randomness to ball direction
+      gameData.ball.dy += (Math.random() - 0.5) * 2;
+    }
+
+    // Ball collision with right paddle
+    if (gameData.ball.x >= 780 && 
+        gameData.ball.x <= 790 && 
+        gameData.ball.y >= gameData.rightPaddle.y && 
+        gameData.ball.y <= gameData.rightPaddle.y + 100) {
+      gameData.ball.dx = -gameData.ball.dx;
+      // Add some randomness to ball direction
+      gameData.ball.dy += (Math.random() - 0.5) * 2;
+    }
+
+    // Scoring
+    if (gameData.ball.x < 0) {
+      // Right player scores
+      gameData.rightScore++;
+      this.resetBall(gameData);
+    } else if (gameData.ball.x > 800) {
+      // Left player scores
+      gameData.leftScore++;
+      this.resetBall(gameData);
+    }
+
+    // Broadcast updated game state to all players in the room
+    this.broadcastToRoom(roomId, 'game_state_update', {
+      gameState: gameData,
+      fromPlayer: 'server'
+    });
+  }
+
+  /**
+   * Reset ball to center after scoring
+   */
+  private resetBall(gameData: any) {
+    gameData.ball.x = 400;
+    gameData.ball.y = 200;
+    gameData.ball.dx = (Math.random() > 0.5 ? 1 : -1) * 5;
+    gameData.ball.dy = (Math.random() - 0.5) * 6;
+  }
+
+  /**
    * Clear all tournament game rooms and player mappings
    * This is used when cleaning up tournament data
    */
   clearAllGameRooms(): void {
     console.log('Clearing all game rooms...');
     console.log(`Clearing ${this.gameRooms.size} game rooms and ${this.playerRooms.size} player mappings`);
+    
+    // Stop all game loops
+    for (const [roomId, gameLoop] of this.gameLoops) {
+      clearInterval(gameLoop);
+    }
+    this.gameLoops.clear();
     
     // Clear all game rooms
     this.gameRooms.clear();
