@@ -339,7 +339,7 @@ class SocketIOService {
       }
     } else if (gameState.type === 'game_reset') {
       // Handle game reset
-      console.log('Game reset requested by player:', userId);
+      console.log('🔄 RESET REQUESTED by player:', userId);
       
       // Reset game data to initial state
       room.gameState.gameData = {
@@ -350,17 +350,36 @@ class SocketIOService {
         rightScore: 0
       };
       
+      // Set game status to ready
+      room.gameState.status = 'ready';
+      
       // Stop current game loop
       this.stopGameLoop(roomId);
       
-      // Broadcast reset to all players in the room
+      // Broadcast reset to all players in the room (including the sender)
+      console.log(`📡 Broadcasting reset to ${room.players.size} players in room ${roomId}`);
+      
       this.broadcastToRoom(roomId, 'game_state_update', {
         gameState: room.gameState.gameData,
         fromPlayer: 'server',
         type: 'game_reset'
       });
       
-      console.log('Game reset completed for room:', roomId);
+      // Also broadcast the room state update
+      this.broadcastToRoom(roomId, 'game_playing', {
+        roomState: room.gameState,
+        gameState: room.gameState.gameData,
+        message: 'Game reset completed!'
+      });
+      
+      // Additional explicit reset broadcast to ensure all players receive it
+      this.broadcastToRoom(roomId, 'game_reset', {
+        gameState: room.gameState.gameData,
+        roomState: room.gameState,
+        message: 'Game reset completed!'
+      });
+      
+      console.log('✅ RESET COMPLETED for room:', roomId);
     } else {
       // Handle other game state updates
       room.gameState.gameData = gameState;
@@ -428,9 +447,10 @@ class SocketIOService {
 
     console.log(`Starting game loop for room ${roomId}`);
     
-    // Game loop runs at 30 FPS (33ms intervals) for better debugging
+    // Game loop runs at 30 FPS (33ms intervals)
     const gameLoop = setInterval(() => {
-      console.log(`Game loop tick for room ${roomId}`);
+      // Debug logging disabled for cleaner console
+      // console.log(`Game loop tick for room ${roomId}`);
       this.updateGamePhysics(roomId);
     }, 33);
 
@@ -464,7 +484,21 @@ class SocketIOService {
     }
 
     const gameData = room.gameState.gameData;
-    console.log(`Updating game physics for room ${roomId}, ball position:`, gameData.ball);
+    
+    // Ensure ball exists and has required properties
+    if (!gameData.ball || typeof gameData.ball.x !== 'number' || typeof gameData.ball.y !== 'number') {
+      console.log(`⚠️ Ball data is invalid, reinitializing for room ${roomId}:`, gameData.ball);
+      gameData.ball = { x: 400, y: 200, dx: 5, dy: 3 };
+    }
+    
+    // Ensure ball has velocity properties
+    if (typeof gameData.ball.dx !== 'number' || typeof gameData.ball.dy !== 'number') {
+      gameData.ball.dx = gameData.ball.dx || 5;
+      gameData.ball.dy = gameData.ball.dy || 3;
+    }
+    
+    // Debug logging disabled for cleaner console
+    // console.log(`Updating game physics for room ${roomId}, ball position:`, gameData.ball);
     
     // Update ball position
     gameData.ball.x += gameData.ball.dx;
@@ -507,12 +541,13 @@ class SocketIOService {
     }
 
     // Broadcast updated game state to all players in the room
-    console.log(`Broadcasting game state update to room ${roomId}:`, {
-      ball: gameData.ball,
-      leftScore: gameData.leftScore,
-      rightScore: gameData.rightScore,
-      players: room.players.size
-    });
+    // Debug logging disabled for cleaner console
+    // console.log(`Broadcasting game state update to room ${roomId}:`, {
+    //   ball: gameData.ball,
+    //   leftScore: gameData.leftScore,
+    //   rightScore: gameData.rightScore,
+    //   players: room.players.size
+    // });
     
     this.broadcastToRoom(roomId, 'game_state_update', {
       gameState: gameData,

@@ -15,6 +15,7 @@ interface SocketIOEventHandlers {
   onGameStart?: (data: any) => void;
   onGamePlaying?: (data: any) => void;
   onGameStateUpdate?: (data: any) => void;
+  onGameReset?: (data: any) => void;
   onGameEnd?: (data: any) => void;
   onPong?: () => void;
   onDisconnect?: (reason: string) => void;
@@ -217,6 +218,11 @@ class SocketIOService {
     this.socket.on('game_state_update', (data) => {
       console.log('Game state update:', data);
       this.eventHandlers.onGameStateUpdate?.(data);
+    });
+
+    this.socket.on('game_reset', (data) => {
+      console.log('🔄 Game reset event received:', data);
+      this.eventHandlers.onGameReset?.(data);
     });
 
     this.socket.on('game_end', (data) => {

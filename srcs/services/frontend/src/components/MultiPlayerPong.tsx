@@ -80,6 +80,23 @@ export const MultiplayerPong: React.FC<MultiplayerPongProps> = ({
         
         console.log('🎮 Game state updated to:', serverStatus, 'with initial game data:', gameData);
       },
+      onGameReset: (data) => {
+        console.log('🔄 GAME RESET EVENT RECEIVED:', data);
+        
+        setGameState(prev => ({
+          ...prev,
+          // Reset to initial game state
+          leftPaddle: { y: 200 },
+          rightPaddle: { y: 200 },
+          ball: { x: 400, y: 200, dx: 5, dy: 3 },
+          leftScore: 0,
+          rightScore: 0,
+          status: 'ready',
+          winner: undefined
+        }));
+        
+        console.log('✅ RESET: State updated from game_reset event');
+      },
       onGameStateUpdate: (data) => {
         console.log('Game state update:', data);
         console.log('Game state update data.gameState:', data.gameState);
@@ -118,7 +135,7 @@ export const MultiplayerPong: React.FC<MultiplayerPongProps> = ({
         
         // Check if this is a game reset message
         if (data.gameState && data.type === 'game_reset') {
-          console.log('Game reset received in onGameStateUpdate:', data.gameState);
+          console.log('🔄 RESET MESSAGE RECEIVED from server:', data.gameState);
           
           setGameState(prev => ({
             ...prev,
@@ -132,6 +149,8 @@ export const MultiplayerPong: React.FC<MultiplayerPongProps> = ({
             winner: undefined
           }));
           
+          console.log('✅ RESET: State updated from server message');
+          
           // Force immediate re-render by triggering a state update
           setTimeout(() => {
             setGameState(currentState => ({
@@ -144,6 +163,7 @@ export const MultiplayerPong: React.FC<MultiplayerPongProps> = ({
               rightScore: 0,
               status: 'ready'
             }));
+            console.log('🔄 RESET: Forced re-render completed');
           }, 100);
           return;
         }
@@ -298,8 +318,8 @@ export const MultiplayerPong: React.FC<MultiplayerPongProps> = ({
         return;
       }
       
-      // Debug logging
-      console.log('Rendering with gameState:', gameState);
+      // Debug logging disabled for cleaner console
+      // console.log('Rendering with gameState:', gameState);
       // Clear canvas
       ctx.fillStyle = '#000';
       ctx.fillRect(0, 0, 800, 400);
@@ -333,7 +353,8 @@ export const MultiplayerPong: React.FC<MultiplayerPongProps> = ({
       const leftScore = typeof safeGameState.leftScore === 'number' ? safeGameState.leftScore : 0;
       const rightScore = typeof safeGameState.rightScore === 'number' ? safeGameState.rightScore : 0;
       
-      console.log('Safe rendering values:', { leftPaddle, rightPaddle, ball, leftScore, rightScore });
+      // Debug logging disabled for cleaner console
+      // console.log('Safe rendering values:', { leftPaddle, rightPaddle, ball, leftScore, rightScore });
 
       // Draw paddles with final safety checks
       ctx.fillStyle = '#fff';
@@ -381,6 +402,8 @@ export const MultiplayerPong: React.FC<MultiplayerPongProps> = ({
   };
 
   const handleReset = () => {
+    console.log('🔄 RESET BUTTON CLICKED - Resetting game state immediately');
+    
     // Immediately update local state for instant UI feedback
     setGameState(prev => ({
       ...prev,
@@ -393,11 +416,14 @@ export const MultiplayerPong: React.FC<MultiplayerPongProps> = ({
       winner: undefined
     }));
     
+    console.log('✅ RESET: Local state updated immediately');
+    
     // Send reset message to server
     if (socketServiceRef.current && socketServiceRef.current.isConnected()) {
       socketServiceRef.current.sendGameStateUpdate({
         type: 'game_reset'
       });
+      console.log('📡 RESET: Message sent to server');
     }
   };
 
