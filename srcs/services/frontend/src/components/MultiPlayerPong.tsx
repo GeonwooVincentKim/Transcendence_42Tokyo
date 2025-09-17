@@ -213,7 +213,9 @@ export const MultiplayerPong: React.FC<MultiplayerPongProps> = ({
         const rightPaddle = (safeGameState.rightPaddle && typeof safeGameState.rightPaddle === 'object') 
           ? safeGameState.rightPaddle 
           : { y: 200 };
-        const currentY = playerSide === 'left' ? leftPaddle.y : rightPaddle.y;
+        const currentY = playerSide === 'left' 
+          ? ((leftPaddle && typeof leftPaddle.y === 'number') ? leftPaddle.y : 200)
+          : ((rightPaddle && typeof rightPaddle.y === 'number') ? rightPaddle.y : 200);
         let newY = typeof currentY === 'number' ? currentY : 200;
         
         if ((key === 'w' || key === 'arrowup') && newY > 0) {
@@ -301,14 +303,20 @@ export const MultiplayerPong: React.FC<MultiplayerPongProps> = ({
       
       console.log('Safe rendering values:', { leftPaddle, rightPaddle, ball, leftScore, rightScore });
 
-      // Draw paddles
+      // Draw paddles with final safety checks
       ctx.fillStyle = '#fff';
-      ctx.fillRect(10, leftPaddle.y, 10, 100);
-      ctx.fillRect(780, rightPaddle.y, 10, 100);
+      const leftPaddleY = (leftPaddle && typeof leftPaddle.y === 'number') ? leftPaddle.y : 200;
+      const rightPaddleY = (rightPaddle && typeof rightPaddle.y === 'number') ? rightPaddle.y : 200;
+      
+      ctx.fillRect(10, leftPaddleY, 10, 100);
+      ctx.fillRect(780, rightPaddleY, 10, 100);
 
-      // Draw ball
+      // Draw ball with final safety checks
+      const ballX = (ball && typeof ball.x === 'number') ? ball.x : 400;
+      const ballY = (ball && typeof ball.y === 'number') ? ball.y : 200;
+      
       ctx.beginPath();
-      ctx.arc(ball.x, ball.y, 5, 0, 2 * Math.PI);
+      ctx.arc(ballX, ballY, 5, 0, 2 * Math.PI);
       ctx.fillStyle = '#fff';
       ctx.fill();
 
