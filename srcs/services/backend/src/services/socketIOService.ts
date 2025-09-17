@@ -12,7 +12,7 @@ interface GameRoom {
   matchId: number;
   players: Map<string, any>; // Socket.IO socket
   gameState: {
-    status: 'waiting' | 'ready' | 'playing' | 'finished';
+    status: 'waiting' | 'ready' | 'playing' | 'paused' | 'finished';
     player1Id?: string; // Changed to string to support unique player IDs
     player2Id?: string; // Changed to string to support unique player IDs
     player1Ready: boolean;
@@ -380,6 +380,60 @@ class SocketIOService {
       });
       
       console.log('✅ RESET COMPLETED for room:', roomId);
+    } else if (gameState.type === 'game_pause') {
+      // Handle game pause
+      console.log('⏸️ PAUSE REQUESTED by player:', userId);
+      
+      // Set game status to paused
+      room.gameState.status = 'paused';
+      
+      // Stop current game loop
+      this.stopGameLoop(roomId);
+      
+      // Broadcast pause to all players in the room
+      console.log(`📡 Broadcasting pause to ${room.players.size} players in room ${roomId}`);
+      
+      this.broadcastToRoom(roomId, 'game_state_update', {
+        gameState: room.gameState.gameData,
+        fromPlayer: 'server',
+        type: 'game_pause'
+      });
+      
+      // Also broadcast the room state update
+      this.broadcastToRoom(roomId, 'game_playing', {
+        roomState: room.gameState,
+        gameState: room.gameState.gameData,
+        message: 'Game paused!'
+      });
+      
+      console.log('✅ PAUSE COMPLETED for room:', roomId);
+    } else if (gameState.type === 'game_resume') {
+      // Handle game resume
+      console.log('▶️ RESUME REQUESTED by player:', userId);
+      
+      // Set game status to playing
+      room.gameState.status = 'playing';
+      
+      // Start game loop again
+      this.startGameLoop(roomId);
+      
+      // Broadcast resume to all players in the room
+      console.log(`📡 Broadcasting resume to ${room.players.size} players in room ${roomId}`);
+      
+      this.broadcastToRoom(roomId, 'game_state_update', {
+        gameState: room.gameState.gameData,
+        fromPlayer: 'server',
+        type: 'game_resume'
+      });
+      
+      // Also broadcast the room state update
+      this.broadcastToRoom(roomId, 'game_playing', {
+        roomState: room.gameState,
+        gameState: room.gameState.gameData,
+        message: 'Game resumed!'
+      });
+      
+      console.log('✅ RESUME COMPLETED for room:', roomId);
     } else {
       // Handle other game state updates
       room.gameState.gameData = gameState;

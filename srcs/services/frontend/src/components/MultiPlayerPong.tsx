@@ -163,10 +163,36 @@ export const MultiplayerPong: React.FC<MultiplayerPongProps> = ({
               rightScore: 0,
               status: 'ready'
             }));
-            console.log('🔄 RESET: Forced re-render completed');
-          }, 100);
-          return;
-        }
+          console.log('🔄 RESET: Forced re-render completed');
+        }, 100);
+        return;
+      }
+      
+      // Check if this is a game pause message
+      if (data.gameState && data.type === 'game_pause') {
+        console.log('⏸️ PAUSE MESSAGE RECEIVED from server:', data.gameState);
+        
+        setGameState(prev => ({
+          ...prev,
+          status: 'paused'
+        }));
+        
+        console.log('✅ PAUSE: State updated from server message');
+        return;
+      }
+      
+      // Check if this is a game resume message
+      if (data.gameState && data.type === 'game_resume') {
+        console.log('▶️ RESUME MESSAGE RECEIVED from server:', data.gameState);
+        
+        setGameState(prev => ({
+          ...prev,
+          status: 'playing'
+        }));
+        
+        console.log('✅ RESUME: State updated from server message');
+        return;
+      }
         
         // Handle full game state updates
         const gameData = data.gameState || data.roomState?.gameData || data;
@@ -394,10 +420,22 @@ export const MultiplayerPong: React.FC<MultiplayerPongProps> = ({
 
   // Game control functions
   const handlePause = () => {
+    console.log('⏸️ PAUSE BUTTON CLICKED - Pausing game state immediately');
+    
+    // Immediately update local state for instant UI feedback
+    setGameState(prev => ({
+      ...prev,
+      status: 'paused'
+    }));
+    
+    console.log('✅ PAUSE: Local state updated immediately');
+    
+    // Send pause message to server
     if (socketServiceRef.current && socketServiceRef.current.isConnected()) {
       socketServiceRef.current.sendGameStateUpdate({
         type: 'game_pause'
       });
+      console.log('📡 PAUSE: Message sent to server');
     }
   };
 
@@ -429,9 +467,32 @@ export const MultiplayerPong: React.FC<MultiplayerPongProps> = ({
 
   // Sends a 'player_ready' message to the server when the Start button is clicked.
   // This is used to signal that the player is ready to begin the multiplayer game.
+  // Also handles resuming from paused state.
   const handleStart = () => {
-    if (socketServiceRef.current && socketServiceRef.current.isConnected()) {
-      socketServiceRef.current.sendPlayerReady(true);
+    if (gameState.status === 'paused') {
+      // Resume from pause
+      console.log('▶️ RESUME BUTTON CLICKED - Resuming game state immediately');
+      
+      // Immediately update local state for instant UI feedback
+      setGameState(prev => ({
+        ...prev,
+        status: 'playing'
+      }));
+      
+      console.log('✅ RESUME: Local state updated immediately');
+      
+      // Send resume message to server
+      if (socketServiceRef.current && socketServiceRef.current.isConnected()) {
+        socketServiceRef.current.sendGameStateUpdate({
+          type: 'game_resume'
+        });
+        console.log('📡 RESUME: Message sent to server');
+      }
+    } else {
+      // Normal start/ready
+      if (socketServiceRef.current && socketServiceRef.current.isConnected()) {
+        socketServiceRef.current.sendPlayerReady(true);
+      }
     }
   };
 
@@ -451,7 +512,7 @@ export const MultiplayerPong: React.FC<MultiplayerPongProps> = ({
           onClick={handleStart}
           className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700"
         >
-          Start
+          {gameState.status === 'paused' ? 'Resume' : 'Start'}
         </button>
         <button 
           onClick={handlePause}
