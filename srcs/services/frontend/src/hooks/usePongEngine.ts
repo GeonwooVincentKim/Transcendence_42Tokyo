@@ -217,11 +217,12 @@ export const usePongEngine = (
         scoreChanged = true;
       }
 
+      // Check if game should end (check every frame, not just when score changes)
+      if (checkGameEnd(state.leftScore, state.rightScore)) {
+        return; // Stop the game loop if game ended
+      }
+
       if (scoreChanged) {
-        // Check if game should end
-        if (checkGameEnd(state.leftScore, state.rightScore)) {
-          return; // Stop the game loop if game ended
-        }
         resetBall(lastScorer);
       }
 

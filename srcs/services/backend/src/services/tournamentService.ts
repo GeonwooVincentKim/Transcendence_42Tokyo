@@ -122,8 +122,8 @@ export class TournamentService {
       throw new Error('Tournament name is required');
     }
 
-    if (max_participants < 2 || max_participants > 64) {
-      throw new Error('Max participants must be between 2 and 64');
+    if (max_participants < 2 || max_participants > 8) {
+      throw new Error('Max participants must be between 2 and 8');
     }
 
     // Validate tournament type
@@ -491,9 +491,144 @@ export class TournamentService {
     tournamentId: number,
     participants: TournamentParticipant[]
   ): Promise<void> {
-    // For now, implement as single elimination
-    // TODO: Implement proper double elimination bracket
-    await this.generateSingleEliminationMatches(tournamentId, participants);
+    const shuffled = [...participants].sort(() => Math.random() - 0.5);
+    const participantCount = participants.length;
+    
+    // Calculate bracket structure
+    const mainBracketRounds = Math.ceil(Math.log2(participantCount));
+    const losersBracketRounds = (mainBracketRounds - 1) * 2;
+    
+    console.log(`Double Elimination: ${participantCount} participants`);
+    console.log(`Main bracket rounds: ${mainBracketRounds}`);
+    console.log(`Losers bracket rounds: ${losersBracketRounds}`);
+    
+    // Generate main bracket (winners bracket)
+    await this.generateMainBracket(tournamentId, shuffled, mainBracketRounds);
+    
+    // Generate losers bracket
+    await this.generateLosersBracket(tournamentId, losersBracketRounds, mainBracketRounds);
+    
+    // Generate grand final match
+    await this.generateGrandFinal(tournamentId, mainBracketRounds, losersBracketRounds);
+  }
+
+  /**
+   * Generate main bracket (winners bracket) for double elimination
+   */
+  private static async generateMainBracket(
+    tournamentId: number,
+    participants: TournamentParticipant[],
+    rounds: number
+  ): Promise<void> {
+    let matchNumber = 1;
+    
+    // First round - all participants
+    const firstRoundMatches: { player1: TournamentParticipant; player2?: TournamentParticipant }[] = [];
+    
+    for (let i = 0; i < participants.length; i += 2) {
+      const player1 = participants[i];
+      const player2 = participants[i + 1];
+      firstRoundMatches.push({ player1, player2 });
+    }
+
+    // Create first round matches
+    for (const match of firstRoundMatches) {
+      await DatabaseService.run(
+        `INSERT INTO tournament_matches (tournament_id, round, match_number, player1_id, player2_id, status, bracket_position)
+         VALUES (?, 1, ?, ?, ?, ?, ?)`,
+        [
+          tournamentId,
+          matchNumber++,
+          match.player1.id,
+          match.player2?.id || null,
+          match.player2 ? 'pending' : 'completed',
+          1 // Main bracket
+        ]
+      );
+
+      // If bye, advance player1
+      if (!match.player2) {
+        const matchId = await DatabaseService.get(
+          'SELECT id FROM tournament_matches WHERE tournament_id = ? AND round = 1 AND match_number = ?',
+          [tournamentId, matchNumber - 1]
+        ) as { id: number };
+
+        await DatabaseService.run(
+          'UPDATE tournament_matches SET winner_id = ? WHERE id = ?',
+          [match.player1.id, matchId.id]
+        );
+      }
+    }
+
+    // Generate subsequent rounds for main bracket
+    for (let round = 2; round <= rounds; round++) {
+      const previousRoundMatches = Math.ceil(firstRoundMatches.length / Math.pow(2, round - 1));
+      
+      for (let match = 1; match <= previousRoundMatches; match++) {
+        await DatabaseService.run(
+          `INSERT INTO tournament_matches (tournament_id, round, match_number, status, bracket_position)
+           VALUES (?, ?, ?, ?, ?)`,
+          [tournamentId, round, match, 'pending', 1] // Main bracket
+        );
+      }
+    }
+  }
+
+  /**
+   * Generate losers bracket for double elimination
+   */
+  private static async generateLosersBracket(
+    tournamentId: number,
+    losersRounds: number,
+    mainRounds: number
+  ): Promise<void> {
+    let matchNumber = 1;
+    
+    // Losers bracket has a specific structure
+    // Round 1: First round losers vs each other
+    // Round 2: Second round losers vs Round 1 winners
+    // And so on...
+    
+    for (let round = 1; round <= losersRounds; round++) {
+      // Calculate number of matches for this round
+      let matchesInRound: number;
+      
+      if (round === 1) {
+        // First losers round: all first round losers
+        matchesInRound = Math.floor(Math.pow(2, mainRounds - 1));
+      } else if (round % 2 === 0) {
+        // Even rounds: losers from main bracket join
+        matchesInRound = Math.floor(Math.pow(2, mainRounds - 1 - (round / 2)));
+      } else {
+        // Odd rounds: previous losers round winners
+        matchesInRound = Math.floor(Math.pow(2, mainRounds - 1 - ((round - 1) / 2)));
+      }
+      
+      for (let match = 1; match <= matchesInRound; match++) {
+        await DatabaseService.run(
+          `INSERT INTO tournament_matches (tournament_id, round, match_number, status, bracket_position)
+           VALUES (?, ?, ?, ?, ?)`,
+          [tournamentId, round + mainRounds, match, 'pending', 2] // Losers bracket
+        );
+      }
+    }
+  }
+
+  /**
+   * Generate grand final match for double elimination
+   */
+  private static async generateGrandFinal(
+    tournamentId: number,
+    mainRounds: number,
+    losersRounds: number
+  ): Promise<void> {
+    const grandFinalRound = mainRounds + losersRounds + 1;
+    
+    await DatabaseService.run(
+      `INSERT INTO tournament_matches (tournament_id, round, match_number, status, bracket_position)
+       VALUES (?, ?, ?, ?, ?)`,
+      [tournamentId, grandFinalRound, 1, 'pending', 3] // Grand final
+    );
   }
 
   /**
@@ -571,8 +706,283 @@ export class TournamentService {
       [winnerId, player1Score, player2Score, 'completed', gameSessionId, matchId]
     );
 
-    // Check if tournament is complete
-    await this.checkTournamentCompletion(match.tournament_id);
+    // Get tournament to determine type
+    const tournament = await this.getTournament(match.tournament_id);
+    if (!tournament) {
+      throw new Error('Tournament not found');
+    }
+
+    // Handle match progression based on tournament type
+    if (tournament.tournament_type === 'double_elimination') {
+      await this.handleDoubleEliminationMatchProgression(match.tournament_id, match, winnerId);
+    } else {
+      // Handle other tournament types
+      await this.checkTournamentCompletion(match.tournament_id);
+    }
+  }
+
+  /**
+   * Handle match progression for double elimination tournaments
+   */
+  private static async handleDoubleEliminationMatchProgression(
+    tournamentId: number,
+    completedMatch: TournamentMatch,
+    winnerId: number
+  ): Promise<void> {
+    const loserId = completedMatch.player1_id === winnerId ? completedMatch.player2_id : completedMatch.player1_id;
+    
+    // Determine bracket position (1 = main bracket, 2 = losers bracket, 3 = grand final)
+    const bracketPosition = completedMatch.bracket_position || 1;
+    
+    if (bracketPosition === 1) {
+      // Main bracket match completed
+      await this.handleMainBracketMatchCompletion(tournamentId, completedMatch, winnerId, loserId || null);
+    } else if (bracketPosition === 2) {
+      // Losers bracket match completed
+      await this.handleLosersBracketMatchCompletion(tournamentId, completedMatch, winnerId, loserId || null);
+    } else if (bracketPosition === 3) {
+      // Grand final match completed
+      await this.handleGrandFinalCompletion(tournamentId, completedMatch, winnerId);
+    }
+  }
+
+  /**
+   * Handle main bracket match completion
+   */
+  private static async handleMainBracketMatchCompletion(
+    tournamentId: number,
+    completedMatch: TournamentMatch,
+    winnerId: number,
+    loserId: number | null
+  ): Promise<void> {
+    // Winner advances to next round in main bracket
+    await this.advancePlayerToNextRound(tournamentId, winnerId, completedMatch.round + 1, 1);
+    
+    // Loser goes to losers bracket
+    if (loserId) {
+      await this.sendPlayerToLosersBracket(tournamentId, loserId, completedMatch.round);
+    }
+    
+    // Check if we can start the next round
+    await this.checkAndStartNextRound(tournamentId, completedMatch.round + 1, 1);
+  }
+
+  /**
+   * Handle losers bracket match completion
+   */
+  private static async handleLosersBracketMatchCompletion(
+    tournamentId: number,
+    completedMatch: TournamentMatch,
+    winnerId: number,
+    loserId: number | null
+  ): Promise<void> {
+    // Winner advances to next round in losers bracket
+    await this.advancePlayerToNextRound(tournamentId, winnerId, completedMatch.round + 1, 2);
+    
+    // Check if this was the final losers bracket match
+    const isFinalLosersMatch = await this.isFinalLosersBracketMatch(tournamentId, completedMatch.round);
+    
+    if (isFinalLosersMatch) {
+      // Winner goes to grand final
+      await this.sendPlayerToGrandFinal(tournamentId, winnerId);
+    } else {
+      // Check if we can start the next round
+      await this.checkAndStartNextRound(tournamentId, completedMatch.round + 1, 2);
+    }
+  }
+
+  /**
+   * Handle grand final match completion
+   */
+  private static async handleGrandFinalCompletion(
+    tournamentId: number,
+    completedMatch: TournamentMatch,
+    winnerId: number
+  ): Promise<void> {
+    // Tournament is complete
+    await DatabaseService.run(
+      'UPDATE tournaments SET status = ?, finished_at = CURRENT_TIMESTAMP WHERE id = ?',
+      ['completed', tournamentId]
+    );
+
+    // Update final rankings
+    await this.updateDoubleEliminationRankings(tournamentId, winnerId);
+  }
+
+  /**
+   * Advance player to next round
+   */
+  private static async advancePlayerToNextRound(
+    tournamentId: number,
+    playerId: number,
+    nextRound: number,
+    bracketPosition: number
+  ): Promise<void> {
+    // Find the next match for this player
+    const nextMatch = await DatabaseService.get(
+      `SELECT id FROM tournament_matches 
+       WHERE tournament_id = ? AND round = ? AND bracket_position = ? 
+       AND (player1_id IS NULL OR player2_id IS NULL)
+       ORDER BY match_number ASC LIMIT 1`,
+      [tournamentId, nextRound, bracketPosition]
+    ) as { id: number } | null;
+
+    if (nextMatch) {
+      // Check if player1 or player2 slot is available
+      const match = await DatabaseService.get(
+        'SELECT player1_id, player2_id FROM tournament_matches WHERE id = ?',
+        [nextMatch.id]
+      ) as { player1_id: number | null; player2_id: number | null };
+
+      if (match.player1_id === null) {
+        await DatabaseService.run(
+          'UPDATE tournament_matches SET player1_id = ? WHERE id = ?',
+          [playerId, nextMatch.id]
+        );
+      } else if (match.player2_id === null) {
+        await DatabaseService.run(
+          'UPDATE tournament_matches SET player2_id = ? WHERE id = ?',
+          [playerId, nextMatch.id]
+        );
+      }
+    }
+  }
+
+  /**
+   * Send player to losers bracket
+   */
+  private static async sendPlayerToLosersBracket(
+    tournamentId: number,
+    playerId: number,
+    eliminatedRound: number
+  ): Promise<void> {
+    // Find appropriate losers bracket match
+    const losersMatch = await DatabaseService.get(
+      `SELECT id FROM tournament_matches 
+       WHERE tournament_id = ? AND bracket_position = 2 
+       AND (player1_id IS NULL OR player2_id IS NULL)
+       ORDER BY round ASC, match_number ASC LIMIT 1`,
+      [tournamentId]
+    ) as { id: number } | null;
+
+    if (losersMatch) {
+      const match = await DatabaseService.get(
+        'SELECT player1_id, player2_id FROM tournament_matches WHERE id = ?',
+        [losersMatch.id]
+      ) as { player1_id: number | null; player2_id: number | null };
+
+      if (match.player1_id === null) {
+        await DatabaseService.run(
+          'UPDATE tournament_matches SET player1_id = ? WHERE id = ?',
+          [playerId, losersMatch.id]
+        );
+      } else if (match.player2_id === null) {
+        await DatabaseService.run(
+          'UPDATE tournament_matches SET player2_id = ? WHERE id = ?',
+          [playerId, losersMatch.id]
+        );
+      }
+    }
+  }
+
+  /**
+   * Send player to grand final
+   */
+  private static async sendPlayerToGrandFinal(tournamentId: number, playerId: number): Promise<void> {
+    const grandFinalMatch = await DatabaseService.get(
+      `SELECT id FROM tournament_matches 
+       WHERE tournament_id = ? AND bracket_position = 3
+       ORDER BY round ASC LIMIT 1`,
+      [tournamentId]
+    ) as { id: number } | null;
+
+    if (grandFinalMatch) {
+      const match = await DatabaseService.get(
+        'SELECT player1_id, player2_id FROM tournament_matches WHERE id = ?',
+        [grandFinalMatch.id]
+      ) as { player1_id: number | null; player2_id: number | null };
+
+      if (match.player1_id === null) {
+        await DatabaseService.run(
+          'UPDATE tournament_matches SET player1_id = ? WHERE id = ?',
+          [playerId, grandFinalMatch.id]
+        );
+      } else if (match.player2_id === null) {
+        await DatabaseService.run(
+          'UPDATE tournament_matches SET player2_id = ? WHERE id = ?',
+          [playerId, grandFinalMatch.id]
+        );
+      }
+    }
+  }
+
+  /**
+   * Check if this is the final losers bracket match
+   */
+  private static async isFinalLosersBracketMatch(tournamentId: number, round: number): Promise<boolean> {
+    const nextLosersMatches = await DatabaseService.get(
+      `SELECT COUNT(*) as count FROM tournament_matches 
+       WHERE tournament_id = ? AND round = ? AND bracket_position = 2`,
+      [tournamentId, round + 1]
+    ) as { count: number };
+
+    return nextLosersMatches.count === 0;
+  }
+
+  /**
+   * Check and start next round if ready
+   */
+  private static async checkAndStartNextRound(
+    tournamentId: number,
+    round: number,
+    bracketPosition: number
+  ): Promise<void> {
+    // Check if all matches in current round are completed
+    const pendingMatches = await DatabaseService.get(
+      `SELECT COUNT(*) as count FROM tournament_matches 
+       WHERE tournament_id = ? AND round = ? AND bracket_position = ? AND status != 'completed'`,
+      [tournamentId, round - 1, bracketPosition]
+    ) as { count: number };
+
+    if (pendingMatches.count === 0) {
+      // All matches in previous round completed, activate next round
+      await DatabaseService.run(
+        `UPDATE tournament_matches SET status = 'pending' 
+         WHERE tournament_id = ? AND round = ? AND bracket_position = ?`,
+        [tournamentId, round, bracketPosition]
+      );
+    }
+  }
+
+  /**
+   * Update final rankings for double elimination
+   */
+  private static async updateDoubleEliminationRankings(tournamentId: number, winnerId: number): Promise<void> {
+    // Winner gets rank 1
+    await DatabaseService.run(
+      'UPDATE tournament_participants SET final_rank = 1 WHERE id = ?',
+      [winnerId]
+    );
+
+    // Get grand final match to find runner-up
+    const grandFinalMatch = await DatabaseService.get(
+      `SELECT player1_id, player2_id FROM tournament_matches 
+       WHERE tournament_id = ? AND bracket_position = 3 AND status = 'completed'`,
+      [tournamentId]
+    ) as { player1_id: number; player2_id: number } | null;
+
+    if (grandFinalMatch) {
+      const runnerUpId = grandFinalMatch.player1_id === winnerId ? grandFinalMatch.player2_id : grandFinalMatch.player1_id;
+      if (runnerUpId) {
+        await DatabaseService.run(
+          'UPDATE tournament_participants SET final_rank = 2 WHERE id = ?',
+          [runnerUpId]
+        );
+      }
+    }
+
+    // TODO: Calculate ranks for other eliminated players
+    // This would require more complex logic to determine elimination order
   }
 
   /**
@@ -659,6 +1069,8 @@ export class TournamentService {
 
     if (tournament.tournament_type === 'single_elimination') {
       return this.buildSingleEliminationBracket(matches, participants);
+    } else if (tournament.tournament_type === 'double_elimination') {
+      return this.buildDoubleEliminationBracket(matches, participants);
     }
 
     // TODO: Implement other bracket types
@@ -701,6 +1113,77 @@ export class TournamentService {
     });
 
     return bracket;
+  }
+
+  /**
+   * Build double elimination bracket
+   */
+  private static buildDoubleEliminationBracket(
+    matches: TournamentMatch[],
+    participants: TournamentParticipant[]
+  ): BracketNode[] {
+    const participantMap = new Map(participants.map(p => [p.id, p]));
+    const bracket: BracketNode[] = [];
+
+    // Group matches by bracket position and round
+    const mainBracketMatches = matches.filter(m => m.bracket_position === 1);
+    const losersBracketMatches = matches.filter(m => m.bracket_position === 2);
+    const grandFinalMatches = matches.filter(m => m.bracket_position === 3);
+
+    // Build main bracket (winners bracket)
+    const mainBracketNodes = this.buildBracketSection(mainBracketMatches, participantMap, 'Main Bracket');
+    bracket.push(...mainBracketNodes);
+
+    // Build losers bracket
+    const losersBracketNodes = this.buildBracketSection(losersBracketMatches, participantMap, 'Losers Bracket');
+    bracket.push(...losersBracketNodes);
+
+    // Build grand final
+    const grandFinalNodes = this.buildBracketSection(grandFinalMatches, participantMap, 'Grand Final');
+    bracket.push(...grandFinalNodes);
+
+    return bracket;
+  }
+
+  /**
+   * Build a bracket section (main, losers, or grand final)
+   */
+  private static buildBracketSection(
+    matches: TournamentMatch[],
+    participantMap: Map<number, TournamentParticipant>,
+    sectionName: string
+  ): BracketNode[] {
+    const nodes: BracketNode[] = [];
+
+    // Group matches by round
+    const matchesByRound = new Map<number, TournamentMatch[]>();
+    matches.forEach(match => {
+      if (!matchesByRound.has(match.round)) {
+        matchesByRound.set(match.round, []);
+      }
+      matchesByRound.get(match.round)!.push(match);
+    });
+
+    // Build nodes for each round
+    matchesByRound.forEach((roundMatches, round) => {
+      roundMatches.forEach(match => {
+        const node: BracketNode = {
+          id: match.id,
+          match_id: match.id,
+          player1: match.player1_id ? participantMap.get(match.player1_id) : undefined,
+          player2: match.player2_id ? participantMap.get(match.player2_id) : undefined,
+          winner: match.winner_id ? participantMap.get(match.winner_id) : undefined,
+          round,
+          position: { 
+            x: match.bracket_position || 1, 
+            y: round 
+          }
+        };
+        nodes.push(node);
+      });
+    });
+
+    return nodes;
   }
 
   /**

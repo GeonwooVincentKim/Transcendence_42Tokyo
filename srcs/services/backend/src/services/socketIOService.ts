@@ -594,6 +594,32 @@ class SocketIOService {
       this.resetBall(gameData);
     }
 
+    // Check for game end condition (10 points)
+    const WINNING_SCORE = 10;
+    if (gameData.leftScore >= WINNING_SCORE || gameData.rightScore >= WINNING_SCORE) {
+      const winner = gameData.leftScore >= WINNING_SCORE ? 'left' : 'right';
+      console.log(`🎯 GAME ENDED! Winner: ${winner}, Final score: ${gameData.leftScore} - ${gameData.rightScore}`);
+      
+      // Stop game loop
+      this.stopGameLoop(roomId);
+      
+      // Set game status to finished
+      room.gameState.status = 'finished';
+      
+      // Broadcast game end
+      this.broadcastToRoom(roomId, 'game_end', {
+        gameResult: {
+          winner,
+          leftScore: gameData.leftScore,
+          rightScore: gameData.rightScore
+        },
+        roomState: room.gameState,
+        message: 'Game finished!'
+      });
+      
+      return; // Exit early since game ended
+    }
+
     // Broadcast updated game state to all players in the room
     // Debug logging disabled for cleaner console
     // console.log(`Broadcasting game state update to room ${roomId}:`, {

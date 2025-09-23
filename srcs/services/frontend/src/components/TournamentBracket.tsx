@@ -56,9 +56,24 @@ const MatchBox: React.FC<MatchBoxProps> = ({ node, position, onClick }) => {
     );
   };
 
+  // Get bracket type styling based on position
+  const getBracketTypeStyling = () => {
+    const bracketPos = node.position.x;
+    switch (bracketPos) {
+      case 1: // Main bracket
+        return 'border-blue-500 bg-blue-50';
+      case 2: // Losers bracket
+        return 'border-red-500 bg-red-50';
+      case 3: // Grand final
+        return 'border-yellow-500 bg-yellow-50';
+      default:
+        return 'border-gray-300 bg-white';
+    }
+  };
+
   return (
     <div
-      className="absolute bg-white border-2 border-gray-300 rounded-lg shadow-sm hover:shadow-md transition-shadow cursor-pointer"
+      className={`absolute border-2 rounded-lg shadow-sm hover:shadow-md transition-shadow cursor-pointer ${getBracketTypeStyling()}`}
       style={{
         left: position.x,
         top: position.y,
@@ -154,28 +169,16 @@ export const TournamentBracket: React.FC<Props> = ({
   const [zoom, setZoom] = useState(1);
   const [pan, setPan] = useState({ x: 0, y: 0 });
 
-  // Calculate bracket layout
-  const bracketLayout = useMemo(() => {
-    if (bracket.length === 0) return { positions: new Map<number, BracketPosition>(), connections: [], totalWidth: 0, totalHeight: 0 };
-
-    const matchWidth = 200;
-    const matchHeight = 80;
-    const roundSpacing = 250;
-    const matchSpacing = 100;
-
-    // Group nodes by round
-    const nodesByRound = new Map<number, BracketNode[]>();
-    bracket.forEach(node => {
-      if (!nodesByRound.has(node.round)) {
-        nodesByRound.set(node.round, []);
-      }
-      nodesByRound.get(node.round)!.push(node);
-    });
-
+  // Calculate single elimination layout
+  const calculateSingleEliminationLayout = (
+    nodesByRound: Map<number, BracketNode[]>,
+    matchWidth: number,
+    matchHeight: number,
+    roundSpacing: number,
+    matchSpacing: number
+  ) => {
     const positions = new Map<number, BracketPosition>();
     const connections: Array<{ from: number; to: number }> = [];
-
-    // Calculate positions for each round
     const rounds = Array.from(nodesByRound.keys()).sort((a, b) => a - b);
     let totalWidth = 0;
     let totalHeight = 0;
@@ -184,7 +187,6 @@ export const TournamentBracket: React.FC<Props> = ({
       const roundNodes = nodesByRound.get(round)!;
       const roundX = roundIndex * roundSpacing;
       
-      // Calculate total height for this round
       const roundHeight = Math.max(roundNodes.length * matchSpacing, 200);
       totalHeight = Math.max(totalHeight, roundHeight);
 
@@ -203,7 +205,6 @@ export const TournamentBracket: React.FC<Props> = ({
           const nextRound = rounds[roundIndex + 1];
           const nextRoundNodes = nodesByRound.get(nextRound)!;
           
-          // Find the match in the next round that this winner would go to
           const nextMatchIndex = Math.floor(matchIndex / 2);
           if (nextMatchIndex < nextRoundNodes.length) {
             const nextNode = nextRoundNodes[nextMatchIndex];
@@ -216,7 +217,174 @@ export const TournamentBracket: React.FC<Props> = ({
     });
 
     return { positions, connections, totalWidth, totalHeight };
-  }, [bracket]);
+  };
+
+  // Calculate double elimination layout
+  const calculateDoubleEliminationLayout = (
+    mainBracketNodes: Map<number, BracketNode[]>,
+    losersBracketNodes: Map<number, BracketNode[]>,
+    grandFinalNodes: Map<number, BracketNode[]>,
+    matchWidth: number,
+    matchHeight: number,
+    roundSpacing: number,
+    matchSpacing: number,
+    bracketSpacing: number
+  ) => {
+    const positions = new Map<number, BracketPosition>();
+    
+    let totalWidth = 0;
+    let totalHeight = 0;
+
+    // Calculate main bracket (winners bracket)
+    const mainRounds = Array.from(mainBracketNodes.keys()).sort((a, b) => a - b);
+    let mainBracketWidth = 0;
+    let mainBracketHeight = 0;
+
+    mainRounds.forEach((round, roundIndex) => {
+      const roundNodes = mainBracketNodes.get(round)!;
+      const roundX = roundIndex * roundSpacing;
+      
+      const roundHeight = Math.max(roundNodes.length * matchSpacing, 200);
+      mainBracketHeight = Math.max(mainBracketHeight, roundHeight);
+
+      roundNodes.forEach((node, matchIndex) => {
+        const y = (roundHeight - roundNodes.length * matchSpacing) / 2 + matchIndex * matchSpacing;
+        
+        positions.set(node.id, {
+          x: roundX,
+          y: y,
+          width: matchWidth,
+          height: matchHeight
+        });
+      });
+
+      mainBracketWidth = Math.max(mainBracketWidth, roundX + matchWidth);
+    });
+
+    // Calculate losers bracket
+    const losersRounds = Array.from(losersBracketNodes.keys()).sort((a, b) => a - b);
+    let losersBracketWidth = 0;
+    let losersBracketHeight = 0;
+
+    losersRounds.forEach((round, roundIndex) => {
+      const roundNodes = losersBracketNodes.get(round)!;
+      const roundX = mainBracketWidth + bracketSpacing + roundIndex * roundSpacing;
+      
+      const roundHeight = Math.max(roundNodes.length * matchSpacing, 200);
+      losersBracketHeight = Math.max(losersBracketHeight, roundHeight);
+
+      roundNodes.forEach((node, matchIndex) => {
+        const y = (roundHeight - roundNodes.length * matchSpacing) / 2 + matchIndex * matchSpacing;
+        
+        positions.set(node.id, {
+          x: roundX,
+          y: y,
+          width: matchWidth,
+          height: matchHeight
+        });
+      });
+
+      losersBracketWidth = Math.max(losersBracketWidth, roundX + matchWidth);
+    });
+
+    // Calculate grand final
+    const grandFinalRounds = Array.from(grandFinalNodes.keys()).sort((a, b) => a - b);
+    let grandFinalWidth = 0;
+    let grandFinalHeight = 0;
+
+    grandFinalRounds.forEach((round, roundIndex) => {
+      const roundNodes = grandFinalNodes.get(round)!;
+      const roundX = losersBracketWidth + bracketSpacing + roundIndex * roundSpacing;
+      
+      const roundHeight = Math.max(roundNodes.length * matchSpacing, 200);
+      grandFinalHeight = Math.max(grandFinalHeight, roundHeight);
+
+      roundNodes.forEach((node, matchIndex) => {
+        const y = (roundHeight - roundNodes.length * matchSpacing) / 2 + matchIndex * matchSpacing;
+        
+        positions.set(node.id, {
+          x: roundX,
+          y: y,
+          width: matchWidth,
+          height: matchHeight
+        });
+      });
+
+      grandFinalWidth = Math.max(grandFinalWidth, roundX + matchWidth);
+    });
+
+    totalWidth = Math.max(mainBracketWidth, losersBracketWidth, grandFinalWidth);
+    totalHeight = Math.max(mainBracketHeight, losersBracketHeight, grandFinalHeight);
+
+    return { positions, connections: [], totalWidth, totalHeight };
+  };
+
+  // Calculate bracket layout
+  const bracketLayout = useMemo(() => {
+    if (bracket.length === 0) return { positions: new Map<number, BracketPosition>(), connections: [], totalWidth: 0, totalHeight: 0 };
+
+    const matchWidth = 200;
+    const matchHeight = 80;
+    const roundSpacing = 250;
+    const matchSpacing = 100;
+    const bracketSpacing = 400; // Space between main and losers bracket
+
+    // Group nodes by round and bracket position
+    const nodesByRound = new Map<number, BracketNode[]>();
+    const mainBracketNodes = new Map<number, BracketNode[]>();
+    const losersBracketNodes = new Map<number, BracketNode[]>();
+    const grandFinalNodes = new Map<number, BracketNode[]>();
+
+    bracket.forEach(node => {
+      if (!nodesByRound.has(node.round)) {
+        nodesByRound.set(node.round, []);
+      }
+      nodesByRound.get(node.round)!.push(node);
+
+      // Group by bracket position for double elimination
+      if (tournamentType === 'double_elimination') {
+        const bracketPos = node.position.x; // 1 = main, 2 = losers, 3 = grand final
+        if (bracketPos === 1) {
+          if (!mainBracketNodes.has(node.round)) {
+            mainBracketNodes.set(node.round, []);
+          }
+          mainBracketNodes.get(node.round)!.push(node);
+        } else if (bracketPos === 2) {
+          if (!losersBracketNodes.has(node.round)) {
+            losersBracketNodes.set(node.round, []);
+          }
+          losersBracketNodes.get(node.round)!.push(node);
+        } else if (bracketPos === 3) {
+          if (!grandFinalNodes.has(node.round)) {
+            grandFinalNodes.set(node.round, []);
+          }
+          grandFinalNodes.get(node.round)!.push(node);
+        }
+      }
+    });
+
+    if (tournamentType === 'double_elimination') {
+      return calculateDoubleEliminationLayout(
+        mainBracketNodes,
+        losersBracketNodes,
+        grandFinalNodes,
+        matchWidth,
+        matchHeight,
+        roundSpacing,
+        matchSpacing,
+        bracketSpacing
+      );
+    } else {
+      // Single elimination or round robin layout
+      return calculateSingleEliminationLayout(
+        nodesByRound,
+        matchWidth,
+        matchHeight,
+        roundSpacing,
+        matchSpacing
+      );
+    }
+  }, [bracket, tournamentType]);
 
   // Handle container resize
   useEffect(() => {
@@ -321,7 +489,23 @@ export const TournamentBracket: React.FC<Props> = ({
         
         <div className="text-sm text-gray-600">
           {tournamentType === 'single_elimination' && 'Single Elimination'}
-          {tournamentType === 'double_elimination' && 'Double Elimination'}
+          {tournamentType === 'double_elimination' && (
+            <div className="flex items-center gap-4">
+              <span>Double Elimination</span>
+              <div className="flex items-center gap-2">
+                <div className="w-3 h-3 rounded bg-blue-500"></div>
+                <span className="text-xs">Main Bracket</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="w-3 h-3 rounded bg-red-500"></div>
+                <span className="text-xs">Losers Bracket</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="w-3 h-3 rounded bg-yellow-500"></div>
+                <span className="text-xs">Grand Final</span>
+              </div>
+            </div>
+          )}
           {tournamentType === 'round_robin' && 'Round Robin'}
         </div>
       </div>
@@ -362,6 +546,44 @@ export const TournamentBracket: React.FC<Props> = ({
               />
             );
           })}
+
+          {/* Bracket labels for double elimination */}
+          {tournamentType === 'double_elimination' && (
+            <>
+              {/* Main bracket label */}
+              <div
+                className="absolute bg-blue-500 text-white px-3 py-1 rounded-lg text-sm font-medium"
+                style={{
+                  left: 10,
+                  top: 10,
+                }}
+              >
+                Main Bracket (Winners)
+              </div>
+              
+              {/* Losers bracket label */}
+              <div
+                className="absolute bg-red-500 text-white px-3 py-1 rounded-lg text-sm font-medium"
+                style={{
+                  left: 10 + 400, // Position after main bracket
+                  top: 10,
+                }}
+              >
+                Losers Bracket
+              </div>
+              
+              {/* Grand final label */}
+              <div
+                className="absolute bg-yellow-500 text-white px-3 py-1 rounded-lg text-sm font-medium"
+                style={{
+                  left: 10 + 400 + 400, // Position after losers bracket
+                  top: 10,
+                }}
+              >
+                Grand Final
+              </div>
+            </>
+          )}
 
           {/* Match boxes */}
           {bracket.map((node) => {
