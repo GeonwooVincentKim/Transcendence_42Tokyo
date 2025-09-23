@@ -73,3 +73,7 @@ temp/
 # Test results
 test-results/
 junit.xml
+
+*.htm
+*.htm.crdownload
+*.crdownload
