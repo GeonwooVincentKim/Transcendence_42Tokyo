@@ -74,6 +74,7 @@ temp/
 test-results/
 junit.xml
 
+# HTML download files
 *.htm
 *.htm.crdownload
 *.crdownload
