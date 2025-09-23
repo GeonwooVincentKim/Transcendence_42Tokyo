@@ -11,6 +11,7 @@ interface Props {
   bracket: BracketNode[];
   matches: TournamentMatch[];
   tournamentType: 'single_elimination' | 'double_elimination' | 'round_robin';
+  tournamentId?: number;
   onMatchClick?: (match: TournamentMatch) => void;
 }
 
@@ -163,11 +164,160 @@ export const TournamentBracket: React.FC<Props> = ({
   bracket, 
   matches, 
   tournamentType,
+  tournamentId,
   onMatchClick 
 }) => {
   const [containerSize, setContainerSize] = useState({ width: 0, height: 0 });
   const [zoom, setZoom] = useState(1);
   const [pan, setPan] = useState({ x: 0, y: 0 });
+
+  // Round Robin table component
+  const RoundRobinTable: React.FC = () => {
+    const participants = bracket.map(node => node.player1).filter(Boolean);
+    
+    // Use actual matches from props instead of generating them
+    const actualMatches = matches || [];
+    
+    return (
+      <div className="w-full max-w-6xl mx-auto space-y-6">
+        {/* Standings Table */}
+        <div className="bg-white rounded-lg shadow-lg overflow-hidden">
+          <div className="bg-gradient-to-r from-blue-600 to-purple-600 text-white px-6 py-4">
+            <h3 className="text-xl font-bold">Round Robin Standings</h3>
+            <p className="text-blue-100 text-sm">All participants play against each other</p>
+          </div>
+          
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Rank</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Player</th>
+                  <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">W</th>
+                  <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">L</th>
+                  <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Win%</th>
+                  <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">PF</th>
+                  <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">PA</th>
+                  <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Diff</th>
+                </tr>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {participants.map((participant, index) => (
+                  <tr key={participant?.id || index} className="hover:bg-gray-50">
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="flex items-center">
+                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                          index === 0 ? 'bg-yellow-100 text-yellow-800' :
+                          index === 1 ? 'bg-gray-100 text-gray-800' :
+                          index === 2 ? 'bg-orange-100 text-orange-800' :
+                          'bg-gray-100 text-gray-600'
+                        }`}>
+                          {index + 1}
+                        </span>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="flex items-center">
+                        <div className="flex-shrink-0 h-8 w-8">
+                          {participant?.avatar_url ? (
+                            <img className="h-8 w-8 rounded-full" src={participant.avatar_url} alt="" />
+                          ) : (
+                            <div className="h-8 w-8 rounded-full bg-gray-300 flex items-center justify-center">
+                              <span className="text-sm font-medium text-gray-600">
+                                {participant?.display_name?.charAt(0).toUpperCase() || '?'}
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                        <div className="ml-4">
+                          <div className="text-sm font-medium text-gray-900">
+                            {participant?.display_name || 'Unknown Player'}
+                          </div>
+                          <div className="text-sm text-gray-500">
+                            {participant?.guest_alias || 'Guest'}
+                          </div>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-center text-sm text-gray-900">
+                      {participant?.stats?.wins || 0}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-center text-sm text-gray-900">
+                      {participant?.stats?.losses || 0}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-center text-sm text-gray-900">
+                      {participant?.stats?.winRate ? (participant.stats.winRate * 100).toFixed(1) + '%' : '0.0%'}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-center text-sm text-gray-900">
+                      {participant?.stats?.pointsFor || 0}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-center text-sm text-gray-900">
+                      {participant?.stats?.pointsAgainst || 0}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-center text-sm text-gray-900">
+                      {participant?.stats?.pointDifference || 0}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        {/* Matches Section */}
+        <div className="bg-white rounded-lg shadow-lg overflow-hidden">
+          <div className="bg-gradient-to-r from-green-600 to-teal-600 text-white px-6 py-4">
+            <h3 className="text-xl font-bold">Round Robin Matches</h3>
+            <p className="text-green-100 text-sm">Click to start a match</p>
+          </div>
+          
+          <div className="p-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {actualMatches.map((match) => (
+                <div key={match.id} className="border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow">
+                  <div className="flex items-center justify-between mb-3">
+                    <span className="text-sm font-medium text-gray-600">Match {match.match_number}</span>
+                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                      match.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
+                      match.status === 'active' ? 'bg-blue-100 text-blue-800' :
+                      'bg-green-100 text-green-800'
+                    }`}>
+                      {match.status}
+                    </span>
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-medium text-gray-900">
+                        Player {match.player1_id}
+                      </span>
+                      <span className="text-sm text-gray-500">VS</span>
+                      <span className="text-sm font-medium text-gray-900">
+                        Player {match.player2_id}
+                      </span>
+                    </div>
+                  </div>
+                  
+                  <div className="mt-4">
+                    <button
+                      onClick={() => {
+                        if (tournamentId && match.id) {
+                          window.location.href = `/game/tournament-${tournamentId}-match-${match.id}`;
+                        }
+                      }}
+                      className="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-lg transition-colors"
+                    >
+                      Play Game
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
 
   // Calculate single elimination layout
   const calculateSingleEliminationLayout = (
@@ -459,6 +609,11 @@ export const TournamentBracket: React.FC<Props> = ({
     );
   }
 
+  // Show Round Robin table for round robin tournaments
+  if (tournamentType === 'round_robin') {
+    return <RoundRobinTable />;
+  }
+
   return (
     <div className="space-y-4">
       {/* Controls */}
@@ -506,7 +661,6 @@ export const TournamentBracket: React.FC<Props> = ({
               </div>
             </div>
           )}
-          {tournamentType === 'round_robin' && 'Round Robin'}
         </div>
       </div>
 

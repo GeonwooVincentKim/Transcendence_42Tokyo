@@ -62,7 +62,10 @@ class SocketIOService {
           this.reconnectAttempts = 0;
           
           // Join game room
+          const roomId = `tournament-${tournamentId}-match-${matchId}`;
+          console.log('🔍 SocketIOService joining room:', roomId);
           this.socket?.emit('join_game_room', {
+            roomId,
             tournamentId,
             matchId,
             userId

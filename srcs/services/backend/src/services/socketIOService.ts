@@ -51,8 +51,13 @@ class SocketIOService {
       console.log(`Socket.IO connection established: ${socket.id}`);
 
       // Handle joining game room
-      socket.on('join_game_room', (data: { tournamentId: number, matchId: number, userId: string }) => {
-        this.joinGameRoom(socket, data.tournamentId, data.matchId, data.userId);
+      socket.on('join_game_room', (data: { roomId?: string, tournamentId: number, matchId: number, userId: string }) => {
+        console.log('🔍 Backend received join_game_room:', data);
+        if (data.roomId) {
+          this.joinGameRoomById(socket, data.roomId, data.userId);
+        } else {
+          this.joinGameRoom(socket, data.tournamentId, data.matchId, data.userId);
+        }
       });
 
       // Handle leaving game room
@@ -99,6 +104,70 @@ class SocketIOService {
         socketId: socket.id
       });
     });
+  }
+
+  /**
+   * Join a game room by roomId
+   */
+  private joinGameRoomById(socket: any, roomId: string, userId: string) {
+    console.log(`🔍 Joining room by ID: ${roomId}`);
+    
+    // Parse tournament and match IDs from roomId
+    const match = roomId.match(/tournament-(\d+)-match-(\d+)/);
+    if (!match) {
+      console.error('❌ Invalid roomId format:', roomId);
+      return;
+    }
+    
+    const tournamentId = parseInt(match[1]);
+    const matchId = parseInt(match[2]);
+    
+    console.log(`🔍 Parsed tournamentId: ${tournamentId}, matchId: ${matchId}`);
+    
+    // Get or create game room
+    let room = this.gameRooms.get(roomId);
+    if (!room) {
+      room = {
+        id: roomId,
+        tournamentId,
+        matchId,
+        players: new Map(),
+        gameState: {
+          status: 'waiting',
+          player1Ready: false,
+          player2Ready: false
+        }
+      };
+      this.gameRooms.set(roomId, room);
+    }
+
+    // Add player to room
+    room.players.set(userId, socket);
+    this.playerRooms.set(userId, roomId);
+    socket.join(roomId);
+
+    console.log(`Player ${userId} joined room ${roomId}`, {
+      player1Id: room.gameState.player1Id,
+      player2Id: room.gameState.player2Id,
+      totalPlayers: room.players.size
+    });
+
+    // Set player IDs in game state
+    if (!room.gameState.player1Id) {
+      room.gameState.player1Id = userId;
+    } else if (!room.gameState.player2Id && room.gameState.player1Id !== userId) {
+      room.gameState.player2Id = userId;
+    }
+
+    // Notify all players
+    this.broadcastToRoom(roomId, 'player_joined', {
+      userId,
+      roomState: room.gameState,
+      message: `Player ${userId} joined the game room`
+    });
+
+    // Check if both players are ready
+    this.checkGameReadiness(roomId);
   }
 
   /**
@@ -657,6 +726,8 @@ class SocketIOService {
    */
   private async saveTournamentMatchResult(roomId: string, gameData: any, winner: string) {
     try {
+      console.log(`🔍 Parsing roomId: "${roomId}"`);
+      
       // Check if this is a tournament game
       // Support both formats: "tournament-{id}-match-{matchId}" and "{tournamentId}-{matchId}"
       let tournamentId: number;
@@ -665,13 +736,17 @@ class SocketIOService {
       if (roomId.startsWith('tournament-') && roomId.includes('-match-')) {
         // Format: "tournament-{id}-match-{matchId}"
         const parts = roomId.split('-');
+        console.log(`🔍 Parsed parts:`, parts);
         tournamentId = parseInt(parts[1]);
         matchId = parseInt(parts[3]);
+        console.log(`🔍 Parsed tournamentId: ${tournamentId}, matchId: ${matchId}`);
       } else if (roomId.includes('-') && !roomId.startsWith('tournament-')) {
         // Format: "{tournamentId}-{matchId}"
         const parts = roomId.split('-');
+        console.log(`🔍 Parsed parts:`, parts);
         tournamentId = parseInt(parts[0]);
         matchId = parseInt(parts[1]);
+        console.log(`🔍 Parsed tournamentId: ${tournamentId}, matchId: ${matchId}`);
       } else {
         console.log('ℹ️ Not a tournament game, skipping match result save');
         return;
@@ -679,6 +754,10 @@ class SocketIOService {
       
       if (isNaN(tournamentId) || isNaN(matchId)) {
         console.log('⚠️ Invalid tournament or match ID in room:', roomId);
+        console.log(`⚠️ tournamentId: ${tournamentId}, matchId: ${matchId}`);
+        console.log('⚠️ This usually means the frontend is not setting the roomId correctly');
+        console.log('⚠️ Expected format: tournament-{id}-match-{matchId}');
+        console.log('⚠️ Actual roomId:', roomId);
         return;
       }
 

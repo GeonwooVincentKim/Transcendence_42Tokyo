@@ -63,6 +63,70 @@ function App() {
   }, []);
 
   /**
+   * Handle game route from URL
+   */
+  useEffect(() => {
+    const handleGameRoute = () => {
+      const path = window.location.pathname;
+      console.log('🔍 Current path:', path);
+      
+      // Try multiple patterns to extract tournament and match IDs
+      let tournamentId: number | null = null;
+      let matchId: number | null = null;
+      
+      // Pattern 1: /game/tournament-{id}-match-{matchId}
+      const pattern1 = path.match(/\/game\/tournament-(\d+)-match-(\d+)/);
+      if (pattern1 && pattern1.length >= 3) {
+        tournamentId = parseInt(pattern1[1]);
+        matchId = parseInt(pattern1[2]);
+        console.log('🔍 Pattern 1 match:', { tournamentId, matchId });
+      }
+      
+      // Pattern 2: tournament-{id}-match-{matchId} (without /game/)
+      if (!tournamentId || !matchId) {
+        const pattern2 = path.match(/tournament-(\d+)-match-(\d+)/);
+        if (pattern2 && pattern2.length >= 3) {
+          tournamentId = parseInt(pattern2[1]);
+          matchId = parseInt(pattern2[2]);
+          console.log('🔍 Pattern 2 match:', { tournamentId, matchId });
+        }
+      }
+      
+      // Pattern 3: Manual extraction from URL parts
+      if (!tournamentId || !matchId) {
+        const parts = path.split('/');
+        console.log('🔍 Path parts:', parts);
+        
+        for (const part of parts) {
+          const match = part.match(/tournament-(\d+)-match-(\d+)/);
+          if (match && match.length >= 3) {
+            tournamentId = parseInt(match[1]);
+            matchId = parseInt(match[2]);
+            console.log('🔍 Pattern 3 match:', { tournamentId, matchId });
+            break;
+          }
+        }
+      }
+      
+      if (tournamentId && matchId && !isNaN(tournamentId) && !isNaN(matchId)) {
+        // Set up for tournament match
+        const roomId = `tournament-${tournamentId}-match-${matchId}`;
+        console.log('🔍 Setting roomId:', roomId);
+        setRoomId(roomId);
+        setPlayerSide('left'); // Default to left player
+        setGameMode('multiplayer');
+        setView('game');
+      } else {
+        console.error('❌ No valid game match found in path:', path);
+        console.log('❌ Expected format: /game/tournament-{id}-match-{matchId}');
+        console.log('❌ Parsed values:', { tournamentId, matchId });
+      }
+    };
+
+    handleGameRoute();
+  }, []);
+
+  /**
    * Handle successful authentication
    */
   const handleAuthSuccess = (authData: AuthResponse) => {

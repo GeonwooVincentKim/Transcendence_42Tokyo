@@ -674,6 +674,16 @@ export class TournamentService {
   }
 
   /**
+   * Start a match
+   */
+  static async startMatch(matchId: number): Promise<void> {
+    await DatabaseService.run(
+      'UPDATE tournament_matches SET status = ?, started_at = CURRENT_TIMESTAMP WHERE id = ?',
+      ['active', matchId]
+    );
+  }
+
+  /**
    * Update match result
    */
   static async updateMatchResult(
@@ -717,7 +727,7 @@ export class TournamentService {
       await this.handleDoubleEliminationMatchProgression(match.tournament_id, match, winnerId);
     } else {
       // Handle other tournament types
-      await this.checkTournamentCompletion(match.tournament_id);
+    await this.checkTournamentCompletion(match.tournament_id);
     }
   }
 
@@ -1020,6 +1030,8 @@ export class TournamentService {
 
     if (tournament.tournament_type === 'single_elimination') {
       await this.updateSingleEliminationRankings(tournamentId);
+    } else if (tournament.tournament_type === 'round_robin') {
+      await this.updateRoundRobinRankings(tournamentId);
     }
     // TODO: Implement rankings for other tournament types
   }
@@ -1056,6 +1068,107 @@ export class TournamentService {
   }
 
   /**
+   * Update round robin rankings
+   */
+  private static async updateRoundRobinRankings(tournamentId: number): Promise<void> {
+    const participants = await this.getTournamentParticipants(tournamentId);
+    const matches = await this.getTournamentMatches(tournamentId);
+
+    // Calculate statistics for each participant
+    const stats = new Map<number, {
+      wins: number;
+      losses: number;
+      totalGames: number;
+      winRate: number;
+      pointsFor: number;
+      pointsAgainst: number;
+      pointDifference: number;
+    }>();
+
+    // Initialize stats
+    participants.forEach((p: TournamentParticipant) => {
+      stats.set(p.id, {
+        wins: 0,
+        losses: 0,
+        totalGames: 0,
+        winRate: 0,
+        pointsFor: 0,
+        pointsAgainst: 0,
+        pointDifference: 0
+      });
+    });
+
+    // Calculate stats from completed matches
+    matches.forEach((match: TournamentMatch) => {
+      if (match.status === 'completed') {
+        const player1Stats = stats.get(match.player1_id || 0)!;
+        const player2Stats = stats.get(match.player2_id || 0)!;
+
+        // Update total games
+        player1Stats.totalGames++;
+        player2Stats.totalGames++;
+
+        // Update points
+        player1Stats.pointsFor += match.player1_score || 0;
+        player1Stats.pointsAgainst += match.player2_score || 0;
+        player2Stats.pointsFor += match.player2_score || 0;
+        player2Stats.pointsAgainst += match.player1_score || 0;
+
+        // Update wins/losses
+        if (match.winner_id === match.player1_id) {
+          player1Stats.wins++;
+          player2Stats.losses++;
+        } else if (match.winner_id === match.player2_id) {
+          player2Stats.wins++;
+          player1Stats.losses++;
+        }
+      }
+    });
+
+    // Calculate win rates and point differences
+    stats.forEach((stat, participantId) => {
+      stat.winRate = stat.totalGames > 0 ? stat.wins / stat.totalGames : 0;
+      stat.pointDifference = stat.pointsFor - stat.pointsAgainst;
+    });
+
+    // Sort participants by ranking criteria:
+    // 1. Win rate (descending)
+    // 2. Total wins (descending)
+    // 3. Point difference (descending)
+    // 4. Points for (descending)
+    const sortedParticipants = participants.sort((a, b) => {
+      const statsA = stats.get(a.id)!;
+      const statsB = stats.get(b.id)!;
+
+      // Compare win rates
+      if (statsA.winRate !== statsB.winRate) {
+        return statsB.winRate - statsA.winRate;
+      }
+
+      // Compare total wins
+      if (statsA.wins !== statsB.wins) {
+        return statsB.wins - statsA.wins;
+      }
+
+      // Compare point difference
+      if (statsA.pointDifference !== statsB.pointDifference) {
+        return statsB.pointDifference - statsA.pointDifference;
+      }
+
+      // Compare points for
+      return statsB.pointsFor - statsA.pointsFor;
+    });
+
+    // Update final rankings
+    for (let i = 0; i < sortedParticipants.length; i++) {
+      await DatabaseService.run(
+        'UPDATE tournament_participants SET final_rank = ? WHERE id = ?',
+        [i + 1, sortedParticipants[i].id]
+      );
+    }
+  }
+
+  /**
    * Get tournament bracket structure
    */
   static async getTournamentBracket(tournamentId: number): Promise<BracketNode[]> {
@@ -1071,6 +1184,8 @@ export class TournamentService {
       return this.buildSingleEliminationBracket(matches, participants);
     } else if (tournament.tournament_type === 'double_elimination') {
       return this.buildDoubleEliminationBracket(matches, participants);
+    } else if (tournament.tournament_type === 'round_robin') {
+      return this.buildRoundRobinTable(matches, participants);
     }
 
     // TODO: Implement other bracket types
@@ -1256,5 +1371,108 @@ export class TournamentService {
       'UPDATE tournaments SET status = ? WHERE id = ?',
       ['cancelled', tournamentId]
     );
+  }
+
+  /**
+   * Build round robin table structure
+   */
+  private static buildRoundRobinTable(matches: TournamentMatch[], participants: TournamentParticipant[]): BracketNode[] {
+    const nodes: BracketNode[] = [];
+    
+    // Calculate statistics for each participant
+    const stats = new Map<number, {
+      wins: number;
+      losses: number;
+      totalGames: number;
+      winRate: number;
+      pointsFor: number;
+      pointsAgainst: number;
+      pointDifference: number;
+    }>();
+
+    // Initialize stats
+    participants.forEach(p => {
+      stats.set(p.id, {
+        wins: 0,
+        losses: 0,
+        totalGames: 0,
+        winRate: 0,
+        pointsFor: 0,
+        pointsAgainst: 0,
+        pointDifference: 0
+      });
+    });
+
+    // Calculate stats from completed matches
+    matches.forEach(match => {
+      if (match.status === 'completed') {
+        const player1Stats = stats.get(match.player1_id || 0)!;
+        const player2Stats = stats.get(match.player2_id || 0)!;
+
+        // Update total games
+        player1Stats.totalGames++;
+        player2Stats.totalGames++;
+
+        // Update points
+        player1Stats.pointsFor += match.player1_score || 0;
+        player1Stats.pointsAgainst += match.player2_score || 0;
+        player2Stats.pointsFor += match.player2_score || 0;
+        player2Stats.pointsAgainst += match.player1_score || 0;
+
+        // Update wins/losses
+        if (match.winner_id === match.player1_id) {
+          player1Stats.wins++;
+          player2Stats.losses++;
+        } else if (match.winner_id === match.player2_id) {
+          player2Stats.wins++;
+          player1Stats.losses++;
+        }
+      }
+    });
+
+    // Calculate win rates and point differences
+    stats.forEach((stat, participantId) => {
+      stat.winRate = stat.totalGames > 0 ? stat.wins / stat.totalGames : 0;
+      stat.pointDifference = stat.pointsFor - stat.pointsAgainst;
+    });
+
+    // Sort participants by ranking criteria
+    const sortedParticipants = participants.sort((a: TournamentParticipant, b: TournamentParticipant) => {
+      const statsA = stats.get(a.id)!;
+      const statsB = stats.get(b.id)!;
+
+      // Compare win rates
+      if (statsA.winRate !== statsB.winRate) {
+        return statsB.winRate - statsA.winRate;
+      }
+
+      // Compare total wins
+      if (statsA.wins !== statsB.wins) {
+        return statsB.wins - statsA.wins;
+      }
+
+      // Compare point difference
+      if (statsA.pointDifference !== statsB.pointDifference) {
+        return statsB.pointDifference - statsA.pointDifference;
+      }
+
+      // Compare points for
+      return statsB.pointsFor - statsA.pointsFor;
+    });
+
+    // Create table nodes for each participant
+    sortedParticipants.forEach((participant, index) => {
+      const participantStats = stats.get(participant.id)!;
+      
+      nodes.push({
+        id: participant.id,
+        round: 1,
+        position: { x: 0, y: index * 100 },
+        player1: participant,
+        children: []
+      });
+    });
+
+    return nodes;
   }
 }

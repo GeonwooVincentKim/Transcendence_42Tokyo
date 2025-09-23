@@ -35,6 +35,15 @@ export interface TournamentParticipant {
   final_rank?: number | null;
   seed?: number | null;
   is_ready: boolean;
+  stats?: {
+    wins: number;
+    losses: number;
+    totalGames: number;
+    winRate: number;
+    pointsFor: number;
+    pointsAgainst: number;
+    pointDifference: number;
+  };
 }
 
 export interface TournamentMatch {

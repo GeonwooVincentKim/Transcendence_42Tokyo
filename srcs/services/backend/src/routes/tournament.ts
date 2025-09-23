@@ -821,4 +821,157 @@ export async function tournamentRoutes(fastify: FastifyInstance) {
       reply.code(500).send({ success: false, error: 'Failed to clear tournament data' });
     }
   });
+
+  // Start Round Robin match
+  fastify.post('/api/tournaments/:tournamentId/matches/:matchId/start', {
+    schema: {
+      description: 'Start a Round Robin match',
+      tags: ['tournaments'],
+      params: {
+        type: 'object',
+        properties: {
+          tournamentId: { type: 'integer' },
+          matchId: { type: 'integer' }
+        }
+      },
+      response: {
+        200: {
+          type: 'object',
+          properties: {
+            success: { type: 'boolean' },
+            data: {
+              type: 'object',
+              properties: {
+                matchId: { type: 'integer' },
+                status: { type: 'string' },
+                gameUrl: { type: 'string' }
+              }
+            }
+          }
+        },
+        404: {
+          type: 'object',
+          properties: {
+            success: { type: 'boolean' },
+            error: { type: 'string' }
+          }
+        },
+        400: {
+          type: 'object',
+          properties: {
+            success: { type: 'boolean' },
+            error: { type: 'string' }
+          }
+        }
+      }
+    }
+  }, async (request, reply) => {
+    try {
+      const { tournamentId, matchId } = request.params as { tournamentId: number, matchId: number };
+      
+      // Get match details
+      const match = await TournamentService.getMatch(matchId);
+      if (!match) {
+        return reply.code(404).send({ success: false, error: 'Match not found' });
+      }
+
+      // Check if match belongs to tournament
+      if (match.tournament_id !== tournamentId) {
+        return reply.code(400).send({ success: false, error: 'Match does not belong to this tournament' });
+      }
+
+      // Check if match is pending
+      if (match.status !== 'pending') {
+        return reply.code(400).send({ success: false, error: 'Match is not pending' });
+      }
+
+      // Start the match
+      await TournamentService.startMatch(matchId);
+      
+      // Generate game URL
+      const gameUrl = `/game/tournament-${tournamentId}-match-${matchId}`;
+      
+      reply.send({
+        success: true,
+        data: {
+          matchId: matchId,
+          status: 'active',
+          gameUrl: gameUrl
+        }
+      });
+    } catch (error) {
+      console.error('Error starting match:', error);
+      reply.code(500).send({ success: false, error: 'Failed to start match' });
+    }
+  });
+
+  // Get Round Robin match details
+  fastify.get('/api/tournaments/:tournamentId/matches/:matchId', {
+    schema: {
+      description: 'Get Round Robin match details',
+      tags: ['tournaments'],
+      params: {
+        type: 'object',
+        properties: {
+          tournamentId: { type: 'integer' },
+          matchId: { type: 'integer' }
+        }
+      },
+      response: {
+        200: {
+          type: 'object',
+          properties: {
+            success: { type: 'boolean' },
+            data: {
+              type: 'object',
+              properties: {
+                id: { type: 'integer' },
+                tournament_id: { type: 'integer' },
+                round: { type: 'integer' },
+                match_number: { type: 'integer' },
+                player1_id: { type: 'integer' },
+                player2_id: { type: 'integer' },
+                winner_id: { type: 'integer' },
+                status: { type: 'string' },
+                player1_score: { type: 'integer' },
+                player2_score: { type: 'integer' },
+                game_session_id: { type: 'string' },
+                created_at: { type: 'string' },
+                started_at: { type: 'string' },
+                finished_at: { type: 'string' }
+              }
+            }
+          }
+        },
+        404: {
+          type: 'object',
+          properties: {
+            success: { type: 'boolean' },
+            error: { type: 'string' }
+          }
+        }
+      }
+    }
+  }, async (request, reply) => {
+    try {
+      const { tournamentId, matchId } = request.params as { tournamentId: number, matchId: number };
+      
+      const match = await TournamentService.getMatch(matchId);
+      if (!match) {
+        return reply.code(404).send({ success: false, error: 'Match not found' });
+      }
+
+      if (match.tournament_id !== tournamentId) {
+        return reply.code(404).send({ success: false, error: 'Match does not belong to this tournament' });
+      }
+
+      reply.send({
+        success: true,
+        data: match
+      });
+    } catch (error) {
+      console.error('Error getting match details:', error);
+      reply.code(500).send({ success: false, error: 'Failed to get match details' });
+    }
+  });
 }

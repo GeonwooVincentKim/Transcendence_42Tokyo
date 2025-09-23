@@ -26,12 +26,20 @@ export const MultiplayerPong: React.FC<MultiplayerPongProps> = ({
 
   // Connect to Socket.IO server
   useEffect(() => {
-    // Parse roomId format: "tournamentId-matchId" (e.g., "14-4")
-    const [tournamentId, matchId] = roomId.split('-');
+    // Parse roomId format: "tournament-{id}-match-{matchId}" (e.g., "tournament-72-match-75")
+    const match = roomId.match(/tournament-(\d+)-match-(\d+)/);
+    if (!match || match.length < 3) {
+      console.error('❌ Invalid roomId format:', roomId);
+      return;
+    }
+    
+    const tournamentId = match[1];
+    const matchId = match[2];
     // Generate unique userId for each connection to avoid conflicts
     const userId = `player_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     
     console.log('Connecting to Socket.IO server for room:', roomId);
+    console.log('🔍 Parsed tournamentId:', tournamentId, 'matchId:', matchId);
     
     const socketService = new SocketIOService();
     socketServiceRef.current = socketService;

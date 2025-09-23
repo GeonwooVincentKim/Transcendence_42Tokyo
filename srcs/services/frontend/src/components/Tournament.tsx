@@ -752,6 +752,7 @@ export const Tournament: React.FC<Props> = ({ onBack, onStartMatch }) => {
             bracket={bracket}
             matches={matches}
             tournamentType={selectedTournament.tournament_type}
+            tournamentId={selectedTournament.id}
             onMatchClick={handleMatchClick}
           />
                         </div>
