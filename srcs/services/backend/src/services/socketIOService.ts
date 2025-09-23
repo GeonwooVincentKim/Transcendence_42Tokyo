@@ -157,6 +157,10 @@ class SocketIOService {
     // Auto-start game loop if both players are present (for debugging)
     if (room.players.size === 2) {
       console.log(`Auto-starting game loop for room ${roomId} with 2 players`);
+      
+      // Set match status to active when both players join
+      this.setMatchActive(tournamentId, matchId);
+      
       setTimeout(() => {
         this.startGameLoop(roomId);
       }, 1000);
@@ -606,6 +610,9 @@ class SocketIOService {
       // Set game status to finished
       room.gameState.status = 'finished';
       
+      // Save tournament match result if this is a tournament game
+      this.saveTournamentMatchResult(roomId, gameData, winner);
+      
       // Broadcast game end
       this.broadcastToRoom(roomId, 'game_end', {
         gameResult: {
@@ -643,6 +650,165 @@ class SocketIOService {
     gameData.ball.y = 200;
     gameData.ball.dx = (Math.random() > 0.5 ? 1 : -1) * 5;
     gameData.ball.dy = (Math.random() - 0.5) * 6;
+  }
+
+  /**
+   * Save tournament match result to database
+   */
+  private async saveTournamentMatchResult(roomId: string, gameData: any, winner: string) {
+    try {
+      // Check if this is a tournament game
+      // Support both formats: "tournament-{id}-match-{matchId}" and "{tournamentId}-{matchId}"
+      let tournamentId: number;
+      let matchId: number;
+      
+      if (roomId.startsWith('tournament-') && roomId.includes('-match-')) {
+        // Format: "tournament-{id}-match-{matchId}"
+        const parts = roomId.split('-');
+        tournamentId = parseInt(parts[1]);
+        matchId = parseInt(parts[3]);
+      } else if (roomId.includes('-') && !roomId.startsWith('tournament-')) {
+        // Format: "{tournamentId}-{matchId}"
+        const parts = roomId.split('-');
+        tournamentId = parseInt(parts[0]);
+        matchId = parseInt(parts[1]);
+      } else {
+        console.log('ℹ️ Not a tournament game, skipping match result save');
+        return;
+      }
+      
+      if (isNaN(tournamentId) || isNaN(matchId)) {
+        console.log('⚠️ Invalid tournament or match ID in room:', roomId);
+        return;
+      }
+
+      console.log(`💾 Saving tournament match result: Tournament ${tournamentId}, Match ${matchId}`);
+      
+      // Import TournamentService dynamically to avoid circular dependency
+      const { TournamentService } = await import('./tournamentService.js');
+      
+      // Get match details to determine winner ID
+      const match = await TournamentService.getMatch(matchId);
+      if (!match) {
+        console.log('⚠️ Match not found:', matchId);
+        return;
+      }
+
+      // Check match status and set to active if needed
+      if (match.status !== 'active') {
+        console.log(`🔄 Match ${matchId} is ${match.status}, setting to active`);
+        await this.setMatchActive(tournamentId, matchId);
+        
+        // Re-fetch match to get updated status
+        const updatedMatch = await TournamentService.getMatch(matchId);
+        if (!updatedMatch || updatedMatch.status !== 'active') {
+          console.log('⚠️ Failed to set match to active status');
+          return;
+        }
+      }
+
+      // Determine winner ID based on game result
+      let winnerId: number;
+      let player1Score: number;
+      let player2Score: number;
+
+      if (winner === 'left') {
+        winnerId = match.player1_id!;
+        player1Score = gameData.leftScore;
+        player2Score = gameData.rightScore;
+      } else {
+        winnerId = match.player2_id!;
+        player1Score = gameData.leftScore;
+        player2Score = gameData.rightScore;
+      }
+
+      console.log(`🏆 Match result: Winner ID ${winnerId}, Scores: ${player1Score} - ${player2Score}`);
+
+      // Update match result in database
+      await TournamentService.updateMatchResult(
+        matchId,
+        winnerId,
+        player1Score,
+        player2Score
+      );
+
+      // Update user statistics for both players
+      await this.updateUserStatistics(match, winnerId, player1Score, player2Score);
+
+      console.log('✅ Tournament match result saved successfully!');
+    } catch (error) {
+      console.error('❌ Error saving tournament match result:', error);
+    }
+  }
+
+  /**
+   * Set match status to active
+   */
+  private async setMatchActive(tournamentId: number, matchId: number) {
+    try {
+      console.log(`🔄 Setting match ${matchId} to active status`);
+      
+      // Import DatabaseService dynamically to avoid circular dependency
+      const { DatabaseService } = await import('./databaseService.js');
+      
+      // Update match status to active
+      await DatabaseService.run(
+        'UPDATE tournament_matches SET status = ?, started_at = CURRENT_TIMESTAMP WHERE id = ?',
+        ['active', matchId]
+      );
+      
+      console.log(`✅ Match ${matchId} set to active status`);
+    } catch (error) {
+      console.error('❌ Error setting match to active:', error);
+    }
+  }
+
+  /**
+   * Update user statistics for tournament match
+   */
+  private async updateUserStatistics(match: any, winnerId: number, player1Score: number, player2Score: number) {
+    try {
+      // Import UserService dynamically to avoid circular dependency
+      const { UserService } = await import('./userService.js');
+      
+      // Get participant details to find user IDs
+      const { TournamentService } = await import('./tournamentService.js');
+      
+      // Get participant details
+      const participant1 = await TournamentService.getParticipant(match.player1_id);
+      const participant2 = await TournamentService.getParticipant(match.player2_id);
+      
+      if (!participant1 || !participant2) {
+        console.log('⚠️ Could not find participants for statistics update');
+        return;
+      }
+
+      // Update statistics for player 1
+      if (participant1.user_id) {
+        const player1Won = match.player1_id === winnerId;
+        await UserService.updateUserStatistics(
+          participant1.user_id.toString(),
+          player1Score,
+          player1Won
+        );
+        console.log(`📊 Updated stats for user ${participant1.user_id}: Score ${player1Score}, Won: ${player1Won}`);
+      }
+
+      // Update statistics for player 2
+      if (participant2.user_id) {
+        const player2Won = match.player2_id === winnerId;
+        await UserService.updateUserStatistics(
+          participant2.user_id.toString(),
+          player2Score,
+          player2Won
+        );
+        console.log(`📊 Updated stats for user ${participant2.user_id}: Score ${player2Score}, Won: ${player2Won}`);
+      }
+
+      console.log('✅ User statistics updated successfully!');
+    } catch (error) {
+      console.error('❌ Error updating user statistics:', error);
+    }
   }
 
   /**
