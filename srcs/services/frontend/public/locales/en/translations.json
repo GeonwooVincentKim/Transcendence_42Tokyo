@@ -1,0 +1,22 @@
+{
+	"button": {
+		"forgotpw": "Forgot password",
+		"forgotusrnm": "Forgot username",
+		"registeracct": "Register",
+		"login": "Login",
+		"loggingin": "Logging in..."
+	},
+	"placeholder": {
+		"username": "Enter your username",
+		"password": "Enter your password"
+	},
+	"label": {
+		"usrnm": "Username",
+		"pw": "Password",
+		"newacct": "New account?",
+		"signintoplay": "Sign in to play",
+		"logintitle": "Login to Pong",
+		"title": "ft_transcendence Pong"
+	}
+
+}	
