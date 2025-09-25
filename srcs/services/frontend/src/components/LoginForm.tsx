@@ -8,6 +8,15 @@
 import React, { useState } from 'react';
 import { AuthService } from '../services/authService';
 import { LoginRequest, AuthResponse } from '../types/auth';
+import i18n from 'i18next';
+
+function updateContent() {
+	const submitButton = document.getElementById('submitButton');
+	if (submitButton) {
+		if (submitButton.textContent == i18n.t('button.login'))
+			submitButton.textContent = i18n.t('button.loggingin');
+	}
+}
 
 interface LoginFormProps {
   onLoginSuccess: (authData: AuthResponse) => void;
@@ -58,6 +67,7 @@ export const LoginForm: React.FC<LoginFormProps> = ({
 
     setIsLoading(true);
     setError(null);
+	updateContent();
 
     try {
       const authData = await AuthService.login(formData);
@@ -77,14 +87,14 @@ export const LoginForm: React.FC<LoginFormProps> = ({
   return (
     <div className="max-w-md mx-auto bg-white rounded-lg shadow-md p-6">
       <h2 className="text-2xl font-bold text-center text-gray-800 mb-6">
-        Login to Pong Game
+        {i18n.t('label.logintitle')}
       </h2>
       
       <form onSubmit={handleSubmit} className="space-y-4">
         {/* Username Field */}
         <div>
           <label htmlFor="username" className="block text-sm font-medium text-gray-700 mb-1">
-            Username
+            {i18n.t('label.usrnm')}
           </label>
           <input
             type="text"
@@ -93,7 +103,7 @@ export const LoginForm: React.FC<LoginFormProps> = ({
             value={formData.username}
             onChange={handleInputChange}
             className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            placeholder="Enter your username"
+            placeholder={i18n.t('placeholder.username')}
             disabled={isLoading}
             required
           />
@@ -102,7 +112,7 @@ export const LoginForm: React.FC<LoginFormProps> = ({
         {/* Password Field */}
         <div>
           <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1">
-            Password
+            {i18n.t('label.pw')}
           </label>
           <input
             type="password"
@@ -111,7 +121,7 @@ export const LoginForm: React.FC<LoginFormProps> = ({
             value={formData.password}
             onChange={handleInputChange}
             className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            placeholder="Enter your password"
+            placeholder={i18n.t('placeholder.password')}
             disabled={isLoading}
             required
           />
@@ -127,23 +137,24 @@ export const LoginForm: React.FC<LoginFormProps> = ({
         {/* Submit Button */}
         <button
           type="submit"
+		  id="submitButton"
           disabled={isLoading}
           className="w-full bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          {isLoading ? 'Logging in...' : 'Login'}
+          {i18n.t('button.login')}
         </button>
       </form>
 
               {/* Switch to Register */}
         <div className="mt-4 text-center">
           <p className="text-gray-600">
-            Don't have an account?{' '}
+            {i18n.t('label.newacct')}{' '}
             <button
               type="button"
               onClick={onSwitchToRegister}
               className="text-blue-600 hover:text-blue-800 font-medium"
             >
-              Register here
+              {i18n.t('button.registeracct')}
             </button>
           </p>
         </div>
@@ -153,18 +164,20 @@ export const LoginForm: React.FC<LoginFormProps> = ({
           <p className="text-sm text-gray-600">
             <button
               type="button"
+			  id="forgotusrnmButton"
               onClick={onSwitchToForgotUsername}
               className="text-blue-600 hover:text-blue-800 font-medium"
             >
-              Forgot Username?
+			{i18n.t('button.forgotusrnm')}
             </button>
             {' • '}
             <button
               type="button"
+			  id="forgotpwButton"
               onClick={onSwitchToForgotPassword}
               className="text-blue-600 hover:text-blue-800 font-medium"
             >
-              Forgot Password?
+			{i18n.t('button.forgotpw')}
             </button>
           </p>
         </div>

@@ -9,8 +9,8 @@ describe('User Profile Test', () => {
     cy.wait(2000)
 
     // Check if we're on the login page
-    cy.get('h1').should('contain', 'Transcendence Pong')
-    cy.get('p').should('contain', 'Please sign in to play the game')
+    cy.get('h1').should('contain', 'ft_transcendence Pong')
+    cy.get('p').should('contain', 'Sign in to play')
 
     // Login with test credentials
     cy.get('input[placeholder="Enter your username"]').type('user2')
@@ -21,7 +21,7 @@ describe('User Profile Test', () => {
     cy.wait(2000)
 
     // Check if we're logged in
-    cy.get('h1').should('contain', 'Transcendence Pong')
+    cy.get('h1').should('contain', 'ft_transcendence Pong')
     cy.get('p').should('contain', 'Welcome, user2!')
 
     // Click on Profile button
@@ -67,7 +67,7 @@ describe('User Profile Test', () => {
     cy.wait(1000)
 
     // Check if we're back to the main game page
-    cy.get('h1').should('contain', 'Transcendence Pong')
+    cy.get('h1').should('contain', 'ft_transcendence Pong')
     cy.get('p').should('contain', 'Welcome, user2!')
   })
 
@@ -76,8 +76,8 @@ describe('User Profile Test', () => {
     cy.visit('http://localhost:3000')
     
     // Check if we're redirected to login page
-    cy.get('h1').should('contain', 'Transcendence Pong')
-    cy.get('p').should('contain', 'Please sign in to play the game')
+    cy.get('h1').should('contain', 'ft_transcendence Pong')
+    cy.get('p').should('contain', 'Sign in to play')
   })
 
   it('should display user statistics correctly', () => {
