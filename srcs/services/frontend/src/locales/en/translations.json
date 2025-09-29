@@ -11,8 +11,8 @@
 		"password": "Enter your password"
 	},
 	"label": {
-		"usrnm": "Username",
-		"pw": "Password",
+		"usrnm": "Username ",
+		"pw": "Password ",
 		"newacct": "New account?",
 		"signintoplay": "Sign in to play",
 		"logintitle": "Login to Pong",

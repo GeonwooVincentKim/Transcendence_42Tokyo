@@ -16,7 +16,8 @@ import './App.css';
 import { AuthResponse, User } from './types/auth';
 import { GameSettingsProvider } from './contexts/GameSettingsContext';
 import i18n from 'i18next';
-import translationEN from '../public/locales/en/translations.json';
+import translationEN from './locales/en/translations.json';
+import translationJP from './locales/jp/translations.json';
 
 /**
  * Main App Component
@@ -46,6 +47,9 @@ function App() {
   resources: {
 	en: {
 		translation: translationEN
+	},
+	jp: {
+		translation:translationJP
 	}
   }
 });
