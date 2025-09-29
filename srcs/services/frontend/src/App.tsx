@@ -16,8 +16,6 @@ import './App.css';
 import { AuthResponse, User } from './types/auth';
 import { GameSettingsProvider } from './contexts/GameSettingsContext';
 import i18n from 'i18next';
-import translationEN from './locales/en/translations.json';
-import translationJP from './locales/jp/translations.json';
 
 /**
  * Main App Component
@@ -36,23 +34,6 @@ function App() {
   const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
   const [view, setView] = useState<'game' | 'profile' | 'deleteAccount' | 'forgotPassword' | 'forgotUsername' | 'settings' | 'ranking' | 'tournament'>('game');
   const [showSettings, setShowSettings] = useState(false);
-
-  // Initialize i18n
-  i18n.init({
-  lng: 'en', // if using a language detector, do not define the lng option
-  debug: true,
-  fallbackLng: 'en', // Fallback language if a translation is missing
-  ns: ['translation'], // define namespace(s)
-  defaultNS: 'translation', // default namespace
-  resources: {
-	en: {
-		translation: translationEN
-	},
-	jp: {
-		translation:translationJP
-	}
-  }
-});
 
   /**
    * Check authentication status on component mount
@@ -186,7 +167,6 @@ function App() {
     setGameMode('menu');
   };
 
-
   // --- (CHANGED) --- Render logic is updated for clarity and correctness.
   const renderGameContent = () => {
     switch(gameMode) {
@@ -315,8 +295,8 @@ function App() {
     return (
       <div className="min-h-screen bg-gray-900 text-white flex items-center justify-center">
         <div className="text-center">
-          <h1 className="text-4xl mb-8">{i18n.t('label.title')}</h1>
-          <p className="text-gray-400 mb-8">{i18n.t('label.signintoplay')}</p>
+          <h1 id="title" className="text-4xl mb-8">{i18n.t('label.title')}</h1>
+          <p id="subtitle" className="text-gray-400 mb-8">{i18n.t('label.signintoplay')}</p>
           {authMode === 'login' ? (
             <LoginForm 
               onLoginSuccess={handleAuthSuccess}

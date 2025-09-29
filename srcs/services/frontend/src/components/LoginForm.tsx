@@ -52,6 +52,39 @@ export const LoginForm: React.FC<LoginFormProps> = ({
     if (error) setError(null);
   };
 
+    // Handle language change
+  const handleLangChange = (e: React.MouseEvent<HTMLButtonElement>) => {
+	e.preventDefault(); 
+	i18n.changeLanguage(e.currentTarget.id);
+	const titleLabel = document.getElementById("title");
+	const subtitleLabel = document.getElementById("subtitle");
+	const loginTitleLabel = document.getElementById("logintitle");
+	const usernameLabel = document.getElementById("usernameLabel");
+	const passwordLabel = document.getElementById("passwordLabel");
+	const submitButton = document.getElementById("submitButton");
+	const registerButton = document.getElementById("registerButton");
+	const forgotusrnmButton = document.getElementById("forgotusrnmButton");
+	const forgotpwButton = document.getElementById("forgotpwButton");
+	if (titleLabel)
+		titleLabel.innerHTML = i18n.t('label.title');
+	if (subtitleLabel)
+		subtitleLabel.innerHTML = i18n.t('label.signintoplay');
+	if (loginTitleLabel)
+		loginTitleLabel.innerHTML = i18n.t('label.logintitle');
+	if (usernameLabel)
+		usernameLabel.innerHTML = i18n.t('label.usrnm');
+	if (passwordLabel)
+		passwordLabel.innerHTML = i18n.t('label.pw');
+	if (submitButton)
+		submitButton.innerHTML = i18n.t('button.login');
+	if (registerButton)
+		registerButton.innerHTML = i18n.t('button.registeracct');
+	if (forgotusrnmButton)
+		forgotusrnmButton.innerHTML = i18n.t('button.forgotusrnm');
+	if (forgotpwButton)
+		forgotpwButton.innerHTML = i18n.t('button.forgotpw');
+  };
+
   /**
    * Handle form submission
    * @param e - Form submit event
@@ -86,14 +119,14 @@ export const LoginForm: React.FC<LoginFormProps> = ({
 
   return (
     <div className="max-w-md mx-auto bg-white rounded-lg shadow-md p-6">
-      <h2 className="text-2xl font-bold text-center text-gray-800 mb-6">
+      <h2 id="logintitle" className="text-2xl font-bold text-center text-gray-800 mb-6">
         {i18n.t('label.logintitle')}
       </h2>
       
       <form onSubmit={handleSubmit} className="space-y-4">
         {/* Username Field */}
         <div>
-          <label htmlFor="username" className="block text-sm font-medium text-gray-700 mb-1">
+          <label id="usernameLabel" htmlFor="username" className="block text-sm font-medium text-gray-700 mb-1">
             {i18n.t('label.usrnm')}
           </label>
           <input
@@ -111,7 +144,7 @@ export const LoginForm: React.FC<LoginFormProps> = ({
 
         {/* Password Field */}
         <div>
-          <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1">
+          <label id="passwordLabel" htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1">
             {i18n.t('label.pw')}
           </label>
           <input
@@ -148,9 +181,9 @@ export const LoginForm: React.FC<LoginFormProps> = ({
               {/* Switch to Register */}
         <div className="mt-4 text-center">
           <p className="text-gray-600">
-            {i18n.t('label.newacct')}{' '}
             <button
               type="button"
+			  id="registerButton"
               onClick={onSwitchToRegister}
               className="text-blue-600 hover:text-blue-800 font-medium"
             >
@@ -178,6 +211,35 @@ export const LoginForm: React.FC<LoginFormProps> = ({
               className="text-blue-600 hover:text-blue-800 font-medium"
             >
 			{i18n.t('button.forgotpw')}
+            </button>
+          </p>
+        </div>
+		{/* Language Selection */}
+        <div className="mt-2 text-center space-y-1">
+          <p className="text-sm text-gray-600">
+            <button
+              type="button"
+			  id="en"
+              onClick={handleLangChange}
+              className="text-blue-600 hover:text-blue-800 font-medium"
+            >
+			English
+            </button>
+            <button
+              type="button"
+			  id="jp"
+              onClick={handleLangChange}
+              className="text-blue-600 hover:text-blue-800 font-medium"
+            >
+			日本語
+            </button>
+            <button
+              type="button"
+			  id="ko"
+              onClick={handleLangChange}
+              className="text-blue-600 hover:text-blue-800 font-medium"
+            >
+			한국어
             </button>
           </p>
         </div>

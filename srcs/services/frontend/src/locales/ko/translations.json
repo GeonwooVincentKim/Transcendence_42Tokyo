@@ -1,0 +1,20 @@
+{
+	"button": {
+		"forgotpw": "ㅇ",
+		"forgotusrnm": "ㅇ",
+		"registeracct": "ㅇ",
+		"login": "ㅇ",
+		"loggingin": "ㅇ"
+	},
+	"placeholder": {
+		"username": "ㅇ",
+		"password": "ㅇ"
+	},
+	"label": {
+		"usrnm": "ㅇ ",
+		"pw": "ㅇ ",
+		"signintoplay": "",
+		"logintitle": "ㅇ",
+		"title": "ㅇ"
+	}
+}	

@@ -2,7 +2,7 @@
 	"button": {
 		"forgotpw": "Forgot password",
 		"forgotusrnm": "Forgot username",
-		"registeracct": "Register",
+		"registeracct": "Create account",
 		"login": "Login",
 		"loggingin": "Logging in..."
 	},
@@ -13,7 +13,6 @@
 	"label": {
 		"usrnm": "Username ",
 		"pw": "Password ",
-		"newacct": "New account?",
 		"signintoplay": "Sign in to play",
 		"logintitle": "Login to Pong",
 		"title": "ft_transcendence Pong"

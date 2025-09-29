@@ -2,7 +2,7 @@
 	"button": {
 		"forgotpw": "パスワードをお忘れの場合",
 		"forgotusrnm": "ユーザー名をお忘れの場合",
-		"registeracct": "会員登録",
+		"registeracct": "アカウントを作成",
 		"login": "ログイン",
 		"loggingin": "ログイン中"
 	},
@@ -13,7 +13,6 @@
 	"label": {
 		"usrnm": "ユーザー名 ",
 		"pw": "パスワード ",
-		"newacct": "新規登録はこちら",
 		"signintoplay": "",
 		"logintitle": "アカウントにログインしてください",
 		"title": "ft_transcendence ポン"
