@@ -63,7 +63,7 @@ describe('Game Completion and Statistics Test', () => {
     cy.wait(1000);
     
     // Verify Pong game is loaded
-    cy.contains('Player vs. Player').should('be.visible');
+    cy.contains('Player vs Player').should('be.visible');
     
     // Start the game
     cy.get('[data-testid="start-button"]').click();

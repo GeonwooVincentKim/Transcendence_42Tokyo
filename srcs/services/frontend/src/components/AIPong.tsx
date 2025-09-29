@@ -3,6 +3,7 @@ import { usePongEngine } from '../hooks/usePongEngine';
 import { useHumanController } from '../hooks/useHumanController';
 import { useAIController, AIDifficulty } from '../hooks/useAIController';
 import { GameStatsService } from '../services/gameStatsService';
+import i18n from 'i18next';
 
 /**
  * The Player vs. AI Pong game component.
@@ -97,19 +98,19 @@ export const AIPong: React.FC = () => {
     <div className="flex flex-col items-center space-y-4 p-4" data-testid="game-container">
       {/* Game Title */}
       <h2 className="text-2xl font-bold text-white mb-4">
-        Player vs AI
+        {i18n.t('label.pve')}
       </h2>
 
       {/* Instructions */}
       <div className="text-white text-sm mb-4 text-center">
-        <p>Use W (up) / S (down) to move your paddle.</p>
-        <p>The AI adapts its difficulty based on your performance!</p>
-        <p>AI Difficulty: {aiDifficulty}</p>
+        <p>{i18n.t('msg.movementkeys')}</p>
+        <p>{i18n.t('msg.aidifficulty')}</p>
+        <p>{i18n.t('info.difficultylvl', {lvl: aiDifficulty})}</p>
       </div>
 
       {/* Difficulty Selector */}
       <div className="flex space-x-2 mb-4">
-        <span className="text-white mr-2">AI Difficulty:</span>
+        <span className="text-white mr-2">{i18n.t('info.difficulty')}</span>
         <button
           onClick={() => handleDifficultyChange('easy')}
           className={`px-4 py-2 rounded ${
@@ -118,7 +119,7 @@ export const AIPong: React.FC = () => {
               : 'bg-gray-600 text-gray-300 hover:bg-gray-500'
           }`}
         >
-          Easy
+          {i18n.t('button.easy')}
         </button>
         <button
           onClick={() => handleDifficultyChange('medium')}
@@ -128,7 +129,7 @@ export const AIPong: React.FC = () => {
               : 'bg-gray-600 text-gray-300 hover:bg-gray-500'
           }`}
         >
-          Medium
+          {i18n.t('button.medium')}
         </button>
         <button
           onClick={() => handleDifficultyChange('hard')}
@@ -138,7 +139,7 @@ export const AIPong: React.FC = () => {
               : 'bg-gray-600 text-gray-300 hover:bg-gray-500'
           }`}
         >
-          Hard
+          {i18n.t('button.hard')}
         </button>
       </div>
 
@@ -154,24 +155,24 @@ export const AIPong: React.FC = () => {
         
         {/* Game Controls Overlay */}
         <div className="absolute top-2 left-2 text-white text-sm">
-          <div>Use W/S keys to move your paddle</div>
-          <div>Press SPACE to start/pause</div>
+          <div>{i18n.t('msg.movementkeys')}</div>
+          <div>{i18n.t('msg.startstop')}</div>
         </div>
 
         {/* Score Display */}
         <div className="absolute top-2 right-2 text-white text-2xl font-bold" data-testid="score">
-          Player: {gameState.leftScore} - AI: {gameState.rightScore}
+          {i18n.t('info.pvescore', {left: gameState.leftScore, right: gameState.rightScore})}
         </div>
         
         {/* Game End Message */}
         {gameState.status === 'finished' && gameState.winner && (
           <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-75">
             <div className="bg-green-600 text-white p-6 rounded-lg text-center">
-              <h3 className="text-2xl font-bold mb-2">Game Over!</h3>
+              <h3 className="text-2xl font-bold mb-2">{i18n.t('label.gameover')}</h3>
               <p className="text-xl mb-2">
-                {gameState.winner === 'left' ? 'Player' : 'AI'} wins!
+                {i18n.t('msg.matchwinner', {who: gameState.winner === 'left' ? i18n.t('option.player') : i18n.t('option.ai')})}
               </p>
-              <p className="text-lg">Final Score: {gameState.leftScore} - {gameState.rightScore}</p>
+              <p className="text-lg">{i18n.t('info.matchscore', {left: gameState.leftScore, right: gameState.rightScore})}</p>
             </div>
           </div>
         )}
@@ -184,26 +185,26 @@ export const AIPong: React.FC = () => {
           disabled={gameState.status === 'playing'}
           className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 disabled:bg-gray-600"
         >
-          Start
+          {i18n.t('button.start')}
         </button>
         <button
           onClick={controls.pause}
           disabled={gameState.status !== 'playing'}
           className="px-4 py-2 bg-yellow-600 text-white rounded hover:bg-yellow-700 disabled:bg-gray-600"
         >
-          Pause
+          {i18n.t('button.pause')}
         </button>
         <button
           onClick={controls.reset}
           className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700"
         >
-          Reset
+          {i18n.t('button.reset')}
         </button>
         <button
           onClick={() => setShowDebugInfo(!showDebugInfo)}
           className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
         >
-          {showDebugInfo ? 'Hide Debug' : 'Show Debug'}
+          {showDebugInfo ? i18n.t('button.hidedebug') : i18n.t('button.showdebug')}
         </button>
       </div>
 
@@ -239,7 +240,7 @@ export const AIPong: React.FC = () => {
 
       {/* Game Status */}
       <div className="text-white text-lg" data-testid="game-status">
-        Status: <span className="text-yellow-400">{gameState.status}</span>
+        {i18n.t('info.status')} <span className="text-yellow-400">{gameState.status}</span>
       </div>
     </div>
   );

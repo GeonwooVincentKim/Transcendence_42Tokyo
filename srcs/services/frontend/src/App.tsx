@@ -178,7 +178,7 @@ function App() {
               onClick={handleReturnToMenu}
               className="mt-4 px-4 py-2 bg-gray-600 rounded hover:bg-gray-700"
             >
-              Back to Menu
+              {i18n.t('button.backtomenu')}
             </button>
           </>
         );
@@ -189,7 +189,7 @@ function App() {
             <div className="mb-4">
               <input
                 type="text"
-                placeholder="Enter Room ID to Join/Create"
+                placeholder={i18n.t('placeholder.roomid')}
                 value={roomId}
                 onChange={(e) => setRoomId(e.target.value)}
                 className="px-4 py-2 text-black rounded mr-2"
@@ -199,8 +199,8 @@ function App() {
                 onChange={(e) => setPlayerSide(e.target.value as 'left' | 'right')}
                 className="px-4 py-2 text-black rounded"
               >
-                <option value="left">Left Player</option>
-                <option value="right">Right Player</option>
+                <option value="left">{i18n.t('leftplayer')}</option>
+                <option value="right">{i18n.t('rightplayer')}</option>
               </select>
             </div>
             
@@ -213,7 +213,7 @@ function App() {
               onClick={handleReturnToMenu}
               className="mt-4 px-4 py-2 bg-gray-600 rounded hover:bg-gray-700"
             >
-              Back to Menu
+              {i18n.t('button.backtomenu')}
             </button>
           </>
         );
@@ -227,7 +227,7 @@ function App() {
               onClick={handleReturnToMenu}
               className="mt-4 px-4 py-2 bg-gray-600 rounded hover:bg-gray-700"
             >
-              Back to Menu
+              {i18n.t('button.backtomenu')}
             </button>
           </>
         );
@@ -240,37 +240,37 @@ function App() {
               onClick={startSinglePlayerGame}
               className="px-6 py-3 bg-indigo-600 rounded hover:bg-indigo-700 w-64 text-lg"
             >
-              Player vs Player (Local)
+              {i18n.t('button.pvplocal')}
             </button>
             <button 
               onClick={showMultiplayerSetup}
               className="px-6 py-3 bg-blue-600 rounded hover:bg-blue-700 w-64 text-lg"
             >
-              Multiplayer (Online)
+              {i18n.t('button.mponline')}
             </button>
             <button 
               onClick={startAIGame}
               className="px-6 py-3 bg-green-600 rounded hover:bg-green-700 w-64 text-lg"
             >
-              Player vs AI
+              {i18n.t('button.pve')}
             </button>
             <button 
               onClick={() => setShowSettings(true)}
               className="px-6 py-3 bg-purple-600 rounded hover:bg-purple-700 w-64 text-lg"
             >
-              Game Settings
+              {i18n.t('button.settings')}
             </button>
             <button 
               onClick={() => setView('ranking')}
               className="px-6 py-3 bg-yellow-600 rounded hover:bg-yellow-700 w-64 text-lg"
             >
-              Ranking
+              {i18n.t('button.ranking')}
             </button>
             <button 
               onClick={() => setView('tournament')}
               className="px-6 py-3 bg-pink-600 rounded hover:bg-pink-700 w-64 text-lg"
             >
-              Tournament
+              {i18n.t('button.tournament')}
             </button>
           </div>
         );
@@ -283,8 +283,8 @@ function App() {
     return (
       <div className="min-h-screen bg-gray-900 text-white flex items-center justify-center">
         <div className="text-center">
-          <h1 className="text-4xl mb-8">Transcendence Pong</h1>
-          <p>Loading...</p>
+          <h1 className="text-4xl mb-8">{i18n.t('label.title')}</h1>
+          <p>{i18n.t('label.loading')}</p>
         </div>
       </div>
     );
@@ -320,7 +320,7 @@ function App() {
     return (
       <div className="min-h-screen bg-gray-900 text-white flex items-center justify-center">
         <div className="text-center">
-          <h1 className="text-4xl mb-8">User Profile</h1>
+          <h1 className="text-4xl mb-8">{i18n.t('label.userprofile')}</h1>
           <UserProfile 
             user={user!}
             onLogout={handleLogout}
@@ -336,7 +336,7 @@ function App() {
     return (
       <div className="min-h-screen bg-gray-900 text-white flex items-center justify-center">
         <div className="text-center">
-          <h1 className="text-4xl mb-8">Delete Account</h1>
+          <h1 className="text-4xl mb-8">{i18n.t('deleteacct')}</h1>
           <DeleteAccountPage 
             user={user!}
             onBackToProfile={() => setView('profile')}
@@ -351,7 +351,7 @@ function App() {
     return (
       <div className="min-h-screen bg-gray-900 text-white flex items-center justify-center">
         <div className="text-center">
-          <h1 className="text-4xl mb-8">Forgot Password</h1>
+          <h1 className="text-4xl mb-8">{i18n.t('label.pwreset')}</h1>
           <ForgotPassword 
             onBackToLogin={() => setView('game')}
           />
@@ -364,7 +364,7 @@ function App() {
     return (
       <div className="min-h-screen bg-gray-900 text-white flex items-center justify-center">
         <div className="text-center">
-          <h1 className="text-4xl mb-8">Forgot Username</h1>
+          <h1 className="text-4xl mb-8">{i18n.t('label.recoverusrnm')}</h1>
           <ForgotUsername 
             onBackToLogin={() => setView('game')}
           />
@@ -377,13 +377,13 @@ function App() {
     return (
       <div className="min-h-screen bg-gray-900 text-white flex items-center justify-center">
         <div className="text-center">
-          <h1 className="text-4xl mb-8">User Ranking</h1>
+          <h1 className="text-4xl mb-8">{i18n.t('label.userranking')}</h1>
           <Ranking />
           <button
             onClick={() => setView('game')}
             className="mt-8 px-4 py-2 bg-gray-600 rounded hover:bg-gray-700"
           >
-            Back to Game
+            {i18n.t('button.backtogame')}
           </button>
         </div>
       </div>
@@ -394,7 +394,7 @@ function App() {
     return (
       <div className="min-h-screen bg-gray-900 text-white flex items-center justify-center">
         <div className="text-center">
-          <h1 className="text-4xl mb-8">Tournament</h1>
+          <h1 className="text-4xl mb-8">{i18n.t('label.tournament')}</h1>
           <Tournament 
             onBack={() => setView('game')} 
             onStartMatch={(_tournamentId, _matchId, roomId) => {
@@ -417,21 +417,21 @@ function App() {
         <div className="text-center">
           <div className="flex justify-between items-center mb-8">
             <div className="text-left">
-              <h1 className="text-4xl">Transcendence Pong</h1>
-              <p className="text-gray-400 mt-2">Welcome, {user?.username}!</p>
+              <h1 className="text-4xl">{i18n.t('label.title')}</h1>
+              <p className="text-gray-400 mt-2">{i18n.t('label.welcomeuser', {user: user?.username})}</p>
             </div>
             <div className="flex gap-4">
               <button 
                 onClick={() => setView('profile')}
                 className="px-4 py-2 bg-blue-600 rounded hover:bg-blue-700"
               >
-                Profile
+                {i18n.t('button.userprofile')}
               </button>
               <button 
                 onClick={handleLogout}
                 className="px-4 py-2 bg-red-600 rounded hover:bg-red-700"
               >
-                Logout
+                {i18n.t('button.logout')}
               </button>
             </div>
           </div>

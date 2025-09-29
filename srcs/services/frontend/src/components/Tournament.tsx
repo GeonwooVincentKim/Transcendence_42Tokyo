@@ -17,6 +17,7 @@ import {
 } from '../services/tournamentService';
 import { AuthService } from '../services/authService';
 import { TournamentBracket } from './TournamentBracket';
+import i18n from 'i18next';
 
 interface Props {
   onBack: () => void;
@@ -115,7 +116,7 @@ export const Tournament: React.FC<Props> = ({ onBack, onStartMatch }) => {
         }
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load tournament details');
+      setError(err instanceof Error ? err.message : i18n.t('error.tournamentdetailsfailed'));
     } finally {
       setLoading(false);
     }
@@ -140,7 +141,7 @@ export const Tournament: React.FC<Props> = ({ onBack, onStartMatch }) => {
     const participantsError = tournamentService.validateMaxParticipants(tournamentForm.max_participants);
     
     if (nameError || participantsError) {
-      setError(nameError || participantsError || 'Validation failed');
+      setError(nameError || participantsError || i18n.t('error.validationfailed'));
       return;
     }
 
@@ -162,7 +163,7 @@ export const Tournament: React.FC<Props> = ({ onBack, onStartMatch }) => {
       setTournamentForm({ name: '', description: '', max_participants: 8, tournament_type: 'single_elimination' });
       setView('list');
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to create tournament');
+      setError(err instanceof Error ? err.message : i18n.t('error.tournamentcreationfailed'));
     } finally {
       setLoading(false);
     }
@@ -195,11 +196,11 @@ export const Tournament: React.FC<Props> = ({ onBack, onStartMatch }) => {
       };
 
       await tournamentService.joinTournament(selectedTournament.id, input);
-      setSuccess('Successfully joined tournament!');
+      setSuccess(i18n.t('msg.joinedtournament'));
       setJoinForm({ display_name: '', guest_alias: '', avatar_url: '' });
       await loadTournamentDetails(selectedTournament.id);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to join tournament');
+      setError(err instanceof Error ? err.message : i18n.t('error.tournamentjoinfailed'));
     } finally {
       setLoading(false);
     }
@@ -219,10 +220,10 @@ export const Tournament: React.FC<Props> = ({ onBack, onStartMatch }) => {
         !isAuthenticated ? joinForm.guest_alias : undefined
       );
       
-      setSuccess('Successfully left tournament!');
+      setSuccess(i18n.t('msg.lefttournament'));
       await loadTournamentDetails(selectedTournament.id);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to leave tournament');
+      setError(err instanceof Error ? err.message : i18n.t('error.tournamentleavefailed'));
     } finally {
       setLoading(false);
     }
@@ -237,10 +238,10 @@ export const Tournament: React.FC<Props> = ({ onBack, onStartMatch }) => {
       setError(null);
       
       await tournamentService.startTournament(selectedTournament.id);
-      setSuccess('Tournament started successfully!');
+      setSuccess(i18n.t('msg.startedtournament'));
       await loadTournamentDetails(selectedTournament.id);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to start tournament');
+      setError(err instanceof Error ? err.message : i18n.t('error.tournamentstartfailed'));
     } finally {
       setLoading(false);
     }
@@ -263,19 +264,19 @@ export const Tournament: React.FC<Props> = ({ onBack, onStartMatch }) => {
   const renderTournamentList = () => (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
-        <h2 className="text-2xl font-bold text-gray-900">Tournaments</h2>
+        <h2 className="text-2xl font-bold text-gray-900">{i18n.t('label.tournaments')}</h2>
         <div className="flex gap-2">
             <button 
             onClick={() => setView('create')}
             className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
             >
-            Create Tournament
+            {i18n.t('button.createtournament')}
             </button>
           <button
             onClick={onBack}
             className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
           >
-            Back to Game
+            {i18n.t('button.backtogame')}
           </button>
         </div>
                   </div>
@@ -285,23 +286,23 @@ export const Tournament: React.FC<Props> = ({ onBack, onStartMatch }) => {
         <div className="grid grid-cols-1 md:grid-cols-5 gap-4 p-4 bg-gray-50 rounded-lg">
           <div className="text-center">
             <div className="text-2xl font-bold text-blue-600">{stats.total_tournaments}</div>
-            <div className="text-sm text-gray-600">Total Tournaments</div>
+            <div className="text-sm text-gray-600">{i18n.t('rankinfo.totaltournaments')}</div>
                     </div>
           <div className="text-center">
             <div className="text-2xl font-bold text-green-600">{stats.active_tournaments}</div>
-            <div className="text-sm text-gray-600">Active</div>
+            <div className="text-sm text-gray-600">{i18n.t('rankinfo.active')}</div>
                       </div>
           <div className="text-center">
             <div className="text-2xl font-bold text-gray-600">{stats.completed_tournaments}</div>
-            <div className="text-sm text-gray-600">Completed</div>
+            <div className="text-sm text-gray-600">{i18n.t('rankinfo.completed')}</div>
                     </div>
           <div className="text-center">
             <div className="text-2xl font-bold text-purple-600">{stats.total_participants}</div>
-            <div className="text-sm text-gray-600">Participants</div>
+            <div className="text-sm text-gray-600">{i18n.t('rankinfo.participants')}</div>
                     </div>
           <div className="text-center">
             <div className="text-2xl font-bold text-orange-600">{stats.total_matches}</div>
-            <div className="text-sm text-gray-600">Matches</div>
+            <div className="text-sm text-gray-600">{i18n.t('rankinfo.matches')}</div>
                   </div>
                 </div>
       )}
@@ -319,7 +320,7 @@ export const Tournament: React.FC<Props> = ({ onBack, onStartMatch }) => {
                 <div className="flex items-center gap-4 mt-2 text-sm text-gray-500">
                   <span>{tournamentService.getTournamentTypeDisplayName(tournament.tournament_type)}</span>
                   <span>•</span>
-                  <span>{tournament.max_participants} participants</span>
+                  <span>{i18n.t('info.participants', {num: tournament.max_participants})}</span>
                   <span>•</span>
                   <span className={`px-2 py-1 rounded-full text-xs ${tournamentService.getTournamentStatusColor(tournament.status)}`}>
                     {tournamentService.getTournamentStatusDisplayName(tournament.status)}
@@ -330,7 +331,7 @@ export const Tournament: React.FC<Props> = ({ onBack, onStartMatch }) => {
                 onClick={() => handleViewTournament(tournament)}
                 className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
                   >
-                    View Details
+                    {i18n.t('button.viewdetails')}
                   </button>
                 </div>
               </div>
@@ -339,8 +340,8 @@ export const Tournament: React.FC<Props> = ({ onBack, onStartMatch }) => {
 
       {tournaments.length === 0 && !loading && (
         <div className="text-center py-12">
-          <p className="text-gray-500 text-lg">No tournaments found</p>
-          <p className="text-gray-400 mt-2">Create the first tournament to get started!</p>
+          <p className="text-gray-500 text-lg">{i18n.t('msg.notournaments')}</p>
+          <p className="text-gray-400 mt-2">{i18n.t('msg.firsttournament')}</p>
           </div>
         )}
       </div>
@@ -350,26 +351,26 @@ export const Tournament: React.FC<Props> = ({ onBack, onStartMatch }) => {
   const renderCreateTournament = () => (
     <div className="max-w-2xl mx-auto">
       <div className="flex justify-between items-center mb-6">
-        <h2 className="text-2xl font-bold text-gray-900">Create Tournament</h2>
+        <h2 className="text-2xl font-bold text-gray-900">{i18n.t('label.createtournament')}</h2>
             <button 
               onClick={() => setView('list')} 
           className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
             >
-              Back to List
+              {i18n.t('button.backtolist')}
             </button>
           </div>
 
       <form onSubmit={handleCreateTournament} className="space-y-6">
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-2">
-            Tournament Name *
+            {i18n.t('label.tournamentname')}
           </label>
           <input
             type="text"
             value={tournamentForm.name}
             onChange={(e) => setTournamentForm(prev => ({ ...prev, name: e.target.value }))}
             className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            placeholder="Enter tournament name"
+            placeholder={i18n.t('placeholder.tournamentname')}
             maxLength={100}
             required
           />
@@ -377,13 +378,13 @@ export const Tournament: React.FC<Props> = ({ onBack, onStartMatch }) => {
 
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-2">
-            Description
+            {i18n.t('label.description')}
           </label>
           <textarea
             value={tournamentForm.description}
             onChange={(e) => setTournamentForm(prev => ({ ...prev, description: e.target.value }))}
             className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            placeholder="Enter tournament description (optional)"
+            placeholder={i18n.t('placeholder.tournamentdesc')}
             rows={3}
             maxLength={500}
           />
@@ -392,7 +393,7 @@ export const Tournament: React.FC<Props> = ({ onBack, onStartMatch }) => {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              Max Participants *
+              {i18n.t('label.maxparticipants')}
             </label>
             <input
               type="number"
@@ -407,16 +408,16 @@ export const Tournament: React.FC<Props> = ({ onBack, onStartMatch }) => {
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              Tournament Type *
+              {i18n.t('label.tournamenttype')}
             </label>
             <select
               value={tournamentForm.tournament_type}
               onChange={(e) => setTournamentForm(prev => ({ ...prev, tournament_type: e.target.value as 'single_elimination' | 'double_elimination' | 'round_robin' }))}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             >
-              <option value="single_elimination">Single Elimination</option>
-              <option value="double_elimination">Double Elimination</option>
-              <option value="round_robin">Round Robin</option>
+              <option value="single_elimination">{i18n.t('option.singleelim')}</option>
+              <option value="double_elimination">{i18n.t('option.doubleelim')}</option>
+              <option value="round_robin">{i18n.t('option.roundrobin')}</option>
             </select>
               </div>
             </div>
@@ -427,14 +428,14 @@ export const Tournament: React.FC<Props> = ({ onBack, onStartMatch }) => {
             disabled={loading}
             className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
-            {loading ? 'Creating...' : 'Create Tournament'}
+            {loading ? i18n.t('button.creating') : i18n.t('button.createtournament')}
           </button>
           <button
             type="button"
             onClick={() => setView('list')}
             className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
           >
-            Cancel
+            {i18n.t('button.cancel')}
                 </button>
               </div>
       </form>
@@ -462,7 +463,7 @@ export const Tournament: React.FC<Props> = ({ onBack, onStartMatch }) => {
             <div className="flex items-center gap-4 mt-2 text-sm text-gray-500">
               <span>{tournamentService.getTournamentTypeDisplayName(selectedTournament.tournament_type)}</span>
               <span>•</span>
-              <span>{participants.length}/{selectedTournament.max_participants} participants</span>
+              <span>{i18n.t('info.participantratio', {num: participants.length, max: selectedTournament.max_participants})}</span>
               <span>•</span>
               <span className={`px-2 py-1 rounded-full text-xs ${tournamentService.getTournamentStatusColor(selectedTournament.status)}`}>
                 {tournamentService.getTournamentStatusDisplayName(selectedTournament.status)}
@@ -475,7 +476,7 @@ export const Tournament: React.FC<Props> = ({ onBack, onStartMatch }) => {
                 onClick={() => setView('join')}
                 className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
               >
-                Join Tournament
+                {i18n.t('button.jointournament')}
               </button>
             )}
             {isParticipant && selectedTournament.status === 'registration' && (
@@ -484,7 +485,7 @@ export const Tournament: React.FC<Props> = ({ onBack, onStartMatch }) => {
                 disabled={loading}
                 className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 transition-colors"
                     >
-                Leave Tournament
+                {i18n.t('button.leavetournament')}
                     </button>
             )}
             {canStart && (
@@ -493,21 +494,21 @@ export const Tournament: React.FC<Props> = ({ onBack, onStartMatch }) => {
                 disabled={loading}
                 className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
                     >
-                Start Tournament
+                {i18n.t('button.starttournament')}
                     </button>
                 )}
                     <button 
               onClick={() => setView('list')}
               className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
                     >
-              Back to List
+              {i18n.t('button.backtolist')}
                     </button>
           </div>
         </div>
 
         {/* Participants */}
         <div className="bg-white rounded-lg shadow-md border p-6">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">Participants</h3>
+          <h3 className="text-lg font-semibold text-gray-900 mb-4">{i18n.t('label.participants')}</h3>
           <div className="grid gap-2">
             {participants.map((participant) => (
               <div key={participant.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
@@ -524,19 +525,19 @@ export const Tournament: React.FC<Props> = ({ onBack, onStartMatch }) => {
                   <div>
                     <div className="font-medium text-gray-900">{participant.display_name}</div>
                     {participant.guest_alias && (
-                      <div className="text-sm text-gray-500">Guest: {participant.guest_alias}</div>
+                      <div className="text-sm text-gray-500">{i18n.t('info.guest')} {participant.guest_alias}</div>
                     )}
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
                   {participant.final_rank && (
                     <span className="px-2 py-1 bg-yellow-100 text-yellow-800 text-xs rounded-full">
-                      Rank #{participant.final_rank}
+                      {i18n.t('rankinfo.ranknum')}{participant.final_rank}
                     </span>
                   )}
                   {participant.is_ready && (
                     <span className="px-2 py-1 bg-green-100 text-green-800 text-xs rounded-full">
-                      Ready
+                      {i18n.t('rankinfo.ready')}
                     </span>
                   )}
                 </div>
@@ -548,13 +549,13 @@ export const Tournament: React.FC<Props> = ({ onBack, onStartMatch }) => {
         {/* Matches */}
         {matches.length > 0 && (
           <div className="bg-white rounded-lg shadow-md border p-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">Matches</h3>
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">{i18n.t('label.matches')}</h3>
             <div className="space-y-4">
               {matches.map((match) => (
                 <div key={match.id} className="p-4 border rounded-lg">
                   <div className="flex justify-between items-center mb-2">
                     <span className="text-sm font-medium text-gray-600">
-                      Round {match.round} • Match {match.match_number}
+                      {i18n.t('label.roundmatch', {round: match.round, match: match.match_number})}
                           </span>
                     <span className={`px-2 py-1 rounded-full text-xs ${tournamentService.getMatchStatusColor(match.status)}`}>
                       {tournamentService.getMatchStatusDisplayName(match.status)}
@@ -564,13 +565,13 @@ export const Tournament: React.FC<Props> = ({ onBack, onStartMatch }) => {
                     <div className="flex-1">
                       <div className="flex justify-between">
                           <span className="font-medium">
-                          {match.player1_id ? participants.find(p => p.id === match.player1_id)?.display_name || 'TBD' : 'Bye'}
+                          {match.player1_id ? participants.find(p => p.id === match.player1_id)?.display_name || i18n.t('option.tbd') : i18n.t('option.bye')}
                           </span>
                         <span className="font-bold text-lg">{match.player1_score}</span>
                         </div>
                       <div className="flex justify-between">
                         <span className="font-medium">
-                          {match.player2_id ? participants.find(p => p.id === match.player2_id)?.display_name || 'TBD' : 'Bye'}
+                          {match.player2_id ? participants.find(p => p.id === match.player2_id)?.display_name || i18n.t('option.tbd') : i18n.t('option.bye')}
                           </span>
                         <span className="font-bold text-lg">{match.player2_score}</span>
                         </div>
@@ -586,17 +587,17 @@ export const Tournament: React.FC<Props> = ({ onBack, onStartMatch }) => {
         {bracket.length > 0 && (
           <div className="bg-white rounded-lg shadow-md border p-6">
             <div className="flex justify-between items-center mb-4">
-              <h3 className="text-lg font-semibold text-gray-900">Tournament Bracket</h3>
+              <h3 className="text-lg font-semibold text-gray-900">{i18n.t('label.tournamentbracket')}</h3>
                 <button 
                 onClick={() => setView('bracket')}
                 className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
                 >
-                View Full Bracket
+                {i18n.t('button.viewfullbracket')}
                 </button>
               </div>
             {/* Simplified bracket preview */}
             <div className="text-center text-gray-500">
-              Bracket visualization available in full view
+              {i18n.t('msg.bracketview')}
             </div>
           </div>
         )}
@@ -611,12 +612,12 @@ export const Tournament: React.FC<Props> = ({ onBack, onStartMatch }) => {
     return (
       <div className="max-w-md mx-auto">
         <div className="flex justify-between items-center mb-6">
-          <h2 className="text-2xl font-bold text-gray-900">Join Tournament</h2>
+          <h2 className="text-2xl font-bold text-gray-900">{i18n.t('label.jointournament')}</h2>
           <button 
             onClick={() => setView('detail')}
             className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
           >
-            Back
+            {i18n.t('button.back')}
           </button>
         </div>
 
@@ -626,21 +627,21 @@ export const Tournament: React.FC<Props> = ({ onBack, onStartMatch }) => {
           <div className="flex items-center gap-4 mt-2 text-sm text-gray-500">
             <span>{tournamentService.getTournamentTypeDisplayName(selectedTournament.tournament_type)}</span>
             <span>•</span>
-            <span>{participants.length}/{selectedTournament.max_participants} participants</span>
+            <span>{i18n.t('info.participantratio', {num: participants.length, max: selectedTournament.max_participants})}</span>
             </div>
           </div>
           
         <form onSubmit={handleJoinTournament} className="space-y-6">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              Display Name *
+              {i18n.t('label.displayname')}
             </label>
             <input
               type="text"
               value={joinForm.display_name}
               onChange={(e) => setJoinForm(prev => ({ ...prev, display_name: e.target.value }))}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              placeholder="Enter your display name"
+              placeholder={i18n.t('placeholder.displayname')}
               maxLength={50}
               required
             />
@@ -649,34 +650,34 @@ export const Tournament: React.FC<Props> = ({ onBack, onStartMatch }) => {
           {!isAuthenticated && (
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Guest Alias *
+                {i18n.t('label.alias')}
               </label>
               <input
                 type="text"
                 value={joinForm.guest_alias}
                 onChange={(e) => setJoinForm(prev => ({ ...prev, guest_alias: e.target.value }))}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                placeholder="Enter a unique alias"
+                placeholder={i18n.t('placeholder.alias')}
                 maxLength={50}
                 pattern="[a-zA-Z0-9_-]+"
                 required
               />
               <p className="text-xs text-gray-500 mt-1">
-                Only letters, numbers, underscores, and hyphens allowed
+                {i18n.t('msg.alias')}
               </p>
                 </div>
               )}
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              Avatar URL
+              {i18n.t('label.avatarurl')}
             </label>
             <input
               type="url"
               value={joinForm.avatar_url}
               onChange={(e) => setJoinForm(prev => ({ ...prev, avatar_url: e.target.value }))}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              placeholder="Enter avatar URL (optional)"
+              placeholder={i18n.t('placeholder.avatarurl')}
             />
           </div>
           
@@ -686,14 +687,14 @@ export const Tournament: React.FC<Props> = ({ onBack, onStartMatch }) => {
               disabled={loading}
               className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
-              {loading ? 'Joining...' : 'Join Tournament'}
+              {loading ? i18n.t('button.joining') : i18n.t('button.jointournament')}
                 </button>
                 <button 
               type="button"
               onClick={() => setView('detail')}
               className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
             >
-              Cancel
+              {i18n.t('button.cancel')}
                 </button>
               </div>
         </form>
@@ -719,7 +720,7 @@ export const Tournament: React.FC<Props> = ({ onBack, onStartMatch }) => {
         onStartMatch(selectedTournament.id, match.id, roomId);
       } else {
         // Fallback: show alert for now
-        alert(`Match ${match.id} is ready to start! Room ID: ${roomId}`);
+        alert(i18n.t('msg.matchready', {matchid: match.id, roomid: roomId}));
       }
     } else {
       console.log('Match not ready to start:', {
@@ -727,7 +728,7 @@ export const Tournament: React.FC<Props> = ({ onBack, onStartMatch }) => {
         player1_id: match.player1_id,
         player2_id: match.player2_id
       });
-      alert('This match is not ready to start yet. Both players must be assigned and match must be pending.');
+      alert(i18n.t('msg.matchnotready'));
     }
   };
 
@@ -743,7 +744,7 @@ export const Tournament: React.FC<Props> = ({ onBack, onStartMatch }) => {
             onClick={() => setView('detail')} 
             className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
           >
-            Back to Details
+            {i18n.t('button.backtodetails')}
           </button>
         </div>
 
@@ -790,7 +791,7 @@ export const Tournament: React.FC<Props> = ({ onBack, onStartMatch }) => {
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
             <div className="bg-white rounded-lg p-6 flex items-center gap-3">
               <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
-              <span>Loading...</span>
+              <span>{i18n.t('label.loading')}</span>
             </div>
             </div>
           )}

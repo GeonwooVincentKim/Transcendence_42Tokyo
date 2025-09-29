@@ -8,6 +8,7 @@
 import React, { useState } from 'react';
 import { AuthService } from '../services/authService';
 import { RegisterRequest, AuthResponse } from '../types/auth';
+import i18n from 'i18next';
 
 interface RegisterFormProps {
   onRegisterSuccess: (authData: AuthResponse) => void;
@@ -45,32 +46,32 @@ export const RegisterForm: React.FC<RegisterFormProps> = ({ onRegisterSuccess, o
   const validateForm = (): boolean => {
     // Check if all fields are filled
     if (!formData.username.trim() || !formData.email.trim() || !formData.password.trim()) {
-      setError('Please fill in all fields');
+      setError(i18n.t('error.missingfield'));
       return false;
     }
 
     // Validate username length
     if (formData.username.length < 3 || formData.username.length > 20) {
-      setError('Username must be between 3 and 20 characters');
+      setError(i18n.t('error.usrnmlen'));
       return false;
     }
 
     // Validate email format
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(formData.email)) {
-      setError('Please enter a valid email address');
+      setError(i18n.t('error.invalidemail'));
       return false;
     }
 
     // Validate password length
     if (formData.password.length < 6) {
-      setError('Password must be at least 6 characters long');
+      setError(i18n.t('error.invalidpw'));
       return false;
     }
 
     // Check password confirmation
     if (formData.password !== formData.confirmPassword) {
-      setError('Passwords do not match');
+      setError(i18n.t('error.pwmismatch'));
       return false;
     }
 
@@ -101,7 +102,7 @@ export const RegisterForm: React.FC<RegisterFormProps> = ({ onRegisterSuccess, o
       // Call success callback
       onRegisterSuccess(authData);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Registration failed');
+      setError(err instanceof Error ? err.message : i18n.t('error.regfailed'));
     } finally {
       setIsLoading(false);
     }
@@ -110,14 +111,14 @@ export const RegisterForm: React.FC<RegisterFormProps> = ({ onRegisterSuccess, o
   return (
     <div className="max-w-md mx-auto bg-white rounded-lg shadow-md p-6">
       <h2 className="text-2xl font-bold text-center text-gray-800 mb-6">
-        Register for Pong Game
+        {i18n.t('label.registeracct')}
       </h2>
       
       <form onSubmit={handleSubmit} className="space-y-4">
         {/* Username Field */}
         <div>
           <label htmlFor="username" className="block text-sm font-medium text-gray-700 mb-1">
-            Username
+            {i18n.t('label.usrnm')}
           </label>
           <input
             type="text"
@@ -126,7 +127,7 @@ export const RegisterForm: React.FC<RegisterFormProps> = ({ onRegisterSuccess, o
             value={formData.username}
             onChange={handleInputChange}
             className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            placeholder="Choose a username (3-20 characters)"
+            placeholder={i18n.t('placeholder.newusername')}
             disabled={isLoading}
             required
           />
@@ -135,7 +136,7 @@ export const RegisterForm: React.FC<RegisterFormProps> = ({ onRegisterSuccess, o
         {/* Email Field */}
         <div>
           <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
-            Email
+            {i18n.t('label.email')}
           </label>
           <input
             type="email"
@@ -144,7 +145,7 @@ export const RegisterForm: React.FC<RegisterFormProps> = ({ onRegisterSuccess, o
             value={formData.email}
             onChange={handleInputChange}
             className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            placeholder="Enter your email address"
+            placeholder={i18n.t('placeholder.newemail')}
             disabled={isLoading}
             required
           />
@@ -153,7 +154,7 @@ export const RegisterForm: React.FC<RegisterFormProps> = ({ onRegisterSuccess, o
         {/* Password Field */}
         <div>
           <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1">
-            Password
+            {i18n.t('label.pw')}
           </label>
           <input
             type="password"
@@ -162,7 +163,7 @@ export const RegisterForm: React.FC<RegisterFormProps> = ({ onRegisterSuccess, o
             value={formData.password}
             onChange={handleInputChange}
             className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            placeholder="Choose a password (min 6 characters)"
+            placeholder={i18n.t('placeholder.newpw')}
             disabled={isLoading}
             required
           />
@@ -171,7 +172,7 @@ export const RegisterForm: React.FC<RegisterFormProps> = ({ onRegisterSuccess, o
         {/* Confirm Password Field */}
         <div>
           <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-700 mb-1">
-            Confirm Password
+            {i18n.t('label.confirmpw')}
           </label>
           <input
             type="password"
@@ -180,7 +181,7 @@ export const RegisterForm: React.FC<RegisterFormProps> = ({ onRegisterSuccess, o
             value={formData.confirmPassword}
             onChange={handleInputChange}
             className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            placeholder="Confirm your password"
+            placeholder={i18n.t('placeholder.newpwcnfm')}
             disabled={isLoading}
             required
           />
@@ -199,20 +200,20 @@ export const RegisterForm: React.FC<RegisterFormProps> = ({ onRegisterSuccess, o
           disabled={isLoading}
           className="w-full bg-green-600 text-white py-2 px-4 rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          {isLoading ? 'Creating account...' : 'Register'}
+          {i18n.t('button.registeracct')}
         </button>
       </form>
 
       {/* Switch to Login */}
       <div className="mt-4 text-center">
         <p className="text-gray-600">
-          Already have an account?{' '}
+          {i18n.t('label.returntologin')}{' '}
           <button
             type="button"
             onClick={onSwitchToLogin}
             className="text-blue-600 hover:text-blue-800 font-medium"
           >
-            Login here
+            {i18n.t('button.login')}
           </button>
         </p>
       </div>
