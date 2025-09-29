@@ -4,18 +4,40 @@
 		"forgotusrnm": "Forgot username",
 		"registeracct": "Create account",
 		"login": "Login",
-		"loggingin": "Logging in..."
+		"loggingin": "Logging in...",
+		"backtomenu": "Back to Menu",
+		"backtogame": "Back to Game",
+		"logout": "Logout",
+		"userprofile": "User Profile",
+		"pvplocal": "Player vs Player (Local)",
+		"mponline": "Multiplayer (Online)",
+		"pve": "Player vs AI",
+		"settings": "Game Settings",
+		"ranking": "User Ranking",
+		"tournament": "Tournament"
 	},
 	"placeholder": {
 		"username": "Enter your username",
-		"password": "Enter your password"
+		"password": "Enter your password",
+		"roomid": "Enter Room ID to join or create"
 	},
 	"label": {
 		"usrnm": "Username ",
 		"pw": "Password ",
 		"signintoplay": "Sign in to play",
 		"logintitle": "Login to Pong",
-		"title": "ft_transcendence Pong"
+		"title": "ft_transcendence Pong",
+		"loading": "Loading...",
+		"userprofile": "User Profile",
+		"deleteacct": "Delete Account",
+		"pwreset": "Password Reset",
+		"recoverusrnm": "Recover Username",
+		"tournament": "Tournament",
+		"userranking": "User Ranking",
+		"welcomeuser": "Welcome, {{user}}!"
+	},
+	"option": {
+		"leftplayer": "Left Player",
+		"rightplayer": "Right Player"
 	}
-
 }	

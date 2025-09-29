@@ -4,17 +4,40 @@
 		"forgotusrnm": "ㅇ",
 		"registeracct": "ㅇ",
 		"login": "ㅇ",
-		"loggingin": "ㅇ"
+		"loggingin": "ㅇ",
+		"backtomenu": "ㅇ",
+		"backtogame": "Back to Game",
+		"logout": "Logout",
+		"userprofile": "User Profile",
+		"pvplocal": "Player vs Player (Local)",
+		"mponline": "Multiplayer (Online)",
+		"pve": "Player vs AI",
+		"settings": "Game Settings",
+		"ranking": "User Ranking",
+		"tournament": "Tournament"
 	},
 	"placeholder": {
 		"username": "ㅇ",
-		"password": "ㅇ"
+		"password": "ㅇ",
+		"roomid": "ㅇ"
 	},
 	"label": {
 		"usrnm": "ㅇ ",
 		"pw": "ㅇ ",
-		"signintoplay": "",
+		"signintoplay": "ㅇ",
 		"logintitle": "ㅇ",
-		"title": "ㅇ"
+		"title": "ㅇ",
+		"loading": "ㅇ",
+		"userprofile": "ㅇ",
+		"deleteacct": "ㅇ",
+		"pwreset": "ㅇ",
+		"recoverusrnm": "Recover Username",
+		"tournament": "Tournament",
+		"userranking": "User Ranking",
+		"welcomeuser": "Welcome, {{user}}!"
+	},
+	"option": {
+		"leftplayer": "ㅇ",
+		"rightplayer": "ㅇ"
 	}
 }	

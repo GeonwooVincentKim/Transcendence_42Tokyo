@@ -4,18 +4,40 @@
 		"forgotusrnm": "ユーザー名をお忘れの場合",
 		"registeracct": "アカウントを作成",
 		"login": "ログイン",
-		"loggingin": "ログイン中"
+		"loggingin": "ログイン中",
+		"backtomenu": "メニューに戻る",
+		"backtogame": "Back to Game",
+		"logout": "ログアウト",
+		"userprofile": "User Profile",
+		"pvplocal": "Player vs Player (Local)",
+		"mponline": "Multiplayer (Online)",
+		"pve": "Player vs AI",
+		"settings": "Game Settings",
+		"ranking": "User Ranking",
+		"tournament": "Tournament"
 	},
 	"placeholder": {
-		"username": "",
-		"password": ""
+		"username": "〇〇",
+		"password": "〇〇",
+		"roomid": "〇〇"
 	},
 	"label": {
 		"usrnm": "ユーザー名 ",
 		"pw": "パスワード ",
 		"signintoplay": "",
 		"logintitle": "アカウントにログインしてください",
-		"title": "ft_transcendence ポン"
+		"title": "ft_transcendence ポン",
+		"loading": "読み込み中",
+		"userprofile": "ユーザープロフィール",
+		"deleteacct": "Delete Account",
+		"pwreset": "パスワード再設定",
+		"recoverusrnm": "Recover Username",
+		"tournament": "Tournament",
+		"userranking": "User Ranking",
+		"welcomeuser": "Welcome, {{user}}!"
+	},
+	"option": {
+		"leftplayer": "〇〇",
+		"rightplayer": "〇〇"
 	}
-
 }	
