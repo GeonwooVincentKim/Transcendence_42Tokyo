@@ -14,12 +14,18 @@
 		"pve": "Player vs AI",
 		"settings": "Game Settings",
 		"ranking": "User Ranking",
-		"tournament": "Tournament"
+		"tournament": "Tournament",
+		"deleteacct": "Delete Account",
+		"retry": "Retry"
 	},
 	"placeholder": {
 		"username": "〇〇",
 		"password": "〇〇",
-		"roomid": "〇〇"
+		"roomid": "〇〇",
+		"newusername": "Choose a username (3-20 characters)",
+		"newemail": "Enter your email address",
+		"newpw": "Choose a password (min 6 characters)",
+		"newpwcnfm": "Type your password again to confirm"
 	},
 	"label": {
 		"usrnm": "ユーザー名 ",
@@ -34,10 +40,39 @@
 		"recoverusrnm": "Recover Username",
 		"tournament": "Tournament",
 		"userranking": "User Ranking",
-		"welcomeuser": "Welcome, {{user}}!"
+		"welcomeuser": "Welcome, {{user}}!",
+		"registeracct": "Register Account",
+		"email": "メールアドレス",
+		"confirmpw": "Confirm Password",
+		"returntologin": "Already have an account?",
+		"acctinfo": "Account Information",
+		"gamestats": "Game Statistics",
+		"nostats": "No statistics available"
+	},
+	"info": {
+		"usrnm": "Username:",
+		"email": "Email:",
+		"createdat": "Member since:",
+		"updatedat": "Last updated:",
+		"totalgames": "Total games:",
+		"gameswon": "Games won:",
+		"gameslost": "Games lost:",
+		"winrate": "Win rate:",
+		"totalscore": "Total score:",
+		"highscore": "High score:",
+		"avgscore": "Average score:"
 	},
 	"option": {
 		"leftplayer": "〇〇",
 		"rightplayer": "〇〇"
+	},
+	"error": {
+		"missingfield": "Please fill in all fields",
+		"usrnmlen": "Username must be between 3 and 20 characters",
+		"invalidemail": "Please enter a valid email address",
+		"invalidpw": "Password must be at least 6 characters long",
+		"pwmismatch": "Passwords do not match",
+		"regfailed": "User registration failed",
+		"statsfailed": "Failed to load statistics"
 	}
 }	

@@ -1,11 +1,11 @@
 {
 	"button": {
-		"forgotpw": "ㅇ",
-		"forgotusrnm": "ㅇ",
-		"registeracct": "ㅇ",
-		"login": "ㅇ",
-		"loggingin": "ㅇ",
-		"backtomenu": "ㅇ",
+		"forgotpw": "Forgot password",
+		"forgotusrnm": "Forgot username",
+		"registeracct": "Create account",
+		"login": "Login",
+		"loggingin": "Logging in...",
+		"backtomenu": "Back to Menu",
 		"backtogame": "Back to Game",
 		"logout": "Logout",
 		"userprofile": "User Profile",
@@ -14,30 +14,65 @@
 		"pve": "Player vs AI",
 		"settings": "Game Settings",
 		"ranking": "User Ranking",
-		"tournament": "Tournament"
+		"tournament": "Tournament",
+		"deleteacct": "Delete Account",
+		"retry": "Retry"
 	},
 	"placeholder": {
-		"username": "ㅇ",
-		"password": "ㅇ",
-		"roomid": "ㅇ"
+		"username": "Enter your username",
+		"password": "Enter your password",
+		"roomid": "Enter Room ID to join or create",
+		"newusername": "Choose a username (3-20 characters)",
+		"newemail": "Enter your email address",
+		"newpw": "Choose a password (min 6 characters)",
+		"newpwcnfm": "Type your password again to confirm"
 	},
 	"label": {
-		"usrnm": "ㅇ ",
-		"pw": "ㅇ ",
-		"signintoplay": "ㅇ",
-		"logintitle": "ㅇ",
-		"title": "ㅇ",
-		"loading": "ㅇ",
-		"userprofile": "ㅇ",
-		"deleteacct": "ㅇ",
-		"pwreset": "ㅇ",
+		"usrnm": "Username",
+		"pw": "Password",
+		"signintoplay": "Sign in to play",
+		"logintitle": "Login to Pong",
+		"title": "ft_transcendence Pong",
+		"loading": "Loading...",
+		"userprofile": "User Profile",
+		"deleteacct": "Delete Account",
+		"pwreset": "Password Reset",
 		"recoverusrnm": "Recover Username",
 		"tournament": "Tournament",
 		"userranking": "User Ranking",
-		"welcomeuser": "Welcome, {{user}}!"
+		"welcomeuser": "Welcome, {{user}}!",
+		"registeracct": "Register Account",
+		"email": "Email",
+		"confirmpw": "Confirm Password",
+		"returntologin": "Already have an account?",
+		"acctinfo": "Account Information",
+		"gamestats": "Game Statistics",
+		"nostats": "No statistics available"
+	},
+	"info": {
+		"usrnm": "Username:",
+		"email": "Email:",
+		"createdat": "Member since:",
+		"updatedat": "Last updated:",
+		"totalgames": "Total games:",
+		"gameswon": "Games won:",
+		"gameslost": "Games lost:",
+		"winrate": "Win rate:",
+		"totalscore": "Total score:",
+		"highscore": "High score:",
+		"avgscore": "Average score:"
 	},
 	"option": {
-		"leftplayer": "ㅇ",
-		"rightplayer": "ㅇ"
+		"leftplayer": "Left Player",
+		"rightplayer": "Right Player"
+	},
+	"error": {
+		"missingfield": "Please fill in all fields",
+		"usrnmlen": "Username must be between 3 and 20 characters",
+		"invalidemail": "Please enter a valid email address",
+		"invalidpw": "Password must be at least 6 characters long",
+		"pwmismatch": "Passwords do not match",
+		"regfailed": "User registration failed",
+		"statsfailed": "Failed to load statistics"
 	}
 }	
