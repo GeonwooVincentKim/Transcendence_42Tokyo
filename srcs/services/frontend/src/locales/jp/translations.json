@@ -84,6 +84,7 @@
 		"invalidpw": "Password must be at least 6 characters long",
 		"pwmismatch": "Passwords do not match",
 		"regfailed": "User registration failed",
-		"statsfailed": "Failed to load statistics"
+		"statsfailed": "Failed to load statistics",
+		"rankingsfailed": "Failed to load rankings"
 	}
 }	

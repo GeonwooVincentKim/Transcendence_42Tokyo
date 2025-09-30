@@ -86,6 +86,6 @@
 		"pwmismatch": "Passwords do not match",
 		"regfailed": "User registration failed",
 		"statsfailed": "Failed to load statistics",
-		"leaderboardfailed": "Failed to load leaderboard"
+		"rankingsfailed": "Failed to load rankings"
 	}
 }	
