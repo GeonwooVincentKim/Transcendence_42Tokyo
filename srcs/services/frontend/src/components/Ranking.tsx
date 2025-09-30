@@ -33,7 +33,7 @@ const Ranking: React.FC = () => {
       })
       .catch((err) => {
         console.error('Failed to load leaderboard:', err);
-        if (isMounted) setError('Failed to load ranking.');
+        if (isMounted) setError(i18n.t('error.leaderboardfailed'));
       })
       .finally(() => {
         if (isMounted) setLoading(false);
