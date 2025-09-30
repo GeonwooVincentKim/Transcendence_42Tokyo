@@ -17,7 +17,15 @@
 		"tournament": "Tournament",
 		"deleteacct": "Delete Account",
 		"retry": "Retry",
-		"back": "Back"
+		"back": "Back",
+		"easy": "Easy",
+		"medium": "Medium",
+		"hard": "Hard",
+		"start": "Start",
+		"pause": "Pause",
+		"reset": "Reset",
+		"showdebug": "Show Debug",
+		"hidedebug": "Hide Debug"
 	},
 	"placeholder": {
 		"username": "Enter your username",
@@ -51,7 +59,9 @@
 		"nostats": "No statistics available",
 		"ranking": "User Ranking",
 		"leaderboard": "Leaderboard",
-		"noplayers": "No players found"
+		"noplayers": "No players found",
+		"pve": "Player vs AI",
+		"gameover": "Game Over!"
 	},
 	"info": {
 		"usrnm": "Username:",
@@ -64,7 +74,12 @@
 		"winrate": "Win rate:",
 		"totalscore": "Total score:",
 		"highscore": "High score:",
-		"avgscore": "Average score:"
+		"avgscore": "Average score:",
+		"status": "Status:",
+		"difficultylvl": "AI Difficulty: {{lvl}}",
+		"difficulty": "AI Difficulty:",
+		"pvescore": "Player: {{left}} - AI: {{right}}",
+		"matchscore": "Final Score: {{left}} - {{right}}"
 	},
 	"rankinfo": {
 		"usrnm": "Username",
@@ -80,7 +95,9 @@
 	},
 	"option": {
 		"leftplayer": "Left Player",
-		"rightplayer": "Right Player"
+		"rightplayer": "Right Player",
+		"player": "Player",
+		"ai": "AI"
 	},
 	"error": {
 		"missingfield": "Please fill in all fields",
@@ -94,6 +111,10 @@
 		"lbfailed": "Failed to load leaderboard"
 	},
 	"msg": {
-		"leaderboard": "Leaderboard is updated in real-time as players complete games"
+		"leaderboard": "Leaderboard is updated in real-time as players complete games",
+		"movementkeys": "Use W (up) / S (down) to move your paddle.",
+		"aidifficulty": "The AI adapts its difficulty based on your performance!",
+		"startstop": "Press SPACE to start/pause",
+		"matchwinner": "{{who}} wins!"
 	}
 }	
