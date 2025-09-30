@@ -52,7 +52,7 @@ describe('User Profile Test', () => {
     cy.get('div').should('contain', 'Games lost:')
     cy.get('div').should('contain', 'Win rate:')
     cy.get('div').should('contain', 'Total score:')
-    cy.get('div').should('contain', 'Highest score:')
+    cy.get('div').should('contain', 'High score:')
     cy.get('div').should('contain', 'Average score:')
 
     // Check if action buttons are present
@@ -98,7 +98,7 @@ describe('User Profile Test', () => {
     cy.get('div').contains('Games lost:').parent().should('contain', '0')
     cy.get('div').contains('Win rate:').parent().should('contain', '0%')
     cy.get('div').contains('Total score:').parent().should('contain', '0')
-    cy.get('div').contains('Highest score:').parent().should('contain', '0')
+    cy.get('div').contains('High score:').parent().should('contain', '0')
     cy.get('div').contains('Average score:').parent().should('contain', '0.0')
   })
 })

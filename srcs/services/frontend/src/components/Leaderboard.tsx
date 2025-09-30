@@ -7,6 +7,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { GameStatsService, UserStatistics } from '../services/gameStatsService';
+import i18n from 'i18next';
 
 interface LeaderboardProps {
   onBack: () => void;
@@ -27,7 +28,7 @@ export const Leaderboard: React.FC<LeaderboardProps> = ({ onBack }) => {
         const data = await GameStatsService.getLeaderboard(10);
         setLeaderboard(data);
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to load leaderboard');
+        setError(err instanceof Error ? err.message : i18n.t('error.lbfailed'));
       } finally {
         setLoading(false);
       }
@@ -50,19 +51,19 @@ export const Leaderboard: React.FC<LeaderboardProps> = ({ onBack }) => {
   return (
     <div className="max-w-4xl mx-auto bg-white rounded-lg shadow-md p-6">
       <div className="flex justify-between items-center mb-6">
-        <h2 className="text-3xl font-bold text-gray-800">Leaderboard</h2>
+        <h2 className="text-3xl font-bold text-gray-800">{i18n.t('label.leaderboard')}</h2>
         <button
           onClick={onBack}
           className="px-4 py-2 bg-gray-600 text-white rounded hover:bg-gray-700"
         >
-          Back
+          {i18n.t('button.back')}
         </button>
       </div>
 
       {loading ? (
         <div className="text-center py-8">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
-          <p className="text-gray-600 mt-4">Loading leaderboard...</p>
+          <p className="text-gray-600 mt-4">{i18n.t('label.loading')}</p>
         </div>
       ) : error ? (
         <div className="text-center py-8">
@@ -71,7 +72,7 @@ export const Leaderboard: React.FC<LeaderboardProps> = ({ onBack }) => {
             onClick={() => window.location.reload()}
             className="mt-4 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
           >
-            Retry
+            {i18n.t('button.retry')}
           </button>
         </div>
       ) : (
@@ -79,21 +80,21 @@ export const Leaderboard: React.FC<LeaderboardProps> = ({ onBack }) => {
           <table className="w-full">
             <thead>
               <tr className="bg-gray-50">
-                <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">Rank</th>
-                <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">Player</th>
-                <th className="px-4 py-3 text-center text-sm font-semibold text-gray-600">Games Won</th>
-                <th className="px-4 py-3 text-center text-sm font-semibold text-gray-600">Total Games</th>
-                <th className="px-4 py-3 text-center text-sm font-semibold text-gray-600">Win Rate</th>
-                <th className="px-4 py-3 text-center text-sm font-semibold text-gray-600">Total Score</th>
-                <th className="px-4 py-3 text-center text-sm font-semibold text-gray-600">Highest Score</th>
-                <th className="px-4 py-3 text-center text-sm font-semibold text-gray-600">Avg Score</th>
+                <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">{i18n.t('rankinfo.rank')}</th>
+                <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">{i18n.t('rankinfo.player')}</th>
+                <th className="px-4 py-3 text-center text-sm font-semibold text-gray-600">{i18n.t('rankinfo.gameswon')}</th>
+                <th className="px-4 py-3 text-center text-sm font-semibold text-gray-600">{i18n.t('rankinfo.gamesplayed')}</th>
+                <th className="px-4 py-3 text-center text-sm font-semibold text-gray-600">{i18n.t('rankinfo.winrate')}</th>
+                <th className="px-4 py-3 text-center text-sm font-semibold text-gray-600">{i18n.t('rankinfo.totalscore')}</th>
+                <th className="px-4 py-3 text-center text-sm font-semibold text-gray-600">{i18n.t('rankinfo.highscore')}</th>
+                <th className="px-4 py-3 text-center text-sm font-semibold text-gray-600">{i18n.t('rankinfo.avgscore')}</th>
               </tr>
             </thead>
             <tbody>
               {leaderboard.length === 0 ? (
                 <tr>
                   <td colSpan={8} className="text-center py-8 text-gray-500">
-                    No players found
+                    {i18n.t('label.noplayers')}
                   </td>
                 </tr>
               ) : (
@@ -154,7 +155,7 @@ export const Leaderboard: React.FC<LeaderboardProps> = ({ onBack }) => {
       )}
 
       <div className="mt-6 text-center text-sm text-gray-500">
-        <p>Leaderboard is updated in real-time as players complete games</p>
+        <p>{i18n.t('msg.leaderboard')}</p>
       </div>
     </div>
   );

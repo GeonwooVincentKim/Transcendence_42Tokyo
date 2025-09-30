@@ -16,7 +16,8 @@
 		"ranking": "User Ranking",
 		"tournament": "Tournament",
 		"deleteacct": "Delete Account",
-		"retry": "Retry"
+		"retry": "Retry",
+		"back": "Back"
 	},
 	"placeholder": {
 		"username": "Enter your username",
@@ -48,7 +49,9 @@
 		"acctinfo": "Account Information",
 		"gamestats": "Game Statistics",
 		"nostats": "No statistics available",
-		"ranking": "User Ranking"
+		"ranking": "User Ranking",
+		"leaderboard": "Leaderboard",
+		"noplayers": "No players found"
 	},
 	"info": {
 		"usrnm": "Username:",
@@ -72,7 +75,8 @@
 		"totalscore": "Total Score",
 		"highscore": "High Score",
 		"avgscore": "Average Score",
-		"rank": "Rank"
+		"rank": "Rank",
+		"player": "Player"
 	},
 	"option": {
 		"leftplayer": "Left Player",
@@ -86,6 +90,10 @@
 		"pwmismatch": "Passwords do not match",
 		"regfailed": "User registration failed",
 		"statsfailed": "Failed to load statistics",
-		"rankingsfailed": "Failed to load rankings"
+		"rankingsfailed": "Failed to load rankings",
+		"lbfailed": "Failed to load leaderboard"
+	},
+	"msg": {
+		"leaderboard": "Leaderboard is updated in real-time as players complete games"
 	}
 }	
