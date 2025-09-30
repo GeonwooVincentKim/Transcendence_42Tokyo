@@ -47,7 +47,8 @@
 		"returntologin": "Already have an account?",
 		"acctinfo": "Account Information",
 		"gamestats": "Game Statistics",
-		"nostats": "No statistics available"
+		"nostats": "No statistics available",
+		"ranking": "User Ranking"
 	},
 	"info": {
 		"usrnm": "Username:",
@@ -61,6 +62,17 @@
 		"totalscore": "Total score:",
 		"highscore": "High score:",
 		"avgscore": "Average score:"
+	},
+	"rankinfo": {
+		"usrnm": "Username",
+		"totalgames": "Total Games",
+		"gameswon": "Wins",
+		"gamesplayed": "Games Played",
+		"winrate": "Win Rate",
+		"totalscore": "Total Score",
+		"highscore": "High Score",
+		"avgscore": "Average Score",
+		"rank": "Rank"
 	},
 	"option": {
 		"leftplayer": "Left Player",

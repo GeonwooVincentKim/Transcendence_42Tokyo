@@ -62,6 +62,17 @@
 		"highscore": "High score:",
 		"avgscore": "Average score:"
 	},
+	"rankinfo": {
+		"usrnm": "Username",
+		"totalgames": "Total Games",
+		"gameswon": "Wins",
+		"gamesplayed": "Games Played",
+		"winrate": "Win Rate",
+		"totalscore": "Total Score",
+		"highscore": "High Score",
+		"avgscore": "Average Score",
+		"rank": "Rank"
+	},
 	"option": {
 		"leftplayer": "〇〇",
 		"rightplayer": "〇〇"

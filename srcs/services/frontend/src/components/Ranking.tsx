@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { GameStatsService } from '../services/gameStatsService';
+import i18n from 'i18next';
 
 interface UserWithStats {
   username: string;
@@ -42,7 +43,7 @@ const Ranking: React.FC = () => {
   }, []);
 
   if (loading) {
-    return <div className="text-lg text-gray-400">Loading ranking...</div>;
+    return <div className="text-lg text-gray-400">{i18n.t('label.loading')}</div>;
   }
   if (error) {
     return <div className="text-red-400">{error}</div>;
@@ -50,19 +51,19 @@ const Ranking: React.FC = () => {
 
   return (
     <div className="flex flex-col items-center justify-center min-h-[60vh] w-full">
-      <h2 className="text-3xl font-bold mb-6">User Ranking</h2>
+      <h2 className="text-3xl font-bold mb-6">{i18n.t('label.ranking')}</h2>
       <div className="overflow-x-auto w-full max-w-3xl">
         <table className="min-w-full bg-gray-800 rounded-lg overflow-hidden">
           <thead>
             <tr>
-              <th className="px-4 py-2">Rank</th>
-              <th className="px-4 py-2">Username</th>
-              <th className="px-4 py-2">Games Played</th>
-              <th className="px-4 py-2">Wins</th>
-              <th className="px-4 py-2">Win Rate</th>
-              <th className="px-4 py-2">Total Score</th>
-              <th className="px-4 py-2">Highest Score</th>
-              <th className="px-4 py-2">Average Score</th>
+              <th className="px-4 py-2">{i18n.t('rankinfo.rank')}</th>
+              <th className="px-4 py-2">{i18n.t('rankinfo.usrnm')}</th>
+              <th className="px-4 py-2">{i18n.t('rankinfo.gamesplayed')}</th>
+              <th className="px-4 py-2">{i18n.t('rankinfo.gameswon')}</th>
+              <th className="px-4 py-2">{i18n.t('rankinfo.winrate')}</th>
+              <th className="px-4 py-2">{i18n.t('rankinfo.totalscore')}</th>
+              <th className="px-4 py-2">{i18n.t('rankinfo.highscore')}</th>
+              <th className="px-4 py-2">{i18n.t('rankinfo.avgscore')}</th>
             </tr>
           </thead>
           <tbody>
