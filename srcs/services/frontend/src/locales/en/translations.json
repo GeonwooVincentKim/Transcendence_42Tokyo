@@ -28,7 +28,8 @@
 		"hidedebug": "Hide Debug",
 		"backtologin": "Back to Login",
 		"cancel": "Cancel",
-		"deleting": "Deleting..."
+		"deleting": "Deleting...",
+		"backtoprofile": "Back to Profile"
 	},
 	"placeholder": {
 		"username": "Enter your username",
@@ -38,7 +39,8 @@
 		"newemail": "Enter your email address",
 		"newpw": "Choose a password (min 6 characters)",
 		"newpwcnfm": "Type your password again to confirm",
-		"deletecnfm": "Type DELETE"
+		"deletecnfm": "Type DELETE",
+		"pwcnfm": "Enter your password to confirm"
 	},
 	"label": {
 		"usrnm": "Username",
@@ -85,7 +87,8 @@
 		"difficultylvl": "AI Difficulty: {{lvl}}",
 		"difficulty": "AI Difficulty:",
 		"pvescore": "Player: {{left}} - AI: {{right}}",
-		"matchscore": "Final Score: {{left}} - {{right}}"
+		"matchscore": "Final Score: {{left}} - {{right}}",
+		"accttodelete": "Account to be deleted:"
 	},
 	"rankinfo": {
 		"usrnm": "Username",

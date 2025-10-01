@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { AuthService } from '../services/authService';
+import i18n from 'i18next';
 
 interface DeleteAccountPageProps {
   user: { username: string; email: string };
@@ -42,11 +43,11 @@ export const DeleteAccountPage: React.FC<DeleteAccountPageProps> = ({ user, onBa
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!password.trim()) {
-      setError('Please enter your password');
+      setError(i18n.t('error.pwmissing'));
       return;
     }
     if (confirmText !== 'DELETE') {
-      setError('Please type DELETE to confirm');
+      setError(i18n.t('error.deletecnfm'));
       return;
     }
     setIsLoading(true);
@@ -72,10 +73,10 @@ export const DeleteAccountPage: React.FC<DeleteAccountPageProps> = ({ user, onBa
       } else {
         let data = null;
         try { data = await response.json(); } catch {}
-        setError((data && data.message) || 'Failed to delete account');
+        setError((data && data.message) || i18n.t('error.deletefailed'));
       }
     } catch (err) {
-      setError('Failed to fetch');
+      setError(i18n.t('error.fetchfailed'));
     } finally {
       setIsLoading(false);
     }
@@ -92,28 +93,28 @@ export const DeleteAccountPage: React.FC<DeleteAccountPageProps> = ({ user, onBa
     <div className="min-h-screen bg-gray-900 text-white flex items-center justify-center">
       <div className="bg-white rounded-lg shadow-xl p-6 max-w-md w-full mx-4">
         <div className="text-center mb-6">
-          <h2 className="text-2xl font-bold text-red-600 mb-2">Delete Account</h2>
-          <p className="text-gray-600">This action cannot be undone. All your data will be permanently deleted.</p>
+          <h2 className="text-2xl font-bold text-red-600 mb-2">{i18n.t('label.deleteacct')}</h2>
+          <p className="text-gray-600">{i18n.t('msg.deletewarning')}</p>
         </div>
         {success ? (
           <div className="flex flex-col items-center justify-center">
             <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded text-center mb-6">
-              Account deleted successfully
+              {i18n.t('msg.acctdeleted')}
             </div>
             <button
               type="button"
               onClick={onAccountDeleted}
               className="bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
             >
-              Back to Login Page
+              {i18n.t('button.backtologin')}
             </button>
           </div>
         ) : (
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="bg-gray-50 rounded-lg p-4 mb-4">
-              <h3 className="font-semibold text-gray-800 mb-2">Account to be deleted:</h3>
-              <p className="text-sm text-gray-600"><strong>Username:</strong> {user.username}</p>
-              <p className="text-sm text-gray-600"><strong>Email:</strong> {user.email}</p>
+              <h3 className="font-semibold text-gray-800 mb-2">{i18n.t('info.accttodelete')}</h3>
+              <p className="text-sm text-gray-600"><strong>{i18n.t('info.usrnm')}</strong> {user.username}</p>
+              <p className="text-sm text-gray-600"><strong>{i18n.t('info.email')}</strong> {user.email}</p>
             </div>
             <div>
               <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1">Password</label>
@@ -124,7 +125,7 @@ export const DeleteAccountPage: React.FC<DeleteAccountPageProps> = ({ user, onBa
                 value={password}
                 onChange={handleInputChange}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent"
-                placeholder="Enter your password to confirm"
+                placeholder={i18n.t('placeholder.pwcnfm')}
                 disabled={isLoading}
                 required
               />
@@ -138,14 +139,14 @@ export const DeleteAccountPage: React.FC<DeleteAccountPageProps> = ({ user, onBa
                 value={confirmText}
                 onChange={handleInputChange}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent"
-                placeholder="Type DELETE"
+                placeholder={i18n.t('placeholder.deletecnfm')}
                 disabled={isLoading}
                 required
               />
             </div>
             <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">
-              <p className="text-sm font-medium">⚠️ Warning</p>
-              <p className="text-sm mt-1">This will permanently delete your account and all associated data. This action cannot be undone.</p>
+              <p className="text-sm font-medium">{i18n.t('label.genericwarning')}</p>
+              <p className="text-sm mt-1">{i18n.t('msg.deletewarning')}</p>
             </div>
             {error && (
               <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">{error}</div>
@@ -157,14 +158,14 @@ export const DeleteAccountPage: React.FC<DeleteAccountPageProps> = ({ user, onBa
                 disabled={isLoading}
                 className="flex-1 bg-gray-600 text-white py-2 px-4 rounded-md hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                Back to Profile
+                {i18n.t('button.backtoprofile')}
               </button>
               <button
                 type="submit"
                 disabled={isLoading}
                 className="flex-1 bg-red-600 text-white py-2 px-4 rounded-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {isLoading ? 'Deleting...' : 'Delete Account'}
+                {isLoading ? i18n.t('button.deleting') : i18n.t('button.deleteacct')}
               </button>
             </div>
           </form>
