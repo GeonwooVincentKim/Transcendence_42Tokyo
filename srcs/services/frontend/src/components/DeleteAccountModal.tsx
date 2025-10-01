@@ -44,7 +44,7 @@ export const DeleteAccountModal: React.FC<DeleteAccountModalProps> = ({
     }
 
     if (confirmText !== 'DELETE') {
-      setError(i18n.t('error.deleteconfirm'));
+      setError(i18n.t('error.deletecnfm'));
       return;
     }
 

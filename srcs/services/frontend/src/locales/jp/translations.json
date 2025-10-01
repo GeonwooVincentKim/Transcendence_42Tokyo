@@ -116,7 +116,7 @@
 		"rankingsfailed": "Failed to load rankings",
 		"lbfailed": "Failed to load leaderboard",
 		"pwmissing": "Please enter your password",
-		"deleteconfirm": "Please type DELETE to confirm",
+		"deletecnfm": "Please type DELETE to confirm",
 		"fetchfailed": "Failed to fetch",
 		"deletefailed": "Failed to delete account"
 	},
