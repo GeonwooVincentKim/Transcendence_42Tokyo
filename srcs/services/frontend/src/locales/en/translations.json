@@ -34,7 +34,9 @@
 		"sendresettkn": "Send Reset Token",
 		"resettingpw": "Resetting password...",
 		"resetpw": "Reset Password",
-		"backtoemail": "Back to Email"
+		"backtoemail": "Back to Email",
+		"findingusrnm": "Finding username...",
+		"findusrnm": "Find Username"
 	},
 	"placeholder": {
 		"username": "Enter your username",
@@ -78,7 +80,8 @@
 		"genericwarning": "⚠️ Warning",
 		"resetpw": "Reset Your Password",
 		"resettkn": "Reset Token",
-		"newpw": "New Password"
+		"newpw": "New Password",
+		"findusrnm": "Find Your Username"
 	},
 	"info": {
 		"usrnm": "Username:",
@@ -97,7 +100,8 @@
 		"difficulty": "AI Difficulty:",
 		"pvescore": "Player: {{left}} - AI: {{right}}",
 		"matchscore": "Final Score: {{left}} - {{right}}",
-		"accttodelete": "Account to be deleted:"
+		"accttodelete": "Account to be deleted:",
+		"findusrnm": "Your username is: {{who}}"
 	},
 	"rankinfo": {
 		"usrnm": "Username",
@@ -135,7 +139,8 @@
 		"pwresetrqfailed": "Failed to request password reset",
 		"resettokenmissing": "Please enter the reset token",
 		"newpwmissing": "Please enter a new password",
-		"pwresetfailed": "Failed to reset password"
+		"pwresetfailed": "Failed to reset password",
+		"findusrnmfailed": "Failed to find username"
 	},
 	"msg": {
 		"leaderboard": "Leaderboard is updated in real-time as players complete games",

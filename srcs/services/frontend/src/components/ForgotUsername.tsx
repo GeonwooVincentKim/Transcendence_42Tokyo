@@ -7,6 +7,7 @@
 
 import React, { useState } from 'react';
 import { AuthService } from '../services/authService';
+import i18n from 'i18next';
 
 interface ForgotUsernameProps {
   onBackToLogin: () => void;
@@ -26,14 +27,14 @@ export const ForgotUsername: React.FC<ForgotUsernameProps> = ({ onBackToLogin })
     e.preventDefault();
     
     if (!email.trim()) {
-      setError('Please enter your email address');
+      setError(i18n.t('error.emailmissing'));
       return;
     }
 
     // Basic email validation
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(email)) {
-      setError('Please enter a valid email address');
+      setError(i18n.t('error.invalidemail'));
       return;
     }
 
@@ -43,9 +44,9 @@ export const ForgotUsername: React.FC<ForgotUsernameProps> = ({ onBackToLogin })
 
     try {
       const username = await AuthService.findUsernameByEmail(email);
-      setSuccess(`Your username is: ${username}`);
+      setSuccess(i18n.t('info.findusrnm', {who: username}));
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to find username');
+      setError(err instanceof Error ? err.message : i18n.t('findusrnmfailed'));
     } finally {
       setIsLoading(false);
     }
@@ -64,14 +65,14 @@ export const ForgotUsername: React.FC<ForgotUsernameProps> = ({ onBackToLogin })
   return (
     <div className="max-w-md mx-auto bg-white rounded-lg shadow-md p-6">
       <h2 className="text-2xl font-bold text-center text-gray-800 mb-6">
-        Find Your Username
+        {i18n.t('label.findusrnm')}
       </h2>
       
       <form onSubmit={handleSubmit} className="space-y-4">
         {/* Email Field */}
         <div>
           <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
-            Email Address
+            {i18n.t('label.email')}
           </label>
           <input
             type="email"
@@ -80,7 +81,7 @@ export const ForgotUsername: React.FC<ForgotUsernameProps> = ({ onBackToLogin })
             value={email}
             onChange={handleInputChange}
             className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            placeholder="Enter your email address"
+            placeholder={i18n.t('placeholder.newemail')}
             disabled={isLoading}
             required
           />
@@ -106,7 +107,7 @@ export const ForgotUsername: React.FC<ForgotUsernameProps> = ({ onBackToLogin })
           disabled={isLoading}
           className="w-full bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          {isLoading ? 'Finding username...' : 'Find Username'}
+          {isLoading ? i18n.t('button.findingusrnm') : i18n.t('button.findusrnm')}
         </button>
       </form>
 
@@ -117,7 +118,7 @@ export const ForgotUsername: React.FC<ForgotUsernameProps> = ({ onBackToLogin })
           onClick={onBackToLogin}
           className="text-blue-600 hover:text-blue-800 font-medium"
         >
-          Back to Login
+          {i18n.t('button.backtologin')}
         </button>
       </div>
     </div>
