@@ -7,6 +7,7 @@
 
 import React, { useState } from 'react';
 import { AuthService } from '../services/authService';
+import i18n from 'i18next';
 
 interface DeleteAccountModalProps {
   isOpen: boolean;
@@ -38,12 +39,12 @@ export const DeleteAccountModal: React.FC<DeleteAccountModalProps> = ({
     e.preventDefault();
     
     if (!password.trim()) {
-      setError('Please enter your password');
+      setError(i18n.t('error.pwmissing'));
       return;
     }
 
     if (confirmText !== 'DELETE') {
-      setError('Please type DELETE to confirm');
+      setError(i18n.t('error.deleteconfirm'));
       return;
     }
 
@@ -73,10 +74,10 @@ export const DeleteAccountModal: React.FC<DeleteAccountModalProps> = ({
       } else {
         let data = null;
         try { data = await response.json(); } catch {}
-        setError((data && data.message) || 'Failed to delete account');
+        setError((data && data.message) || i18n.t('error.deletefailed'));
       }
     } catch (err) {
-      setError('Failed to fetch');
+      setError(i18n.t('error.fetchfailed'));
     } finally {
       setIsLoading(false);
     }
@@ -105,23 +106,23 @@ export const DeleteAccountModal: React.FC<DeleteAccountModalProps> = ({
       <div className="bg-white rounded-lg shadow-xl p-6 max-w-md w-full mx-4">
         <div className="text-center mb-6">
           <h2 className="text-2xl font-bold text-red-600 mb-2">
-            Delete Account
+            {i18n.t('label.deleteacct')}
           </h2>
           <p className="text-gray-600">
-            This action cannot be undone. All your data will be permanently deleted.
+            {i18n.t('msg.deletewarning')}
           </p>
         </div>
         {success ? (
           <div className="flex flex-col items-center justify-center">
             <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded text-center">
-              Account deleted successfully
+              {i18n.t('msg.acctdeleted')}
             </div>
             <button
               type="button"
               onClick={onConfirm}
               className="mt-6 bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
             >
-              Back to Login
+              {i18n.t('button.backtologin')}
             </button>
           </div>
         ) : (
@@ -130,17 +131,17 @@ export const DeleteAccountModal: React.FC<DeleteAccountModalProps> = ({
             <div className="bg-gray-50 rounded-lg p-4 mb-4">
               <h3 className="font-semibold text-gray-800 mb-2">Account to be deleted:</h3>
               <p className="text-sm text-gray-600">
-                <strong>Username:</strong> {user.username}
+                <strong>{i18n.t('info.usrnm')}</strong> {user.username}
               </p>
               <p className="text-sm text-gray-600">
-                <strong>Email:</strong> {user.email}
+                <strong>{i18n.t('info.email')}</strong> {user.email}
               </p>
             </div>
 
             {/* Password Field */}
             <div>
               <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1">
-                Password
+                {i18n.t('label.pw')}
               </label>
               <input
                 type="password"
@@ -149,7 +150,7 @@ export const DeleteAccountModal: React.FC<DeleteAccountModalProps> = ({
                 value={password}
                 onChange={handleInputChange}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent"
-                placeholder="Enter your password to confirm"
+                placeholder={i18n.t('placeholder.newpwcnfm')}
                 disabled={isLoading}
                 required
               />
@@ -158,7 +159,7 @@ export const DeleteAccountModal: React.FC<DeleteAccountModalProps> = ({
             {/* Confirmation Text */}
             <div>
               <label htmlFor="confirmText" className="block text-sm font-medium text-gray-700 mb-1">
-                Type DELETE to confirm
+                {i18n.t('label.deletecnfm')}
               </label>
               <input
                 type="text"
@@ -167,7 +168,7 @@ export const DeleteAccountModal: React.FC<DeleteAccountModalProps> = ({
                 value={confirmText}
                 onChange={handleInputChange}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent"
-                placeholder="Type DELETE"
+                placeholder={i18n.t('placeholder.deletecnfm')}
                 disabled={isLoading}
                 required
               />
@@ -175,10 +176,9 @@ export const DeleteAccountModal: React.FC<DeleteAccountModalProps> = ({
 
             {/* Warning */}
             <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">
-              <p className="text-sm font-medium">⚠️ Warning</p>
+              <p className="text-sm font-medium">{i18n.t('label.genericwarning')}</p>
               <p className="text-sm mt-1">
-                This will permanently delete your account and all associated data. 
-                This action cannot be undone.
+                {i18n.t('msg.deletewarning')}
               </p>
             </div>
 
@@ -197,7 +197,7 @@ export const DeleteAccountModal: React.FC<DeleteAccountModalProps> = ({
                 disabled={isLoading || success}
                 className={`flex-1 bg-gray-600 text-white py-2 px-4 rounded-md hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed${success ? ' opacity-50 cursor-not-allowed' : ''}`}
               >
-                Cancel
+                {i18n.t('button.cancel')}
               </button>
               <button
                 type="submit"
@@ -212,7 +212,7 @@ export const DeleteAccountModal: React.FC<DeleteAccountModalProps> = ({
                 disabled={!success}
                 className={`flex-1 bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2${!success ? ' opacity-50 cursor-not-allowed' : ''}`}
               >
-                Back to Login
+                {i18n.t('button.backtologin')}
               </button>
             </div>
           </form>

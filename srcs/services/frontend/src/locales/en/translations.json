@@ -25,7 +25,9 @@
 		"pause": "Pause",
 		"reset": "Reset",
 		"showdebug": "Show Debug",
-		"hidedebug": "Hide Debug"
+		"hidedebug": "Hide Debug",
+		"backtologin": "Back to Login",
+		"cancel": "Cancel"
 	},
 	"placeholder": {
 		"username": "Enter your username",
@@ -34,7 +36,8 @@
 		"newusername": "Choose a username (3-20 characters)",
 		"newemail": "Enter your email address",
 		"newpw": "Choose a password (min 6 characters)",
-		"newpwcnfm": "Type your password again to confirm"
+		"newpwcnfm": "Type your password again to confirm",
+		"deletecnfm": "Type DELETE"
 	},
 	"label": {
 		"usrnm": "Username",
@@ -61,7 +64,9 @@
 		"leaderboard": "Leaderboard",
 		"noplayers": "No players found",
 		"pve": "Player vs AI",
-		"gameover": "Game Over!"
+		"gameover": "Game Over!",
+		"deletecnfm": "Type DELETE to confirm",
+		"genericwarning": "⚠️ Warning"
 	},
 	"info": {
 		"usrnm": "Username:",
@@ -108,13 +113,19 @@
 		"regfailed": "User registration failed",
 		"statsfailed": "Failed to load statistics",
 		"rankingsfailed": "Failed to load rankings",
-		"lbfailed": "Failed to load leaderboard"
+		"lbfailed": "Failed to load leaderboard",
+		"pwmissing": "Please enter your password",
+		"deleteconfirm": "Please type DELETE to confirm",
+		"fetchfailed": "Failed to fetch",
+		"deletefailed": "Failed to delete account"
 	},
 	"msg": {
 		"leaderboard": "Leaderboard is updated in real-time as players complete games",
 		"movementkeys": "Use W (up) / S (down) to move your paddle.",
 		"aidifficulty": "The AI adapts its difficulty based on your performance!",
 		"startstop": "Press SPACE to start/pause",
-		"matchwinner": "{{who}} wins!"
+		"matchwinner": "{{who}} wins!",
+		"deletewarning": "This action cannot be undone. All your data will be permanently deleted.",
+		"acctdeleted": "Account deleted successfully"
 	}
 }	
