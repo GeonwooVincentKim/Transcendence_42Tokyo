@@ -7,6 +7,7 @@
 
 import React, { useState } from 'react';
 import { AuthService } from '../services/authService';
+import i18n from 'i18next';
 
 interface ForgotPasswordProps {
   onBackToLogin: () => void;
@@ -30,14 +31,14 @@ export const ForgotPassword: React.FC<ForgotPasswordProps> = ({ onBackToLogin })
     e.preventDefault();
     
     if (!email.trim()) {
-      setError('Please enter your email address');
+      setError(i18n.t('error.emailmissing'));
       return;
     }
 
     // Basic email validation
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(email)) {
-      setError('Please enter a valid email address');
+      setError(i18n.t('error.invalidemail'));
       return;
     }
 
@@ -48,9 +49,9 @@ export const ForgotPassword: React.FC<ForgotPasswordProps> = ({ onBackToLogin })
       const { resetToken: token } = await AuthService.requestPasswordReset(email);
       setResetToken(token);
       setStep('reset');
-      setSuccess('Password reset token generated. Please check your email and enter the token below.');
+      setSuccess(i18n.t('msg.pwresetrqsuccess'));
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to request password reset');
+      setError(err instanceof Error ? err.message : i18n.t('error.pwresetrqfailed'));
     } finally {
       setIsLoading(false);
     }
@@ -64,22 +65,22 @@ export const ForgotPassword: React.FC<ForgotPasswordProps> = ({ onBackToLogin })
     e.preventDefault();
     
     if (!resetToken.trim()) {
-      setError('Please enter the reset token');
+      setError(i18n.t('error.resettokenmissing'));
       return;
     }
 
     if (!newPassword.trim()) {
-      setError('Please enter a new password');
+      setError(i18n.t('error.newpwmissing'));
       return;
     }
 
     if (newPassword.length < 6) {
-      setError('Password must be at least 6 characters long');
+      setError(i18n.t('error.invalidpw'));
       return;
     }
 
     if (newPassword !== confirmPassword) {
-      setError('Passwords do not match');
+      setError(i18n.t('error.pwmismatch'));
       return;
     }
 
@@ -88,12 +89,12 @@ export const ForgotPassword: React.FC<ForgotPasswordProps> = ({ onBackToLogin })
 
     try {
       await AuthService.resetPassword(resetToken, newPassword);
-      setSuccess('Password reset successful! You can now login with your new password.');
+      setSuccess(i18n.t('msg.pwresetsuccess'));
       setTimeout(() => {
         onBackToLogin();
       }, 2000);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to reset password');
+      setError(err instanceof Error ? err.message : i18n.t('error.pwresetfailed'));
     } finally {
       setIsLoading(false);
     }
@@ -140,7 +141,7 @@ export const ForgotPassword: React.FC<ForgotPasswordProps> = ({ onBackToLogin })
   return (
     <div className="max-w-md mx-auto bg-white rounded-lg shadow-md p-6">
       <h2 className="text-2xl font-bold text-center text-gray-800 mb-6">
-        Reset Your Password
+        {i18n.t('label.resetpw')}
       </h2>
       
       {step === 'email' ? (
@@ -148,7 +149,7 @@ export const ForgotPassword: React.FC<ForgotPasswordProps> = ({ onBackToLogin })
           {/* Email Field */}
           <div>
             <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
-              Email Address
+              {i18n.t('label.email')}
             </label>
             <input
               type="email"
@@ -157,7 +158,7 @@ export const ForgotPassword: React.FC<ForgotPasswordProps> = ({ onBackToLogin })
               value={email}
               onChange={handleInputChange}
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              placeholder="Enter your email address"
+              placeholder={i18n.t('placerholder.newemail')}
               disabled={isLoading}
               required
             />
@@ -176,7 +177,7 @@ export const ForgotPassword: React.FC<ForgotPasswordProps> = ({ onBackToLogin })
             disabled={isLoading}
             className="w-full bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {isLoading ? 'Sending reset token...' : 'Send Reset Token'}
+            {isLoading ? i18n.t('button.sendingresettkn') : i18n.t('button.sendresettkn')}
           </button>
         </form>
       ) : (
@@ -184,7 +185,7 @@ export const ForgotPassword: React.FC<ForgotPasswordProps> = ({ onBackToLogin })
           {/* Reset Token Field */}
           <div>
             <label htmlFor="resetToken" className="block text-sm font-medium text-gray-700 mb-1">
-              Reset Token
+              {i18n.t('label.resettkn')}
             </label>
             <input
               type="text"
@@ -193,7 +194,7 @@ export const ForgotPassword: React.FC<ForgotPasswordProps> = ({ onBackToLogin })
               value={resetToken}
               onChange={handleInputChange}
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              placeholder="Enter the reset token from your email"
+              placeholder={i18n.t('placerholder.resettkn')}
               disabled={isLoading}
               required
             />
@@ -202,7 +203,7 @@ export const ForgotPassword: React.FC<ForgotPasswordProps> = ({ onBackToLogin })
           {/* New Password Field */}
           <div>
             <label htmlFor="newPassword" className="block text-sm font-medium text-gray-700 mb-1">
-              New Password
+              {i18n.t('label.newpw')}
             </label>
             <input
               type="password"
@@ -211,7 +212,7 @@ export const ForgotPassword: React.FC<ForgotPasswordProps> = ({ onBackToLogin })
               value={newPassword}
               onChange={handleInputChange}
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              placeholder="Enter your new password"
+              placeholder={i18n.t('placeholder.newpw')}
               disabled={isLoading}
               required
             />
@@ -220,7 +221,7 @@ export const ForgotPassword: React.FC<ForgotPasswordProps> = ({ onBackToLogin })
           {/* Confirm Password Field */}
           <div>
             <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-700 mb-1">
-              Confirm New Password
+              {i18n.t('label.confirmpw')}
             </label>
             <input
               type="password"
@@ -229,7 +230,7 @@ export const ForgotPassword: React.FC<ForgotPasswordProps> = ({ onBackToLogin })
               value={confirmPassword}
               onChange={handleInputChange}
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              placeholder="Confirm your new password"
+              placeholder={i18n.t('placeholder.newpwcnfm')}
               disabled={isLoading}
               required
             />
@@ -255,7 +256,7 @@ export const ForgotPassword: React.FC<ForgotPasswordProps> = ({ onBackToLogin })
             disabled={isLoading}
             className="w-full bg-green-600 text-white py-2 px-4 rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {isLoading ? 'Resetting password...' : 'Reset Password'}
+            {isLoading ? i18n.t('resettingpw') : i18n.t('resetpw')}
           </button>
 
           {/* Back to Email */}
@@ -264,7 +265,7 @@ export const ForgotPassword: React.FC<ForgotPasswordProps> = ({ onBackToLogin })
             onClick={handleBackToEmail}
             className="w-full bg-gray-600 text-white py-2 px-4 rounded-md hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2"
           >
-            Back to Email
+            {i18n.t('button.backtoemail')}
           </button>
         </form>
       )}
@@ -276,7 +277,7 @@ export const ForgotPassword: React.FC<ForgotPasswordProps> = ({ onBackToLogin })
           onClick={onBackToLogin}
           className="text-blue-600 hover:text-blue-800 font-medium"
         >
-          Back to Login
+          {i18n.t('button.backtologin')}
         </button>
       </div>
     </div>
