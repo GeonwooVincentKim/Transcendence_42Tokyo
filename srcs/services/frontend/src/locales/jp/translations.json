@@ -27,7 +27,8 @@
 		"showdebug": "Show Debug",
 		"hidedebug": "Hide Debug",
 		"backtologin": "Back to Login",
-		"cancel": "Cancel"
+		"cancel": "Cancel",
+		"deleting": "Deleting..."
 	},
 	"placeholder": {
 		"username": "〇〇",

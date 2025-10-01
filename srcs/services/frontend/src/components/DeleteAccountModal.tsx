@@ -204,7 +204,7 @@ export const DeleteAccountModal: React.FC<DeleteAccountModalProps> = ({
                 disabled={isLoading || success}
                 className={`flex-1 bg-red-600 text-white py-2 px-4 rounded-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed${success ? ' opacity-50 cursor-not-allowed' : ''}`}
               >
-                {isLoading ? 'Deleting...' : 'Delete Account'}
+                {isLoading ? i18n.t('button.deleting') : i18n.t('button.deleteacct')}
               </button>
               <button
                 type="button"
