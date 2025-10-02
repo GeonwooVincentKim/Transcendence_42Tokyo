@@ -2,6 +2,7 @@ import React, { useCallback } from 'react';
 import { usePongEngine } from '../hooks/usePongEngine';
 import { useHumanController } from '../hooks/useHumanController';
 import { GameStatsService } from '../services/gameStatsService';
+import i18n from 'i18next';
 
 /**
  * The Player vs. Player Pong game component.
@@ -43,21 +44,27 @@ export const PongGame: React.FC<PongGameProps> = ({ width = 800, height = 400, o
   //    This demonstrates the power of reusable hooks.
   useHumanController(controls.setPaddleMovement, 'right');
 
+  const statusMap = new Map<string, string>();
+  statusMap.set("ready", i18n.t('option.ready'));
+  statusMap.set("playing", i18n.t('option.playing'));
+  statusMap.set("paused", i18n.t('option.paused'));
+  statusMap.set("finished", i18n.t('option.finished'));
+
   // 5. Render the UI, using the state and controls provided by the engine.
   return (
     <div className="flex flex-col items-center" data-testid="game-container">
-      <h2 className="text-2xl mb-4">Player vs. Player</h2>
+      <h2 className="text-2xl mb-4">{i18n.t('label.pvp')}</h2>
       
       {/* The buttons call the control functions directly from the engine hook */}
       <div className="mb-4 flex gap-2">
-        <button data-testid="start-button" onClick={controls.start}>Start</button>
-        <button data-testid="pause-button" onClick={controls.pause}>Pause</button>
-        <button data-testid="reset-button" onClick={controls.reset}>Reset</button>
+        <button data-testid="start-button" onClick={controls.start}>{i18n.t('button.start')}</button>
+        <button data-testid="pause-button" onClick={controls.pause}>{i18n.t('button.pause')}</button>
+        <button data-testid="reset-button" onClick={controls.reset}>{i18n.t('button.reset')}</button>
       </div>
 
-      {/* The UI reads its data directly from the gameState object */}
+      {/* The UI reads its data directly from the gameState object need to map status to translations */}
       <div data-testid="game-status" className="mb-2 text-sm">
-        Status: {gameState.status}
+        {i18n.t('info.status')} {statusMap.get(gameState.status)}
       </div>
       <div data-testid="score" className="mb-2 text-lg font-bold">
         {gameState.leftScore} - {gameState.rightScore}
@@ -66,11 +73,11 @@ export const PongGame: React.FC<PongGameProps> = ({ width = 800, height = 400, o
       {/* Game end message */}
       {gameState.status === 'finished' && gameState.winner && (
         <div className="mb-4 p-4 bg-green-600 text-white rounded-lg text-center">
-          <h3 className="text-xl font-bold mb-2">Game Over!</h3>
+          <h3 className="text-xl font-bold mb-2">{i18n.t('label.gameover')}</h3>
           <p className="text-lg">
-            {gameState.winner === 'left' ? 'Left Player' : 'Right Player'} wins!
+            {i18n.t('msg.matchwinner', {who: gameState.winner === 'left' ? i18n.t('option.leftplayer') : i18n.t('option.rightplayer')})}
           </p>
-          <p className="text-sm mt-2">Final Score: {gameState.leftScore} - {gameState.rightScore}</p>
+          <p className="text-sm mt-2">{i18n.t('info.matchscore', {left: gameState.leftScore, right: gameState.rightScore})}</p>
         </div>
       )}
 
@@ -85,8 +92,8 @@ export const PongGame: React.FC<PongGameProps> = ({ width = 800, height = 400, o
       
       {/* Static instructions for the players */}
       <div className="mt-4 text-sm text-gray-400">
-        <p>Left Player: W (up) / S (down)</p>
-        <p>Right Player: Arrow Up (up) / Arrow Down (down)</p>
+        <p>{i18n.t('msg.leftplayerkeys')}</p>
+        <p>{i18n.t('msg.rightplayerkeys')}</p>
       </div>
     </div>
   );

@@ -6,6 +6,7 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { BracketNode, TournamentParticipant, TournamentMatch } from '../services/tournamentService';
+import i18n from 'i18next';
 
 interface Props {
   bracket: BracketNode[];
@@ -34,8 +35,8 @@ const MatchBox: React.FC<MatchBoxProps> = ({ node, position, onClick }) => {
   const winner = node.winner;
 
   const getPlayerDisplayName = (participant?: TournamentParticipant) => {
-    if (!participant) return 'TBD';
-    return participant.display_name || 'Unknown Player';
+    if (!participant) return i18n.t('option.tbd');
+    return participant.display_name || i18n.t('option.unknownplayer');
   };
 
   const getPlayerAvatar = (participant?: TournamentParticipant) => {
@@ -183,8 +184,8 @@ export const TournamentBracket: React.FC<Props> = ({
         {/* Standings Table */}
         <div className="bg-white rounded-lg shadow-lg overflow-hidden">
           <div className="bg-gradient-to-r from-blue-600 to-purple-600 text-white px-6 py-4">
-            <h3 className="text-xl font-bold">Round Robin Standings</h3>
-            <p className="text-blue-100 text-sm">All participants play against each other</p>
+            <h3 className="text-xl font-bold">{i18n.t('label.rrstandings')}</h3>
+            <p className="text-blue-100 text-sm">{i18n.t('msg.rrdesc')}</p>
           </div>
           
           <div className="overflow-x-auto">
@@ -267,8 +268,8 @@ export const TournamentBracket: React.FC<Props> = ({
         {/* Matches Section */}
         <div className="bg-white rounded-lg shadow-lg overflow-hidden">
           <div className="bg-gradient-to-r from-green-600 to-teal-600 text-white px-6 py-4">
-            <h3 className="text-xl font-bold">Round Robin Matches</h3>
-            <p className="text-green-100 text-sm">Click to start a match</p>
+            <h3 className="text-xl font-bold">{i18n.t('label.rrmatches')}</h3>
+            <p className="text-green-100 text-sm">{i18n.t('msg.startmatch')}</p>
           </div>
           
           <div className="p-6">
@@ -276,7 +277,7 @@ export const TournamentBracket: React.FC<Props> = ({
               {actualMatches.map((match) => (
                 <div key={match.id} className="border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow">
                   <div className="flex items-center justify-between mb-3">
-                    <span className="text-sm font-medium text-gray-600">Match {match.match_number}</span>
+                    <span className="text-sm font-medium text-gray-600">{i18n.t('rankinfo.match')} {match.match_number}</span>
                     <span className={`px-2 py-1 rounded-full text-xs font-medium ${
                       match.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
                       match.status === 'active' ? 'bg-blue-100 text-blue-800' :
@@ -289,11 +290,11 @@ export const TournamentBracket: React.FC<Props> = ({
                   <div className="space-y-2">
                     <div className="flex items-center justify-between">
                       <span className="text-sm font-medium text-gray-900">
-                        Player {match.player1_id}
+                        {i18n.t('rankinfo.player')} {match.player1_id}
                       </span>
                       <span className="text-sm text-gray-500">VS</span>
                       <span className="text-sm font-medium text-gray-900">
-                        Player {match.player2_id}
+                        {i18n.t('rankinfo.player')} {match.player2_id}
                       </span>
                     </div>
                   </div>
@@ -307,7 +308,7 @@ export const TournamentBracket: React.FC<Props> = ({
                       }}
                       className="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-lg transition-colors"
                     >
-                      Play Game
+                      {i18n.t('button.playgame')}
                     </button>
                   </div>
                 </div>
@@ -602,8 +603,8 @@ export const TournamentBracket: React.FC<Props> = ({
     return (
       <div className="flex items-center justify-center h-64 bg-gray-50 rounded-lg">
         <div className="text-center text-gray-500">
-          <p className="text-lg">No bracket data available</p>
-          <p className="text-sm mt-2">Tournament bracket will appear here once matches are generated</p>
+          <p className="text-lg">{i18n.t('msg.nobracketdata')}</p>
+          <p className="text-sm mt-2">{i18n.t('msg.bracketpending')}</p>
         </div>
       </div>
     );
@@ -638,7 +639,7 @@ export const TournamentBracket: React.FC<Props> = ({
             onClick={handleResetZoom}
             className="px-3 py-1 bg-blue-200 hover:bg-blue-300 rounded text-sm ml-2"
           >
-            Reset
+            {i18n.t('button.reset')}
           </button>
         </div>
         
@@ -646,18 +647,18 @@ export const TournamentBracket: React.FC<Props> = ({
           {tournamentType === 'single_elimination' && 'Single Elimination'}
           {tournamentType === 'double_elimination' && (
             <div className="flex items-center gap-4">
-              <span>Double Elimination</span>
+              <span>{i18n.t('label.doubleelim')}</span>
               <div className="flex items-center gap-2">
                 <div className="w-3 h-3 rounded bg-blue-500"></div>
-                <span className="text-xs">Main Bracket</span>
+                <span className="text-xs">{i18n.t('label.mainbracket')}</span>
               </div>
               <div className="flex items-center gap-2">
                 <div className="w-3 h-3 rounded bg-red-500"></div>
-                <span className="text-xs">Losers Bracket</span>
+                <span className="text-xs">{i18n.t('label.losersbracket')}</span>
               </div>
               <div className="flex items-center gap-2">
                 <div className="w-3 h-3 rounded bg-yellow-500"></div>
-                <span className="text-xs">Grand Final</span>
+                <span className="text-xs">{i18n.t('label.grandfinal')}</span>
               </div>
             </div>
           )}
@@ -712,7 +713,7 @@ export const TournamentBracket: React.FC<Props> = ({
                   top: 10,
                 }}
               >
-                Main Bracket (Winners)
+                {i18n.t('label.mainbracketwin')}
               </div>
               
               {/* Losers bracket label */}
@@ -723,7 +724,7 @@ export const TournamentBracket: React.FC<Props> = ({
                   top: 10,
                 }}
               >
-                Losers Bracket
+                {i18n.t('label.losersbracket')}
               </div>
               
               {/* Grand final label */}
@@ -734,7 +735,7 @@ export const TournamentBracket: React.FC<Props> = ({
                   top: 10,
                 }}
               >
-                Grand Final
+                {i18n.t('label.grandfinal')}
               </div>
             </>
           )}
@@ -764,8 +765,8 @@ export const TournamentBracket: React.FC<Props> = ({
         {bracketLayout.totalWidth === 0 && (
           <div className="absolute inset-0 flex items-center justify-center">
             <div className="text-center text-gray-500">
-              <p className="text-lg">Generating bracket...</p>
-              <p className="text-sm mt-2">Please wait while the tournament bracket is being created</p>
+              <p className="text-lg">{i18n.t('label.bracketgen')}</p>
+              <p className="text-sm mt-2">{i18n.t('msg.bracketcreation')}</p>
             </div>
           </div>
         )}
@@ -775,15 +776,15 @@ export const TournamentBracket: React.FC<Props> = ({
       <div className="flex items-center gap-6 text-sm text-gray-600">
         <div className="flex items-center gap-2">
           <div className="w-3 h-3 rounded-full bg-blue-500"></div>
-          <span>Active Match</span>
+          <span>{i18n.t('rankinfo.activematch')}</span>
         </div>
         <div className="flex items-center gap-2">
           <div className="w-3 h-3 rounded-full bg-green-500"></div>
-          <span>Winner</span>
+          <span>{i18n.t('rankinfo.winner')}</span>
         </div>
         <div className="flex items-center gap-2">
           <div className="w-3 h-3 rounded-full bg-gray-400"></div>
-          <span>Pending</span>
+          <span>{i18n.t('rankinfo.pending')}</span>
         </div>
       </div>
     </div>
