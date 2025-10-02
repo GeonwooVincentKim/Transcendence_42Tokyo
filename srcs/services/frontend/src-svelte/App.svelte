@@ -2,47 +2,108 @@
   import { onMount } from 'svelte';
   import LoginForm from './components/LoginForm.svelte';
   import RegisterForm from './components/RegisterForm.svelte';
-  import { AuthResponse } from '@shared/types/auth';
-  
-  let message = 'Hello from Svelte!';
-  let isReady = false;
-  let showLoginForm = false;
+  import UserProfile from './components/UserProfile.svelte';
+  import PongGame from './components/PongGame.svelte';
+  import AIPong from './components/AIPong.svelte';
+  import MultiPlayerPong from './components/MultiPlayerPong.svelte';
+  import { _ } from 'svelte-i18n';
+  import { authStore, currentViewStore, gameStateStore, authActions, gameActions } from './lib/stores';
+  import { router } from './lib/router';
+
   let currentView = 'welcome';
-  
-  onMount(() => {
-    console.log('Svelte app mounted successfully!');
-    isReady = true;
+  let isConnected = false;
+  let backendStatus = 'checking';
+  let user: any = null;
+  let gameState: any = null;
+
+  // Subscribe to stores
+  authStore.subscribe(store => {
+    user = store.user;
+    if (store.isAuthenticated) {
+      currentView = 'dashboard';
+    } else {
+      currentView = 'welcome';
+    }
   });
-  
-  function handleLoginSuccess(authData: AuthResponse) {
-    console.log('Login successful:', authData);
-    currentView = 'success';
-  }
-  
-  function handleSwitchToRegister() {
-    console.log('Switch to register');
-    currentView = 'register';
-  }
-  
-  function handleRegisterSuccess(authData: AuthResponse) {
-    console.log('Register successful:', authData);
-    currentView = 'success';
-  }
-  
-  function handleSwitchToForgotUsername() {
-    console.log('Switch to forgot username');
-    // TODO: Implement forgot username
-  }
-  
-  function handleSwitchToForgotPassword() {
-    console.log('Switch to forgot password');
-    // TODO: Implement forgot password
-  }
-  
-  function showLogin() {
-    showLoginForm = true;
+
+  currentViewStore.subscribe(view => {
+    currentView = view;
+  });
+
+  gameStateStore.subscribe(state => {
+    gameState = state;
+  });
+
+  onMount(async () => {
+    // Initialize router
+    router.init();
+    
+    // Check backend connection
+    try {
+      const response = await fetch('/api/ping');
+      if (response.ok) {
+        isConnected = true;
+        backendStatus = 'connected';
+      } else {
+        backendStatus = 'error';
+      }
+    } catch (error) {
+      console.error('Backend connection failed:', error);
+      backendStatus = 'error';
+    }
+  });
+
+  const showLogin = () => {
     currentView = 'login';
-  }
+  };
+
+  const showRegister = () => {
+    currentView = 'register';
+  };
+
+  const backToWelcome = () => {
+    currentView = 'welcome';
+  };
+
+  const handleLogin = (userData: any, token: string) => {
+    authActions.login(userData, token);
+    currentView = 'dashboard';
+  };
+
+  const handleLogout = () => {
+    authActions.logout();
+    currentView = 'welcome';
+  };
+
+  const startPongGame = () => {
+    gameActions.startGame('pong');
+    currentView = 'pong-game';
+  };
+
+  const startAIGame = () => {
+    gameActions.startGame('ai');
+    currentView = 'ai-game';
+  };
+
+  const startMultiplayerGame = (roomId: string, playerSide: 'left' | 'right') => {
+    gameActions.startGame('multiplayer', roomId, playerSide);
+    currentView = 'multiplayer-game';
+  };
+
+  const backToDashboard = () => {
+    gameActions.endGame();
+    currentView = 'dashboard';
+  };
+
+  const showUserProfile = () => {
+    currentView = 'profile';
+  };
+
+  const handleDeleteAccount = () => {
+    // Handle account deletion
+    authActions.logout();
+    currentView = 'welcome';
+  };
 </script>
 
 <main>
@@ -51,15 +112,15 @@
       <h1>🏓 ft_transcendence Pong</h1>
       <p class="subtitle">Svelte Version (In Development)</p>
       
-      {#if isReady}
-        <div class="status success">
-          ✅ Svelte is working!
-        </div>
-      {:else}
-        <div class="status loading">
-          ⏳ Loading...
-        </div>
-      {/if}
+      <div class="status {backendStatus === 'connected' ? 'success' : backendStatus === 'error' ? 'error' : 'loading'}">
+        {#if backendStatus === 'connected'}
+          ✅ Backend Connected!
+        {:else if backendStatus === 'error'}
+          ❌ Backend Connection Failed
+        {:else}
+          ⏳ Checking Backend...
+        {/if}
+      </div>
       
       <div class="info">
         <h2>Project Status:</h2>
@@ -68,17 +129,20 @@
           <li>✅ TypeScript configured</li>
           <li>✅ Shared services copied</li>
           <li>✅ LoginForm migrated to Svelte</li>
-          <li>🚧 More components migration in progress</li>
-          <li>⏳ React version still available (port 3000)</li>
+          <li>✅ RegisterForm migrated to Svelte</li>
+          <li>✅ UserProfile migrated to Svelte</li>
+          <li>✅ Game components migrated to Svelte</li>
+          <li>✅ Routing system implemented</li>
+          <li>✅ State management with stores</li>
         </ul>
       </div>
       
       <div class="actions">
         <button on:click={showLogin} class="btn btn-primary">
-          Test Login Form
+          Login
         </button>
-        <button on:click={() => currentView = 'register'} class="btn btn-secondary">
-          Test Register Form
+        <button on:click={showRegister} class="btn btn-secondary">
+          Register
         </button>
       </div>
       
@@ -86,35 +150,88 @@
         <p><strong>Note:</strong> This is the Svelte version running on port 3001.</p>
         <p>The original React version is still available on port 3000.</p>
       </div>
+      
     {:else if currentView === 'login'}
       <div class="login-container">
-        <button on:click={() => currentView = 'welcome'} class="btn btn-secondary mb-4">
+        <button on:click={backToWelcome} class="btn btn-secondary mb-4">
           ← Back to Welcome
         </button>
         <LoginForm 
-          onLoginSuccess={handleLoginSuccess}
-          onSwitchToRegister={handleSwitchToRegister}
-          onSwitchToForgotUsername={handleSwitchToForgotUsername}
-          onSwitchToForgotPassword={handleSwitchToForgotPassword}
+          onLoginSuccess={handleLogin}
+          onSwitchToRegister={showRegister}
+          onSwitchToForgotUsername={() => {}}
+          onSwitchToForgotPassword={() => {}}
         />
       </div>
+      
     {:else if currentView === 'register'}
       <div class="login-container">
-        <button on:click={() => currentView = 'welcome'} class="btn btn-secondary mb-4">
+        <button on:click={backToWelcome} class="btn btn-secondary mb-4">
           ← Back to Welcome
         </button>
         <RegisterForm 
-          onRegisterSuccess={handleRegisterSuccess}
-          onSwitchToLogin={() => currentView = 'login'}
+          onRegisterSuccess={handleLogin}
+          onSwitchToLogin={showLogin}
         />
       </div>
-    {:else if currentView === 'success'}
-      <div class="success-container">
-        <h1>🎉 Authentication Successful!</h1>
-        <p>LoginForm.svelte and RegisterForm.svelte are working perfectly!</p>
-        <button on:click={() => currentView = 'welcome'} class="btn btn-primary">
-          Back to Welcome
+      
+    {:else if currentView === 'dashboard'}
+      <div class="dashboard">
+        <h1>Welcome, {user?.username}!</h1>
+        <div class="dashboard-actions">
+          <button on:click={startPongGame} class="btn btn-primary">
+            🎮 Player vs Player
+          </button>
+          <button on:click={startAIGame} class="btn btn-primary">
+            🤖 Player vs AI
+          </button>
+          <button on:click={showUserProfile} class="btn btn-secondary">
+            👤 Profile
+          </button>
+          <button on:click={handleLogout} class="btn btn-danger">
+            🚪 Logout
+          </button>
+        </div>
+      </div>
+      
+    {:else if currentView === 'profile'}
+      <div class="profile-container">
+        <button on:click={backToDashboard} class="btn btn-secondary mb-4">
+          ← Back to Dashboard
         </button>
+        <UserProfile 
+          {user}
+          onLogout={handleLogout}
+          onBackToGame={backToDashboard}
+          onDeleteAccount={handleDeleteAccount}
+        />
+      </div>
+      
+    {:else if currentView === 'pong-game'}
+      <div class="game-container">
+        <button on:click={backToDashboard} class="btn btn-secondary mb-4">
+          ← Back to Dashboard
+        </button>
+        <PongGame />
+      </div>
+      
+    {:else if currentView === 'ai-game'}
+      <div class="game-container">
+        <button on:click={backToDashboard} class="btn btn-secondary mb-4">
+          ← Back to Dashboard
+        </button>
+        <AIPong />
+      </div>
+      
+    {:else if currentView === 'multiplayer-game'}
+      <div class="game-container">
+        <button on:click={backToDashboard} class="btn btn-secondary mb-4">
+          ← Back to Dashboard
+        </button>
+        <MultiPlayerPong 
+          roomId={gameState?.roomId || 'tournament-1-match-1'}
+          playerSide={gameState?.playerSide || 'left'}
+        />
       </div>
     {/if}
   </div>
@@ -142,7 +259,7 @@
     background: white;
     border-radius: 1rem;
     padding: 2rem;
-    max-width: 600px;
+    max-width: 800px;
     box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
   }
   
@@ -171,6 +288,12 @@
     background: #d4edda;
     color: #155724;
     border: 1px solid #c3e6cb;
+  }
+  
+  .status.error {
+    background: #f8d7da;
+    color: #721c24;
+    border: 1px solid #f5c6cb;
   }
   
   .status.loading {
@@ -220,6 +343,17 @@
     text-align: center;
   }
   
+  .dashboard {
+    text-align: center;
+  }
+  
+  .dashboard-actions {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 1rem;
+    margin: 2rem 0;
+  }
+  
   .btn {
     padding: 0.75rem 1.5rem;
     border-radius: 0.5rem;
@@ -248,19 +382,21 @@
     background: #4b5563;
   }
   
-  .login-container {
-    max-width: 500px;
+  .btn-danger {
+    background: #dc2626;
+    color: white;
+  }
+  
+  .btn-danger:hover {
+    background: #b91c1c;
+  }
+  
+  .login-container, .profile-container, .game-container {
+    max-width: 600px;
     margin: 0 auto;
   }
   
-  .success-container {
-    text-align: center;
-    padding: 2rem;
-  }
-  
-  .success-container h1 {
-    color: #10b981;
+  .mb-4 {
     margin-bottom: 1rem;
   }
 </style>
-

@@ -22,6 +22,7 @@
     "clean:all": "rm -rf dist dist-svelte .vite .tsbuildinfo node_modules/.vite"
   },
   "dependencies": {
+    "@sveltejs/kit": "^2.43.7",
     "i18next": "^25.5.2",
     "i18next-browser-languagedetector": "^8.2.0",
     "react": "^18.2.0",

@@ -712,7 +712,7 @@ export const Tournament: React.FC<Props> = ({ onBack, onStartMatch }) => {
 
     // Check if match is ready to start (has both players and is pending)
     if (match.status === 'pending' && match.player1_id && match.player2_id) {
-      const roomId = `${selectedTournament.id}-${match.id}`;
+      const roomId = `tournament-${selectedTournament.id}-match-${match.id}`;
       console.log('Starting match with roomId:', roomId);
       
       if (onStartMatch) {
