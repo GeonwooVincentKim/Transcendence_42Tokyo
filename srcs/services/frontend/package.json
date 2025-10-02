@@ -5,14 +5,21 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:svelte": "vite --config vite.config.svelte.ts",
     "build": "tsc -b && vite build",
+    "build:svelte": "vite build --config vite.config.svelte.ts",
+    "build:svelte:fast": "vite build --config vite.config.svelte.ts --mode fast",
+    "build:svelte:analyze": "vite build --config vite.config.svelte.ts --mode analyze",
     "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
     "preview": "vite preview",
+    "preview:svelte": "vite preview --config vite.config.svelte.ts",
     "test": "vitest",
     "test:ui": "vitest --ui",
     "test:coverage": "vitest --coverage",
     "test:e2e": "cypress open",
-    "test:e2e:run": "cypress run"
+    "test:e2e:run": "cypress run",
+    "clean": "rm -rf dist-svelte .vite .tsbuildinfo",
+    "clean:all": "rm -rf dist dist-svelte .vite .tsbuildinfo node_modules/.vite"
   },
   "dependencies": {
     "i18next": "^25.5.2",
@@ -20,11 +27,15 @@
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "react-i18next": "^15.7.3",
-    "socket.io-client": "^4.8.1"
+    "socket.io-client": "^4.8.1",
+    "svelte": "^4.2.19",
+    "svelte-i18n": "^4.0.0"
   },
   "devDependencies": {
+    "@sveltejs/vite-plugin-svelte": "^3.1.2",
     "@testing-library/jest-dom": "^6.1.0",
     "@testing-library/react": "^14.0.0",
+    "@testing-library/svelte": "^5.2.3",
     "@testing-library/user-event": "^14.5.0",
     "@types/react": "^18.2.43",
     "@types/react-dom": "^18.2.17",
@@ -36,7 +47,10 @@
     "eslint": "^9.30.1",
     "eslint-plugin-react-hooks": "^5.2.0",
     "eslint-plugin-react-refresh": "^0.4.20",
+    "eslint-plugin-svelte": "^2.46.0",
     "jsdom": "^23.0.0",
+    "rollup-plugin-visualizer": "^6.0.3",
+    "svelte-check": "^4.0.5",
     "typescript": "~5.8.3",
     "vite": "^5.2.10",
     "vitest": "^1.0.0"

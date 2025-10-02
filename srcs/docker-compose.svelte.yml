@@ -1,0 +1,39 @@
+services:
+  frontend-svelte:
+    build: 
+      context: ./services/frontend
+      dockerfile: Dockerfile.svelte
+    ports:
+      - "3001:80"
+    environment:
+      - NODE_ENV=production
+    depends_on:
+      - backend
+    networks:
+      - pong-network
+
+  backend:
+    build: ./services/backend
+    ports:
+      - "8000:8000"
+    environment:
+      - NODE_ENV=production
+      - JWT_SECRET=changeme-super-secret-key
+      - DB_PATH=/app/data/pong.db
+    volumes:
+      - pong_data:/app/data
+    restart: unless-stopped
+    networks:
+      - pong-network
+    stdin_open: true
+    tty: true
+    user: "1000:1000"
+
+volumes:
+  pong_data:
+    driver: local
+
+networks:
+  pong-network:
+    driver: bridge
+
