@@ -6,6 +6,8 @@
   import PongGame from './components/PongGame.svelte';
   import AIPong from './components/AIPong.svelte';
   import MultiPlayerPong from './components/MultiPlayerPong.svelte';
+  import Tournament from './components/Tournament.svelte';
+  import Leaderboard from './components/Leaderboard.svelte';
   import { _ } from 'svelte-i18n';
   import { authStore, currentViewStore, gameStateStore, authActions, gameActions } from './lib/stores';
   import { router } from './lib/router';
@@ -99,6 +101,18 @@
     currentView = 'profile';
   };
 
+  const showTournament = () => {
+    currentView = 'tournament';
+  };
+
+  const showLeaderboard = () => {
+    currentView = 'leaderboard';
+  };
+
+  const handleStartMatch = (tournamentId: number, matchId: number, roomId: string) => {
+    startMultiplayerGame(roomId, 'left');
+  };
+
   const handleDeleteAccount = () => {
     // Handle account deletion
     authActions.logout();
@@ -185,6 +199,12 @@
           <button on:click={startAIGame} class="btn btn-primary">
             🤖 Player vs AI
           </button>
+          <button on:click={showTournament} class="btn btn-primary">
+            🏆 Tournament
+          </button>
+          <button on:click={showLeaderboard} class="btn btn-primary">
+            🏆 Leaderboard
+          </button>
           <button on:click={showUserProfile} class="btn btn-secondary">
             👤 Profile
           </button>
@@ -232,6 +252,19 @@
           roomId={gameState?.roomId || 'tournament-1-match-1'}
           playerSide={gameState?.playerSide || 'left'}
         />
+      </div>
+      
+    {:else if currentView === 'tournament'}
+      <div class="tournament-container">
+        <Tournament 
+          onBack={backToDashboard}
+          onStartMatch={handleStartMatch}
+        />
+      </div>
+      
+    {:else if currentView === 'leaderboard'}
+      <div class="leaderboard-container">
+        <Leaderboard onBack={backToDashboard} />
       </div>
     {/if}
   </div>
