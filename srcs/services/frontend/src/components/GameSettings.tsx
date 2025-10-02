@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useGameSettings } from '../contexts/GameSettingsContext';
+import i18n from 'i18next';
 
 interface GameSettingsProps {
   isOpen: boolean;
@@ -41,7 +42,7 @@ export const GameSettings: React.FC<GameSettingsProps> = ({ isOpen, onClose }) =
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
       <div className="bg-gray-800 p-6 rounded-lg max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
         <div className="flex justify-between items-center mb-6">
-          <h2 className="text-2xl font-bold text-white">Game Settings</h2>
+          <h2 className="text-2xl font-bold text-white">{i18n.t('label.gamesettings')}</h2>
           <button
             onClick={onClose}
             className="text-gray-400 hover:text-white text-2xl"
@@ -53,9 +54,9 @@ export const GameSettings: React.FC<GameSettingsProps> = ({ isOpen, onClose }) =
         <div className="space-y-6">
           {/* Difficulty Settings */}
           <div className="bg-gray-700 p-4 rounded">
-            <h3 className="text-lg font-semibold text-white mb-3">Difficulty</h3>
+            <h3 className="text-lg font-semibold text-white mb-3">{i18n.t('label.difficulty')}</h3>
             <div className="flex gap-4">
-              {(['easy', 'medium', 'hard'] as const).map((difficulty) => (
+              {([i18n.t('option.easy'), i18n.t('option.medium'), i18n.t('option.hard')] as const).map((difficulty) => (
                 <label key={difficulty} className="flex items-center">
                   <input
                     type="radio"
@@ -76,7 +77,7 @@ export const GameSettings: React.FC<GameSettingsProps> = ({ isOpen, onClose }) =
 
           {/* Sound Settings */}
           <div className="bg-gray-700 p-4 rounded">
-            <h3 className="text-lg font-semibold text-white mb-3">Sound</h3>
+            <h3 className="text-lg font-semibold text-white mb-3">{i18n.t('label.sound')}</h3>
             <div className="space-y-3">
               <label className="flex items-center">
                 <input
@@ -88,10 +89,10 @@ export const GameSettings: React.FC<GameSettingsProps> = ({ isOpen, onClose }) =
                   }))}
                   className="mr-2"
                 />
-                <span className="text-white">Enable Sound</span>
+                <span className="text-white">{i18n.t('label.enablesound')}</span>
               </label>
               <div>
-                <label className="text-white block mb-2">Volume: {localSettings.soundVolume}%</label>
+                <label className="text-white block mb-2">{i18n.t('info.volume', {lvl: localSettings.soundVolume})}</label>
                 <input
                   type="range"
                   min="0"
@@ -110,10 +111,10 @@ export const GameSettings: React.FC<GameSettingsProps> = ({ isOpen, onClose }) =
 
           {/* Control Settings */}
           <div className="bg-gray-700 p-4 rounded">
-            <h3 className="text-lg font-semibold text-white mb-3">Controls</h3>
+            <h3 className="text-lg font-semibold text-white mb-3">{i18n.t('label.controls')}</h3>
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="text-white block mb-2">Left Paddle Up</label>
+                <label className="text-white block mb-2">{i18n.t('label.leftpdup')}</label>
                 <input
                   type="text"
                   value={localSettings.leftPaddleUp}
@@ -126,7 +127,7 @@ export const GameSettings: React.FC<GameSettingsProps> = ({ isOpen, onClose }) =
                 />
               </div>
               <div>
-                <label className="text-white block mb-2">Left Paddle Down</label>
+                <label className="text-white block mb-2">{i18n.t('label.leftpddown')}</label>
                 <input
                   type="text"
                   value={localSettings.leftPaddleDown}
@@ -139,7 +140,7 @@ export const GameSettings: React.FC<GameSettingsProps> = ({ isOpen, onClose }) =
                 />
               </div>
               <div>
-                <label className="text-white block mb-2">Right Paddle Up</label>
+                <label className="text-white block mb-2">{i18n.t('label.rightpdup')}</label>
                 <input
                   type="text"
                   value={localSettings.rightPaddleUp}
@@ -152,7 +153,7 @@ export const GameSettings: React.FC<GameSettingsProps> = ({ isOpen, onClose }) =
                 />
               </div>
               <div>
-                <label className="text-white block mb-2">Right Paddle Down</label>
+                <label className="text-white block mb-2">{i18n.t('label.rightpddown')}</label>
                 <input
                   type="text"
                   value={localSettings.rightPaddleDown}
@@ -169,10 +170,10 @@ export const GameSettings: React.FC<GameSettingsProps> = ({ isOpen, onClose }) =
 
           {/* Speed Settings */}
           <div className="bg-gray-700 p-4 rounded">
-            <h3 className="text-lg font-semibold text-white mb-3">Speed</h3>
+            <h3 className="text-lg font-semibold text-white mb-3">{i18n.t('label.speed')}</h3>
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="text-white block mb-2">Paddle Speed: {localSettings.paddleSpeed}</label>
+                <label className="text-white block mb-2">{i18n.t('info.pdspeed', {val: localSettings.paddleSpeed})}</label>
                 <input
                   type="range"
                   min="1"
@@ -186,7 +187,7 @@ export const GameSettings: React.FC<GameSettingsProps> = ({ isOpen, onClose }) =
                 />
               </div>
               <div>
-                <label className="text-white block mb-2">Ball Speed: {localSettings.ballSpeed}</label>
+                <label className="text-white block mb-2">{i18n.t('info.ballspeed', {val: localSettings.ballSpeed})}</label>
                 <input
                   type="range"
                   min="1"
@@ -204,7 +205,7 @@ export const GameSettings: React.FC<GameSettingsProps> = ({ isOpen, onClose }) =
 
           {/* Visual Settings */}
           <div className="bg-gray-700 p-4 rounded">
-            <h3 className="text-lg font-semibold text-white mb-3">Visual</h3>
+            <h3 className="text-lg font-semibold text-white mb-3">{i18n.t('label.visual')}</h3>
             <div className="space-y-3">
               <label className="flex items-center">
                 <input
@@ -216,7 +217,7 @@ export const GameSettings: React.FC<GameSettingsProps> = ({ isOpen, onClose }) =
                   }))}
                   className="mr-2"
                 />
-                <span className="text-white">Show FPS</span>
+                <span className="text-white">{i18n.t('button.showfps')}</span>
               </label>
               <label className="flex items-center">
                 <input
@@ -228,17 +229,17 @@ export const GameSettings: React.FC<GameSettingsProps> = ({ isOpen, onClose }) =
                   }))}
                   className="mr-2"
                 />
-                <span className="text-white">Show Score</span>
+                <span className="text-white">{i18n.t('button.showscore')}</span>
               </label>
             </div>
           </div>
 
           {/* Game Rules */}
           <div className="bg-gray-700 p-4 rounded">
-            <h3 className="text-lg font-semibold text-white mb-3">Game Rules</h3>
+            <h3 className="text-lg font-semibold text-white mb-3">{i18n.t('label.gamerules')}</h3>
             <div className="grid grid-cols-3 gap-4">
               <div>
-                <label className="text-white block mb-2">Max Score: {localSettings.maxScore}</label>
+                <label className="text-white block mb-2">{i18n.t('info.maxscore', {max: localSettings.maxScore})}</label>
                 <input
                   type="range"
                   min="5"
@@ -252,7 +253,7 @@ export const GameSettings: React.FC<GameSettingsProps> = ({ isOpen, onClose }) =
                 />
               </div>
               <div>
-                <label className="text-white block mb-2">Ball Size: {localSettings.ballSize}</label>
+                <label className="text-white block mb-2">{i18n.t('info.ballsize', {size: localSettings.ballSize})}</label>
                 <input
                   type="range"
                   min="3"
@@ -266,7 +267,7 @@ export const GameSettings: React.FC<GameSettingsProps> = ({ isOpen, onClose }) =
                 />
               </div>
               <div>
-                <label className="text-white block mb-2">Paddle Height: {localSettings.paddleHeight}</label>
+                <label className="text-white block mb-2">{i18n.t('info.pdheight', {height: localSettings.paddleHeight})}</label>
                 <input
                   type="range"
                   min="80"
@@ -289,20 +290,20 @@ export const GameSettings: React.FC<GameSettingsProps> = ({ isOpen, onClose }) =
             onClick={handleReset}
             className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700"
           >
-            Reset to Defaults
+            {i18n.t('button.resetdefaults')}
           </button>
           <div className="space-x-2">
             <button
               onClick={handleCancel}
               className="px-4 py-2 bg-gray-600 text-white rounded hover:bg-gray-700"
             >
-              Cancel
+              {i18n.t('button.cancel')}
             </button>
             <button
               onClick={handleSave}
               className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700"
             >
-              Save Settings
+              {i18n.t('button.savesettings')}
             </button>
           </div>
         </div>

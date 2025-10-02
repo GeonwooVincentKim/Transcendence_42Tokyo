@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import SocketIOService from '../services/socketIOService';
+import i18n from 'i18next';
 
 interface MultiplayerPongProps {
   roomId: string;
@@ -533,19 +534,19 @@ export const MultiplayerPong: React.FC<MultiplayerPongProps> = ({
           onClick={handleStart}
           className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700"
         >
-          {gameState.status === 'paused' ? 'Resume' : 'Start'}
+          {gameState.status === 'paused' ? i18n.t('button.resume') : i18n.t('button.start')}
         </button>
         <button 
           onClick={handlePause}
           className="px-4 py-2 bg-yellow-600 text-white rounded hover:bg-yellow-700"
         >
-          Pause
+          {i18n.t('button.pause')}
         </button>
         <button 
           onClick={handleReset}
           className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700"
         >
-          Reset
+          {i18n.t('button.reset')}
         </button>
       </div>
       
@@ -566,16 +567,16 @@ export const MultiplayerPong: React.FC<MultiplayerPongProps> = ({
       {/* Game End Message */}
       {gameState.status === 'finished' && gameState.winner && (
         <div className="mb-4 p-4 bg-green-600 text-white rounded-lg text-center">
-          <h3 className="text-xl font-bold mb-2">Game Over!</h3>
+          <h3 className="text-xl font-bold mb-2">{i18n.t('label.gameover')}</h3>
           <p className="text-lg">
-            {gameState.winner === 'left' ? 'Left Player' : 'Right Player'} wins!
+            {i18n.t('msg.matchwinner', {who: gameState.winner === 'left' ? i18n.t('option.leftplayer') : i18n.t('option.rightplayer')})}
           </p>
-          <p className="text-sm mt-2">Final Score: {gameState.leftScore} - {gameState.rightScore}</p>
+          <p className="text-sm mt-2">{i18n.t('info.matchscore', {left: gameState.leftScore, right: gameState.rightScore})}</p>
         </div>
       )}
       <div className="mb-4 text-sm">
-        <p>You are playing as: <strong>{playerSide.toUpperCase()}</strong></p>
-        <p>{playerSide === 'left' ? 'W/S keys' : '↑/↓ keys'}</p>
+        <p>{i18n.t('info.playerside')} <strong>{playerSide === 'left'? i18n.t('info.leftupper') : i18n.t('info.rightupper')}</strong></p>
+        <p>{playerSide === 'left' ? 'W/S' : '↑/↓'}</p>
       </div>
       <canvas
         ref={canvasRef}
