@@ -13,6 +13,7 @@
   import { _ } from 'svelte-i18n';
 
   let canvasRef: HTMLCanvasElement;
+  let gameStateStore: any;
   let gameState: any;
   let controls: any;
   
@@ -54,19 +55,39 @@
   let aiController: any;
 
   onMount(() => {
-    // Initialize the core game engine with canvas
-    const engine = usePongEngine(canvasRef, 800, 400, handleGameEnd);
-    gameState = engine.gameState;
-    controls = engine.controls;
+    // Wait for canvasRef to be properly bound
+    const initGame = () => {
+      if (canvasRef) {
+        // Initialize the core game engine with canvas
+        const engine = usePongEngine(canvasRef, 800, 400, handleGameEnd);
+        gameStateStore = engine.gameState;
+        controls = engine.controls;
+        
+        // Subscribe to game state changes
+        gameStateStore.subscribe(state => {
+          gameState = state;
+        });
+        
+        // Initialize human controller for left paddle
+        humanController = useHumanController(controls.setPaddleMovement, 'left');
+        humanController.initialize();
+        
+        // Initialize AI controller for right paddle
+        aiController = useAIController(controls.setPaddleMovement, gameStateStore, aiDifficulty, (debugInfo) => {
+          aiDebugInfo = debugInfo;
+        });
+        
+        // Initialize AI controller
+        if (aiController.initialize) {
+          aiController.initialize();
+        }
+      } else {
+        // Retry after a short delay
+        setTimeout(initGame, 50);
+      }
+    };
     
-    // Initialize human controller for left paddle
-    humanController = useHumanController(controls.setPaddleMovement, 'left');
-    humanController.initialize();
-    
-    // Initialize AI controller for right paddle
-    aiController = useAIController(controls.setPaddleMovement, 'right', aiDifficulty, (debugInfo) => {
-      aiDebugInfo = debugInfo;
-    });
+    initGame();
   });
 
   onDestroy(() => {
@@ -79,16 +100,43 @@
     }
   });
 
+  // Watch for game state changes to restart AI
+  $: if (gameState?.status === 'playing' && aiController) {
+    console.log('Game started, restarting AI');
+    if (aiController.startAI) {
+      aiController.startAI();
+    }
+  }
+
+  // Watch for game state changes to stop AI
+  $: if (gameState?.status === 'paused' && aiController) {
+    console.log('Game paused, stopping AI');
+    if (aiController.startAI) {
+      aiController.startAI(); // This will stop the AI loop
+    }
+  }
+
   /**
    * Handle AI difficulty change
    */
   const handleDifficultyChange = (newDifficulty: AIDifficulty) => {
     aiDifficulty = newDifficulty;
     // Restart AI with new difficulty
-    if (controls) {
-      useAIController(controls.setPaddleMovement, 'right', newDifficulty, (debugInfo) => {
+    if (controls && gameStateStore) {
+      // Clean up existing AI controller
+      if (aiController && aiController.cleanup) {
+        aiController.cleanup();
+      }
+      
+      // Create new AI controller with new difficulty
+      aiController = useAIController(controls.setPaddleMovement, gameStateStore, newDifficulty, (debugInfo) => {
         aiDebugInfo = debugInfo;
       });
+      
+      // Initialize new AI controller
+      if (aiController.initialize) {
+        aiController.initialize();
+      }
     }
   };
 </script>
@@ -197,5 +245,12 @@
   <div class="mt-4 text-sm text-gray-600 text-center">
     <p>{$_('instruction.player1')}: {$_('instruction.wskeys')}</p>
     <p>{$_('instruction.space')}: {$_('instruction.startpause')}</p>
+  </div>
+
+  <!-- Debug Info -->
+  <div class="mt-4 text-sm text-gray-400 text-center">
+    <p>Controls: {controls ? 'Available' : 'Not Available'}</p>
+    <p>Game Status: {gameState?.status || 'Unknown'}</p>
+    <p>Pause Button Disabled: {(!controls || gameState?.status !== 'playing') ? 'Yes' : 'No'}</p>
   </div>
 </div>

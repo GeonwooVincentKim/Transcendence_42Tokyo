@@ -15,6 +15,7 @@
   export let onGameEnd: ((winner: 'left' | 'right', leftScore: number, rightScore: number) => void) | undefined = undefined;
 
   let canvasRef: HTMLCanvasElement;
+  let gameStateStore: any;
   let gameState: any;
   let controls: any;
 
@@ -40,18 +41,33 @@
   let rightController: any;
 
   onMount(() => {
-    // Initialize the core game engine with canvas
-    const engine = usePongEngine(canvasRef, width, height, handleGameEnd);
-    gameState = engine.gameState;
-    controls = engine.controls;
+    // Wait for canvasRef to be properly bound
+    const initGame = () => {
+      if (canvasRef) {
+        // Initialize the core game engine with canvas
+        const engine = usePongEngine(canvasRef, width, height, handleGameEnd);
+        gameStateStore = engine.gameState;
+        controls = engine.controls;
+        
+        // Subscribe to game state changes
+        gameStateStore.subscribe(state => {
+          gameState = state;
+        });
+        
+        // Initialize controllers for both paddles
+        leftController = useHumanController(controls.setPaddleMovement, 'left');
+        rightController = useHumanController(controls.setPaddleMovement, 'right');
+        
+        // Initialize the controllers
+        leftController.initialize();
+        rightController.initialize();
+      } else {
+        // Retry after a short delay
+        setTimeout(initGame, 50);
+      }
+    };
     
-    // Initialize controllers for both paddles
-    leftController = useHumanController(controls.setPaddleMovement, 'left');
-    rightController = useHumanController(controls.setPaddleMovement, 'right');
-    
-    // Initialize the controllers
-    leftController.initialize();
-    rightController.initialize();
+    initGame();
   });
 
   onDestroy(() => {
@@ -61,6 +77,10 @@
     }
     if (rightController) {
       rightController.cleanup();
+    }
+    // Cleanup game engine
+    if (controls) {
+      controls.cleanup();
     }
   });
 </script>
@@ -88,13 +108,13 @@
       style="image-rendering: pixelated;"
     ></canvas>
     
-    {#if gameState?.gameStatus === 'paused'}
+    {#if gameState?.status === 'paused'}
       <div class="absolute inset-0 flex items-center justify-center bg-black bg-opacity-50 rounded-lg">
         <div class="text-white text-xl font-bold">PAUSED</div>
       </div>
     {/if}
     
-    {#if gameState?.gameStatus === 'ended'}
+    {#if gameState?.status === 'finished'}
       <div class="absolute inset-0 flex items-center justify-center bg-black bg-opacity-50 rounded-lg">
         <div class="text-white text-xl font-bold">
           Game Over! Winner: {gameState?.winner === 'left' ? 'Player 1' : 'Player 2'}
@@ -105,27 +125,44 @@
 
   <div class="mt-4 flex space-x-4">
     <button
-      on:click={() => controls?.startGame()}
-      disabled={gameState?.status === 'playing'}
+      on:click={() => {
+        console.log('Start clicked, controls:', controls, 'gameState:', gameState);
+        controls?.startGame();
+      }}
+      disabled={!controls || gameState?.status === 'playing'}
       class="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
     >
       {$_('button.start')}
     </button>
     
     <button
-      on:click={() => controls?.pauseGame()}
-      disabled={gameState?.status !== 'playing'}
+      on:click={() => {
+        console.log('Pause clicked, controls:', controls, 'gameState:', gameState);
+        controls?.pauseGame();
+      }}
+      disabled={!controls || gameState?.status !== 'playing'}
       class="px-4 py-2 bg-yellow-600 text-white rounded hover:bg-yellow-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
     >
       {$_('button.pause')}
     </button>
     
     <button
-      on:click={() => controls?.resetGame()}
-      class="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700"
+      on:click={() => {
+        console.log('Reset clicked, controls:', controls, 'gameState:', gameState);
+        controls?.resetGame();
+      }}
+      disabled={!controls}
+      class="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
     >
       {$_('button.reset')}
     </button>
+  </div>
+
+  <!-- Debug Info -->
+  <div class="mt-4 text-sm text-gray-400 text-center">
+    <p>Controls: {controls ? 'Available' : 'Not Available'}</p>
+    <p>Game Status: {gameState?.status || 'Unknown'}</p>
+    <p>Pause Button Disabled: {(!controls || gameState?.status !== 'playing') ? 'Yes' : 'No'}</p>
   </div>
 
   <div class="mt-4 text-sm text-gray-600 text-center">
