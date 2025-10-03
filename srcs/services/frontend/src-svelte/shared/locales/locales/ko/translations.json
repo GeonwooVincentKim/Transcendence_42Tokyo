@@ -42,7 +42,7 @@
 		"forgotpassword": "비밀번호 찾기",
 		"tournament": "Tournament",
 		"userranking": "User Ranking",
-		"welcomeuser": "Welcome, {{user}}!",
+		"welcomeuser": "Welcome, {user}!",
 		"registeracct": "Register Account",
 		"email": "Email",
 		"confirmpw": "Confirm Password",

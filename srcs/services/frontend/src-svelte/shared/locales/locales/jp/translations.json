@@ -65,7 +65,7 @@
 		"forgotpassword": "パスワードを忘れた",
 		"tournament": "Tournament",
 		"userranking": "User Ranking",
-		"welcomeuser": "Welcome, {{user}}!",
+		"welcomeuser": "Welcome, {user}!",
 		"registeracct": "Register Account",
 		"email": "メールアドレス",
 		"confirmpw": "Confirm Password",

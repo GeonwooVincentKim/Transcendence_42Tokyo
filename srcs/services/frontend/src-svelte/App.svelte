@@ -10,7 +10,7 @@
   import Leaderboard from './components/Leaderboard.svelte';
   import ForgotUsername from './components/ForgotUsername.svelte';
   import ForgotPassword from './components/ForgotPassword.svelte';
-  import { _, locale, isLoading as i18nLoading } from 'svelte-i18n';
+  import { _, t, locale, isLoading as i18nLoading } from 'svelte-i18n';
   import { AuthService } from './shared/services/authService';
   import type { AuthResponse, User } from './shared/types/auth';
 
@@ -18,6 +18,7 @@
   let gameMode: 'menu' | 'single' | 'multiplayer' | 'ai' = 'menu';
   let roomId = '';
   let playerSide: 'left' | 'right' = 'left';
+  let showRoomInput = true; // Add flag to control room input visibility
 
   // Authentication state
   let user: User | null = null;
@@ -79,12 +80,22 @@
     gameMode = 'single';
   };
 
-  const showMultiplayerSetup = () => {
-    gameMode = 'multiplayer';
-  };
-
   const startAIGame = () => {
     gameMode = 'ai';
+  };
+
+  const showMultiplayerSetup = () => {
+    gameMode = 'multiplayer';
+    showRoomInput = true;
+    roomId = ''; // Reset roomId
+  };
+
+  const startMultiplayerGame = () => {
+    if (roomId.trim() === '') {
+      alert('Please enter a Room ID');
+      return;
+    }
+    showRoomInput = false;
   };
 
   const handleReturnToMenu = () => {
@@ -141,7 +152,7 @@
         <div class="flex justify-between items-center mb-8">
           <div class="text-left">
             <h1 class="text-4xl">{$_('label.title')}</h1>
-            <p class="text-gray-400 mt-2">{$_('label.welcomeuser', {user: user?.username || 'Guest'})}</p>
+            <p class="text-gray-400 mt-2">Welcome, {user?.username || 'Guest'}!</p>
           </div>
           <div class="flex gap-4">
             <button 
@@ -222,29 +233,63 @@
               {$_('button.backtomenu')}
             </button>
           {:else if gameMode === 'multiplayer'}
-            <!-- Multiplayer Setup -->
-            <div class="mb-4">
-              <input
-                type="text"
-                placeholder={$_('placeholder.roomid')}
-                bind:value={roomId}
-                class="px-4 py-2 text-black rounded mr-2"
-              />
-              <select
-                bind:value={playerSide}
-                class="px-4 py-2 text-black rounded mr-2"
+            {#if showRoomInput}
+              <!-- Multiplayer Setup -->
+              <div class="max-w-md mx-auto bg-white rounded-lg shadow-md p-6">
+                <h2 class="text-2xl font-bold text-center text-gray-800 mb-6">{$_('label.multiplayer')}</h2>
+                
+                <div class="space-y-4">
+                  <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">
+                      {$_('placeholder.roomid')} *
+                    </label>
+                    <input
+                      type="text"
+                      placeholder={$_('placeholder.roomid')}
+                      bind:value={roomId}
+                      class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    />
+                  </div>
+                  
+                  <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">
+                      Player Side
+                    </label>
+                    <select
+                      bind:value={playerSide}
+                      class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    >
+                      <option value="left">{$_('option.leftplayer')}</option>
+                      <option value="right">{$_('option.rightplayer')}</option>
+                    </select>
+                  </div>
+                  
+                  <div class="flex space-x-3">
+                    <button 
+                      on:click={startMultiplayerGame}
+                      class="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+                    >
+                      {$_('button.startgame')}
+                    </button>
+                    <button 
+                      on:click={handleReturnToMenu}
+                      class="flex-1 px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
+                    >
+                      {$_('button.backtomenu')}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            {:else}
+              <!-- Multiplayer Game -->
+              <MultiPlayerPong {roomId} {playerSide} />
+              <button 
+                on:click={handleReturnToMenu}
+                class="mt-4 px-4 py-2 bg-gray-600 rounded hover:bg-gray-700"
               >
-                <option value="left">{$_('option.leftplayer')}</option>
-                <option value="right">{$_('option.rightplayer')}</option>
-              </select>
-            </div>
-            <MultiPlayerPong {roomId} {playerSide} />
-            <button 
-              on:click={handleReturnToMenu}
-              class="mt-4 px-4 py-2 bg-gray-600 rounded hover:bg-gray-700"
-            >
-              {$_('button.backtomenu')}
-            </button>
+                {$_('button.backtomenu')}
+              </button>
+            {/if}
           {:else if gameMode === 'ai'}
             <!-- AI Game -->
             <AIPong />

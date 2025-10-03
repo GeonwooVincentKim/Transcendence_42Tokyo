@@ -25,6 +25,62 @@
   let connected = false;
   let keys = new Set<string>();
 
+  const setConnected = (status: boolean) => {
+    connected = status;
+  };
+
+  const setGameState = (newState: any) => {
+    gameState = { ...gameState, ...newState };
+    // Redraw canvas when game state changes
+    if (canvasRef && newState.gameState) {
+      drawGame(newState.gameState);
+    }
+  };
+
+  // Draw game on canvas
+  const drawGame = (gameData: any) => {
+    if (!canvasRef) return;
+    
+    const ctx = canvasRef.getContext('2d');
+    if (!ctx) return;
+
+    const width = 800;
+    const height = 400;
+    const paddleWidth = 15;
+    const paddleHeight = 80;
+    const ballSize = 10;
+
+    // Clear canvas
+    ctx.fillStyle = 'black';
+    ctx.fillRect(0, 0, width, height);
+
+    // Draw center line
+    ctx.strokeStyle = 'white';
+    ctx.setLineDash([5, 15]);
+    ctx.beginPath();
+    ctx.moveTo(width / 2, 0);
+    ctx.lineTo(width / 2, height);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    // Draw paddles
+    ctx.fillStyle = 'white';
+    ctx.fillRect(10, gameData.leftPaddle.y, paddleWidth, paddleHeight);
+    ctx.fillRect(width - 20, gameData.rightPaddle.y, paddleWidth, paddleHeight);
+
+    // Draw ball
+    ctx.beginPath();
+    ctx.arc(gameData.ball.x, gameData.ball.y, ballSize / 2, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Draw scores
+    ctx.fillStyle = 'white';
+    ctx.font = '48px Arial';
+    ctx.textAlign = 'center';
+    ctx.fillText(gameData.leftScore.toString(), width / 4, 60);
+    ctx.fillText(gameData.rightScore.toString(), (3 * width) / 4, 60);
+  };
+
   onMount(() => {
     // Validate roomId first
     if (!roomId || roomId.trim() === '') {
@@ -77,9 +133,49 @@
         console.log('Received game state:', data);
         setGameState(data);
       },
+      onGameStateUpdate: (data) => {
+        console.log('Received game state update:', data);
+        if (data.gameState) {
+          setGameState({ 
+            leftPaddle: data.gameState.leftPaddle,
+            rightPaddle: data.gameState.rightPaddle,
+            ball: data.gameState.ball,
+            leftScore: data.gameState.leftScore,
+            rightScore: data.gameState.rightScore
+          });
+          // Redraw canvas with updated game state
+          if (canvasRef) {
+            drawGame(data.gameState);
+          }
+        }
+      },
       onGameStart: () => {
         console.log('Game started!');
-        setGameState(prev => ({ ...prev, status: 'playing' }));
+        setGameState(prev => ({ ...prev, status: 'ready' }));
+      },
+      onGamePause: () => {
+        console.log('Game paused!');
+        setGameState(prev => ({ ...prev, status: 'paused' }));
+      },
+      onGameReset: () => {
+        console.log('Game reset!');
+        setGameState({
+          leftPaddle: { y: 200 },
+          rightPaddle: { y: 200 },
+          ball: { x: 400, y: 200, dx: 5, dy: 3 },
+          leftScore: 0,
+          rightScore: 0,
+          status: 'ready',
+          winner: undefined
+        });
+        // Clear canvas
+        if (canvasRef) {
+          const ctx = canvasRef.getContext('2d');
+          if (ctx) {
+            ctx.fillStyle = 'black';
+            ctx.fillRect(0, 0, 800, 400);
+          }
+        }
       },
       onGameEnd: (data) => {
         console.log('Game ended:', data);
@@ -91,17 +187,56 @@
           rightScore: data.rightScore
         }));
       },
+      onGamePlaying: (data) => {
+        console.log('Game playing:', data);
+        setGameState(prev => ({ ...prev, status: 'playing' }));
+        if (data.gameState) {
+          console.log('Setting game state from game_playing:', data.gameState);
+          setGameState({ 
+            leftPaddle: data.gameState.leftPaddle,
+            rightPaddle: data.gameState.rightPaddle,
+            ball: data.gameState.ball,
+            leftScore: data.gameState.leftScore,
+            rightScore: data.gameState.rightScore,
+            status: 'playing'
+          });
+          // Draw the initial game state
+          if (canvasRef) {
+            drawGame(data.gameState);
+          }
+        }
+      },
       onError: (error) => {
         console.error('Socket.IO error:', error);
       }
     });
 
     // Connect to the room
-    // Room connection is handled by the connect method above
+    socketService.connect(parseInt(tournamentId), parseInt(matchId), userId)
+      .then(() => {
+        console.log('Socket.IO connected successfully');
+        setConnected(true);
+      })
+      .catch(error => {
+        console.error('Socket.IO connection error:', error);
+      });
 
     // Set up keyboard controls
     const handleKeyDown = (event: KeyboardEvent) => {
-      keys.add(event.key.toLowerCase());
+      const key = event.key.toLowerCase();
+      keys.add(key);
+      
+      // Handle spacebar for pause/resume
+      if (key === ' ') {
+        event.preventDefault();
+        if (gameState.status === 'playing') {
+          pauseGame();
+        } else if (gameState.status === 'paused') {
+          startGame(); // Resume game
+        }
+        return;
+      }
+      
       handleMovement();
     };
 
@@ -111,10 +246,11 @@
     };
 
     const handleMovement = () => {
-      if (!socketService || !connected) return;
+      if (!socketService || !connected || gameState.status !== 'playing') return;
 
       const movement = getMovementFromKeys();
       if (movement !== 0) {
+        console.log('Sending paddle movement:', movement);
         socketService.sendPaddleMovement(movement);
       }
     };
@@ -230,18 +366,18 @@
   <div class="mt-4 flex space-x-4">
     <button
       on:click={startGame}
-      disabled={gameState.status === 'playing' || !connected}
+      disabled={gameState.status === 'playing' || gameState.status === 'ready' || !connected}
       class="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
     >
-      {$_('button.startgame')}
+      {gameState.status === 'ready' ? 'Starting...' : $_('button.startgame')}
     </button>
     
     <button
       on:click={pauseGame}
-      disabled={gameState.status !== 'playing' || !connected}
-      class="px-4 py-2 bg-yellow-600 text-white rounded hover:bg-yellow-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
+      disabled={!connected || (gameState.status !== 'playing' && gameState.status !== 'paused')}
+      class="px-4 py-2 {gameState.status === 'paused' ? 'bg-green-600 hover:bg-green-700' : 'bg-yellow-600 hover:bg-yellow-700'} text-white rounded disabled:bg-gray-400 disabled:cursor-not-allowed"
     >
-      {$_('button.pause')}
+      {gameState.status === 'paused' ? $_('button.resume') : $_('button.pause')}
     </button>
     
     <button

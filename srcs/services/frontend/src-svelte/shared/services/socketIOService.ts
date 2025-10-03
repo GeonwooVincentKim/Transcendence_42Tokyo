@@ -14,7 +14,9 @@ interface SocketIOEventHandlers {
   onPlayerReady?: (data: any) => void;
   onGameStart?: (data: any) => void;
   onGamePlaying?: (data: any) => void;
+  onGamePause?: (data: any) => void;
   onGameStateUpdate?: (data: any) => void;
+  onGameState?: (data: any) => void;
   onGameReset?: (data: any) => void;
   onGameEnd?: (data: any) => void;
   onPong?: () => void;
@@ -47,8 +49,8 @@ class SocketIOService {
         this.matchId = matchId;
         this.userId = userId;
 
-        // Socket.IO server runs on the same port as the backend (8000)
-        const socketUrl = window.location.origin;
+        // Socket.IO server runs on the backend port (8000)
+        const socketUrl = 'http://localhost:8000';
         console.log('Connecting to Socket.IO server:', socketUrl);
 
         this.socket = io(socketUrl, {
@@ -218,9 +220,19 @@ class SocketIOService {
       this.eventHandlers.onGamePlaying?.(data);
     });
 
+    this.socket.on('game_pause', (data) => {
+      console.log('Game pause:', data);
+      this.eventHandlers.onGamePause?.(data);
+    });
+
     this.socket.on('game_state_update', (data) => {
       console.log('Game state update:', data);
       this.eventHandlers.onGameStateUpdate?.(data);
+    });
+
+    this.socket.on('game_state', (data) => {
+      console.log('Game state:', data);
+      this.eventHandlers.onGameState?.(data);
     });
 
     this.socket.on('game_reset', (data) => {
@@ -265,6 +277,65 @@ class SocketIOService {
     if (this.pingInterval) {
       clearInterval(this.pingInterval);
       this.pingInterval = null;
+    }
+  }
+
+  /**
+   * Start the game
+   */
+  startGame() {
+    if (this.socket?.connected) {
+      console.log('Starting game...');
+      this.socket.emit('start_game', {
+        tournamentId: this.tournamentId,
+        matchId: this.matchId
+      });
+    } else {
+      console.error('Cannot start game: Socket not connected');
+    }
+  }
+
+  /**
+   * Pause the game
+   */
+  pauseGame() {
+    if (this.socket?.connected) {
+      console.log('Pausing game...');
+      this.socket.emit('pause_game', {
+        tournamentId: this.tournamentId,
+        matchId: this.matchId
+      });
+    } else {
+      console.error('Cannot pause game: Socket not connected');
+    }
+  }
+
+  /**
+   * Reset the game
+   */
+  resetGame() {
+    if (this.socket?.connected) {
+      console.log('Resetting game...');
+      this.socket.emit('reset_game', {
+        tournamentId: this.tournamentId,
+        matchId: this.matchId
+      });
+    } else {
+      console.error('Cannot reset game: Socket not connected');
+    }
+  }
+
+  /**
+   * Send paddle movement
+   */
+  sendPaddleMovement(direction: number) {
+    if (this.socket?.connected) {
+      this.socket.emit('paddle_movement', {
+        tournamentId: this.tournamentId,
+        matchId: this.matchId,
+        userId: this.userId,
+        direction
+      });
     }
   }
 

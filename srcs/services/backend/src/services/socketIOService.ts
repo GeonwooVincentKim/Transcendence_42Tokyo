@@ -70,6 +70,29 @@ class SocketIOService {
         this.setPlayerReady(data.userId, data.ready);
       });
 
+      // Handle start game request
+      socket.on('start_game', (data: { tournamentId: number, matchId: number }) => {
+        console.log('🔍 Backend received start_game:', data);
+        this.handleStartGame(socket, data.tournamentId, data.matchId);
+      });
+
+      // Handle pause game request
+      socket.on('pause_game', (data: { tournamentId: number, matchId: number }) => {
+        console.log('🔍 Backend received pause_game:', data);
+        this.handlePauseGame(socket, data.tournamentId, data.matchId);
+      });
+
+      // Handle reset game request
+      socket.on('reset_game', (data: { tournamentId: number, matchId: number }) => {
+        console.log('🔍 Backend received reset_game:', data);
+        this.handleResetGame(socket, data.tournamentId, data.matchId);
+      });
+
+      // Handle paddle movement
+      socket.on('paddle_movement', (data: { tournamentId: number, matchId: number, userId: string, direction: number }) => {
+        this.handlePaddleMovement(data.userId, data.direction);
+      });
+
       // Handle game state updates
       socket.on('game_state_update', (data: { userId: string, gameState: any }) => {
         this.updateGameState(data.userId, data.gameState);
@@ -332,11 +355,14 @@ class SocketIOService {
     const room = this.gameRooms.get(roomId);
     if (!room) return;
 
-    const { player1Id, player2Id, player1Ready, player2Ready } = room.gameState;
+    const { player1Id, player2Id, player1Ready, player2Ready, status } = room.gameState;
 
-    // Check if both players are present and ready
-    if (player1Id && player2Id && player1Ready && player2Ready) {
+    // Check if both players are present and game hasn't started yet
+    // Auto-start game when both players join (no need for manual ready)
+    if (player1Id && player2Id && status !== 'ready' && status !== 'playing') {
       room.gameState.status = 'ready';
+      room.gameState.player1Ready = true;
+      room.gameState.player2Ready = true;
       
       console.log(`Starting game in room ${roomId}`);
       
@@ -344,7 +370,7 @@ class SocketIOService {
       console.log(`Broadcasting game_start to room ${roomId} with ${room.players.size} players`);
       this.broadcastToRoom(roomId, 'game_start', {
         roomState: room.gameState,
-        message: 'Both players ready! Starting game...'
+        message: 'Both players joined! Starting game...'
       });
 
       // Set game status to playing after a short delay
@@ -615,11 +641,14 @@ class SocketIOService {
   private updateGamePhysics(roomId: string) {
     const room = this.gameRooms.get(roomId);
     if (!room || !room.gameState.gameData || room.gameState.status !== 'playing') {
-      console.log(`Game physics update skipped for room ${roomId}:`, {
-        roomExists: !!room,
-        hasGameData: !!room?.gameState?.gameData,
-        status: room?.gameState?.status
-      });
+      // Don't log when paused to reduce console noise
+      if (room?.gameState?.status !== 'paused') {
+        console.log(`Game physics update skipped for room ${roomId}:`, {
+          roomExists: !!room,
+          hasGameData: !!room?.gameState?.gameData,
+          status: room?.gameState?.status
+        });
+      }
       return;
     }
 
@@ -901,6 +930,195 @@ class SocketIOService {
     } catch (error) {
       console.error('❌ Error updating user statistics:', error);
     }
+  }
+
+  /**
+   * Handle start game request
+   */
+  private handleStartGame(socket: any, tournamentId: number, matchId: number) {
+    const roomId = `tournament-${tournamentId}-match-${matchId}`;
+    const room = this.gameRooms.get(roomId);
+    
+    if (!room) {
+      console.error(`❌ Room ${roomId} not found`);
+      return;
+    }
+
+    // Find the user ID for this socket
+    let userId: string | undefined;
+    for (const [uid, roomId] of this.playerRooms.entries()) {
+      if (roomId === room.id) {
+        const playerSocket = room.players.get(uid);
+        if (playerSocket === socket) {
+          userId = uid;
+          break;
+        }
+      }
+    }
+
+    if (!userId) {
+      console.error('❌ User ID not found for socket');
+      return;
+    }
+
+    console.log(`🎮 Player ${userId} requested to start game in room ${roomId}`);
+    
+    // Set player as ready
+    this.setPlayerReady(userId, true);
+  }
+
+  /**
+   * Handle pause game request
+   */
+  private handlePauseGame(socket: any, tournamentId: number, matchId: number) {
+    const roomId = `tournament-${tournamentId}-match-${matchId}`;
+    const room = this.gameRooms.get(roomId);
+    
+    if (!room) {
+      console.error(`❌ Cannot pause game: Room ${roomId} not found`);
+      return;
+    }
+
+    // Toggle pause/resume
+    if (room.gameState.status === 'playing') {
+      room.gameState.status = 'paused';
+      console.log(`⏸️ Game paused in room ${roomId}`);
+      
+      this.broadcastToRoom(roomId, 'game_pause', {
+        roomState: room.gameState,
+        message: 'Game paused'
+      });
+    } else if (room.gameState.status === 'paused') {
+      room.gameState.status = 'playing';
+      console.log(`▶️ Game resumed in room ${roomId}`);
+      
+      this.broadcastToRoom(roomId, 'game_start', {
+        roomState: room.gameState,
+        message: 'Game resumed'
+      });
+    } else {
+      console.error(`❌ Cannot pause/resume game: Room ${roomId} status is ${room.gameState.status}`);
+    }
+  }
+
+  /**
+   * Handle reset game request
+   */
+  private handleResetGame(socket: any, tournamentId: number, matchId: number) {
+    const roomId = `tournament-${tournamentId}-match-${matchId}`;
+    const room = this.gameRooms.get(roomId);
+    
+    if (!room) {
+      console.error(`❌ Room ${roomId} not found`);
+      return;
+    }
+
+    // Stop current game loop
+    const gameLoop = this.gameLoops.get(roomId);
+    if (gameLoop) {
+      clearInterval(gameLoop);
+      this.gameLoops.delete(roomId);
+    }
+
+    // Reset game state but keep players connected
+    room.gameState.status = 'waiting';
+    room.gameState.player1Ready = false;
+    room.gameState.player2Ready = false;
+    room.gameState.gameData = undefined;
+    
+    console.log(`🔄 Game reset in room ${roomId}`);
+    
+    this.broadcastToRoom(roomId, 'game_reset', {
+      roomState: room.gameState,
+      message: 'Game reset - ready for new game'
+    });
+
+    // Auto-restart game since both players are still connected
+    setTimeout(() => {
+      if (room.gameState.player1Id && room.gameState.player2Id) {
+        console.log(`🔄 Auto-restarting game in room ${roomId}`);
+        room.gameState.status = 'ready';
+        room.gameState.player1Ready = true;
+        room.gameState.player2Ready = true;
+        
+        this.broadcastToRoom(roomId, 'game_start', {
+          roomState: room.gameState,
+          message: 'Game restarted! Starting new game...'
+        });
+
+        // Set game status to playing after a short delay
+        setTimeout(() => {
+          room.gameState.status = 'playing';
+          
+          // Initialize fresh game data
+          const initialGameData = {
+            leftPaddle: { y: 200 },
+            rightPaddle: { y: 200 },
+            ball: { x: 400, y: 200, dx: 5, dy: 3 },
+            leftScore: 0,
+            rightScore: 0
+          };
+          
+          room.gameState.gameData = initialGameData;
+          
+          console.log(`Broadcasting game_playing after reset to room ${roomId} with ${room.players.size} players`);
+          this.broadcastToRoom(roomId, 'game_playing', {
+            roomState: room.gameState,
+            gameState: initialGameData,
+            message: 'New game is now playing!'
+          });
+          
+          // Start new game loop
+          this.startGameLoop(roomId);
+        }, 2000);
+      }
+    }, 1000);
+  }
+
+  /**
+   * Handle paddle movement
+   */
+  private handlePaddleMovement(userId: string, direction: number) {
+    const roomId = this.playerRooms.get(userId);
+    if (!roomId) {
+      console.error(`❌ User ${userId} not in any room`);
+      return;
+    }
+
+    const room = this.gameRooms.get(roomId);
+    if (!room || room.gameState.status !== 'playing') {
+      return;
+    }
+
+    // Update paddle position in game state
+    if (!room.gameState.gameData) {
+      console.error(`❌ No game data found for room ${roomId}`);
+      return;
+    }
+
+    const gameData = room.gameState.gameData;
+    const paddleSpeed = 10;
+    const paddleHeight = 80;
+    const canvasHeight = 400;
+
+    // Determine which paddle to move based on userId
+    if (room.gameState.player1Id === userId) {
+      // Player 1 controls left paddle
+      gameData.leftPaddle.y += direction * paddleSpeed;
+      gameData.leftPaddle.y = Math.max(0, Math.min(canvasHeight - paddleHeight, gameData.leftPaddle.y));
+    } else if (room.gameState.player2Id === userId) {
+      // Player 2 controls right paddle
+      gameData.rightPaddle.y += direction * paddleSpeed;
+      gameData.rightPaddle.y = Math.max(0, Math.min(canvasHeight - paddleHeight, gameData.rightPaddle.y));
+    }
+
+    console.log(`Paddle movement: User ${userId}, direction ${direction}, leftPaddle: ${gameData.leftPaddle.y}, rightPaddle: ${gameData.rightPaddle.y}`);
+
+    // Broadcast updated game state to all players
+    this.broadcastToRoom(roomId, 'game_state_update', {
+      gameState: gameData,
+      fromPlayer: userId
+    });
   }
 
   /**
