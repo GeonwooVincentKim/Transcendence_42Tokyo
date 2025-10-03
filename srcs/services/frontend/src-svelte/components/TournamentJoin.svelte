@@ -8,7 +8,7 @@
   import { tournamentService, type Tournament } from '../shared/services/tournamentService';
 
   // Props
-  export let tournament: Tournament;
+  export let tournament: Tournament | null = null;
   export let isAuthenticated: boolean;
   export let currentUser: any;
 
@@ -22,6 +22,11 @@
   async function handleJoin() {
     if (!isAuthenticated || !currentUser) {
       error = 'You must be logged in to join a tournament';
+      return;
+    }
+
+    if (!tournament) {
+      error = 'No tournament selected';
       return;
     }
 
@@ -73,27 +78,29 @@
   }
 
   function canJoin() {
-    return tournament.status === 'registration' && 
+    return tournament && 
+           tournament.status === 'registration' && 
            isAuthenticated && 
            currentUser;
   }
 </script>
 
-<div class="max-w-2xl mx-auto">
-  <div class="bg-white rounded-lg shadow p-6">
-    <div class="flex justify-between items-center mb-6">
-      <h2 class="text-2xl font-bold text-gray-900">Join Tournament</h2>
-      <button 
-        on:click={handleBack}
-        class="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
-      >
-        Back
-      </button>
-    </div>
+{#if tournament}
+  <div class="max-w-2xl mx-auto">
+    <div class="bg-white rounded-lg shadow p-6">
+      <div class="flex justify-between items-center mb-6">
+        <h2 class="text-2xl font-bold text-gray-900">Join Tournament</h2>
+        <button 
+          on:click={handleBack}
+          class="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
+        >
+          Back
+        </button>
+      </div>
 
-    <!-- Tournament Info -->
-    <div class="mb-6 p-4 bg-gray-50 rounded-lg">
-      <h3 class="text-lg font-semibold text-gray-900 mb-2">{tournament.name}</h3>
+      <!-- Tournament Info -->
+      <div class="mb-6 p-4 bg-gray-50 rounded-lg">
+        <h3 class="text-lg font-semibold text-gray-900 mb-2">{tournament.name}</h3>
       {#if tournament.description}
         <p class="text-gray-600 mb-3">{tournament.description}</p>
       {/if}
@@ -101,7 +108,7 @@
       <div class="grid grid-cols-2 gap-4 text-sm text-gray-600">
         <div>
           <span class="font-medium">Type:</span> 
-          {tournament.tournament_type.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())}
+          {tournament.tournament_type?.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase()) || 'Unknown'}
         </div>
         <div>
           <span class="font-medium">Max Participants:</span> 
@@ -182,5 +189,20 @@
         </button>
       </div>
     {/if}
+    </div>
   </div>
-</div>
+{:else}
+  <div class="max-w-2xl mx-auto">
+    <div class="bg-white rounded-lg shadow p-6">
+      <div class="text-center">
+        <p class="text-gray-600 mb-4">No tournament selected</p>
+        <button 
+          on:click={handleBack}
+          class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+        >
+          Back to Tournament List
+        </button>
+      </div>
+    </div>
+  </div>
+{/if}

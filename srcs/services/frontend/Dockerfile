@@ -1,4 +1,4 @@
-# Multi-stage build for React frontend
+# Multi-stage build for Svelte frontend
 FROM node:20-alpine AS builder
 
 # Set working directory
@@ -17,19 +17,19 @@ RUN npm cache clean --force && \
 # Copy source code
 COPY . .
 
-# Build the application
-RUN npm run build
+# Build the Svelte application
+RUN npm run build:svelte
 
 # Fix CSP in the built HTML file (cross-platform compatible)
-RUN if [ -f /app/dist/index.html ]; then \
-        sed -i 's/connect-src '\''self'\'' ws:\/\/localhost:8000;/connect-src '\''self'\'' ws:\/\/localhost:8000 http:\/\/localhost:8000;/g' /app/dist/index.html || true; \
+RUN if [ -f /app/dist-svelte/index-svelte.html ]; then \
+        sed -i 's/connect-src '\''self'\'' ws:\/\/localhost:8000;/connect-src '\''self'\'' ws:\/\/localhost:8000 http:\/\/localhost:8000;/g' /app/dist-svelte/index-svelte.html || true; \
     fi
 
 # Production stage
 FROM nginx:1.25-alpine AS production
 
-# Copy built application from builder stage
-COPY --from=builder /app/dist /usr/share/nginx/html
+# Copy built Svelte application from builder stage
+COPY --from=builder /app/dist-svelte /usr/share/nginx/html
 
 # Copy custom nginx configuration
 COPY nginx.conf /etc/nginx/conf.d/default.conf

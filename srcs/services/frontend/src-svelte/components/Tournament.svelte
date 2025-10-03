@@ -7,6 +7,7 @@
   import { onMount } from 'svelte';
   import { tournamentService, type Tournament as TournamentData, type TournamentStats } from '../shared/services/tournamentService';
   import { AuthService } from '../shared/services/authService';
+  import { _ } from 'svelte-i18n';
   import TournamentList from './TournamentList.svelte';
   import TournamentCreate from './TournamentCreate.svelte';
   import TournamentDetail from './TournamentDetail.svelte';
@@ -96,14 +97,14 @@
 
   // Handle tournament join
   function handleTournamentJoined() {
-    success = 'Successfully joined tournament!';
+    success = $_('msg.joinedtournament');
     view = 'list';
     loadTournaments(); // Refresh the list
   }
 
   // Handle tournament start
   function handleTournamentStarted() {
-    success = 'Tournament started successfully!';
+    success = $_('msg.startedtournament');
     view = 'list';
     loadTournaments(); // Refresh the list
   }
@@ -114,12 +115,12 @@
     <!-- Header -->
     <div class="mb-8">
       <div class="flex justify-between items-center">
-        <h1 class="text-3xl font-bold text-gray-900">Tournament</h1>
+        <h1 class="text-3xl font-bold text-gray-900">{$_('label.tournaments')}</h1>
         <button 
           on:click={onBack}
           class="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
         >
-          Back to Game
+          {$_('button.backtogame')}
         </button>
       </div>
     </div>

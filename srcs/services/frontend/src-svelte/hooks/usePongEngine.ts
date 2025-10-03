@@ -37,11 +37,12 @@ const GAME_CONFIG = {
  * The core Pong game engine for Svelte
  */
 export const usePongEngine = (
+  canvasElement: HTMLCanvasElement | null = null,
   width: number = GAME_CONFIG.WIDTH, 
   height: number = GAME_CONFIG.HEIGHT,
   onGameEnd?: (winner: 'left' | 'right', leftScore: number, rightScore: number) => void
 ) => {
-  let canvasRef: HTMLCanvasElement | null = null;
+  let canvasRef: HTMLCanvasElement | null = canvasElement;
   let status: 'ready' | 'playing' | 'paused' | 'finished' = 'ready';
   
   // Use default game settings
@@ -229,10 +230,23 @@ export const usePongEngine = (
     gameState.leftScore = 0;
     gameState.rightScore = 0;
     gameState.winner = undefined;
+    
+    // Reset paddles to center position
+    gameState.leftPaddle.y = height / 2 - defaultSettings.paddleHeight / 2;
+    gameState.rightPaddle.y = height / 2 - defaultSettings.paddleHeight / 2;
+    
     resetBall();
     if (animationId) {
       cancelAnimationFrame(animationId);
       animationId = null;
+    }
+    
+    // Redraw the canvas immediately
+    if (canvasRef) {
+      const ctx = canvasRef.getContext('2d');
+      if (ctx) {
+        draw(ctx);
+      }
     }
   };
 
@@ -249,8 +263,12 @@ export const usePongEngine = (
     paddle.y = Math.max(0, Math.min(height - defaultSettings.paddleHeight, paddle.y));
   };
 
+  // Initialize if canvas is provided
+  if (canvasRef) {
+    initialize();
+  }
+
   return {
-    canvasRef: (ref: HTMLCanvasElement) => { canvasRef = ref; initialize(); },
     gameState,
     controls: {
       startGame,

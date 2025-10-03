@@ -154,6 +154,9 @@ export const useAIController = (
 
   return {
     handleBallUpdate,
-    getDifficultySettings
+    getDifficultySettings,
+    cleanup: () => {
+      // AI controller cleanup (no event listeners to remove)
+    }
   };
 };

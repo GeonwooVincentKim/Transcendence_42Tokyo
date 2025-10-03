@@ -50,23 +50,33 @@
     }
   };
 
+  let humanController: any;
+  let aiController: any;
+
   onMount(() => {
-    // Initialize the core game engine
-    const engine = usePongEngine(800, 400, handleGameEnd);
+    // Initialize the core game engine with canvas
+    const engine = usePongEngine(canvasRef, 800, 400, handleGameEnd);
     gameState = engine.gameState;
     controls = engine.controls;
     
     // Initialize human controller for left paddle
-    useHumanController(controls.setPaddleMovement, 'left');
+    humanController = useHumanController(controls.setPaddleMovement, 'left');
+    humanController.initialize();
     
     // Initialize AI controller for right paddle
-    useAIController(controls.setPaddleMovement, 'right', aiDifficulty, (debugInfo) => {
+    aiController = useAIController(controls.setPaddleMovement, 'right', aiDifficulty, (debugInfo) => {
       aiDebugInfo = debugInfo;
     });
   });
 
   onDestroy(() => {
-    // Cleanup if needed
+    // Cleanup controllers
+    if (humanController) {
+      humanController.cleanup();
+    }
+    if (aiController) {
+      aiController.cleanup();
+    }
   });
 
   /**
@@ -127,16 +137,16 @@
       class="border-2 border-gray-300 rounded-lg bg-black"
     ></canvas>
     
-    {#if gameState?.gameStatus === 'paused'}
+    {#if gameState?.status === 'paused'}
       <div class="absolute inset-0 flex items-center justify-center bg-black bg-opacity-50 rounded-lg">
-        <div class="text-white text-xl font-bold">{$_('label.paused')}</div>
+        <div class="text-white text-xl font-bold">PAUSED</div>
       </div>
     {/if}
     
-    {#if gameState?.gameStatus === 'ended'}
+    {#if gameState?.status === 'finished'}
       <div class="absolute inset-0 flex items-center justify-center bg-black bg-opacity-50 rounded-lg">
         <div class="text-white text-xl font-bold">
-          {$_('label.gameover')}! {$_('label.winner')}: {gameState?.winner === 'left' ? $_('label.player') : $_('label.ai')}
+          Game Over! Winner: {gameState?.winner === 'left' ? 'Player' : 'AI'}
         </div>
       </div>
     {/if}
@@ -162,15 +172,15 @@
   <div class="mt-4 flex space-x-4">
     <button
       on:click={() => controls?.startGame()}
-      disabled={gameState?.gameStatus === 'running'}
+      disabled={gameState?.status === 'playing'}
       class="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
     >
-      {$_('button.startgame')}
+      {$_('button.start')}
     </button>
     
     <button
       on:click={() => controls?.pauseGame()}
-      disabled={gameState?.gameStatus !== 'running'}
+      disabled={gameState?.status !== 'playing'}
       class="px-4 py-2 bg-yellow-600 text-white rounded hover:bg-yellow-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
     >
       {$_('button.pause')}

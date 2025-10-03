@@ -129,7 +129,7 @@
       <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm text-gray-600">
         <div>
           <span class="font-medium">Type:</span> 
-          {tournament.tournament_type.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())}
+          {tournament.tournament_type?.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase()) || 'Unknown'}
         </div>
         <div>
           <span class="font-medium">Max Participants:</span> 
@@ -206,7 +206,7 @@
             {bracket}
             {matches}
             tournamentType={tournament.tournament_type}
-            {tournamentId}
+            tournamentId={tournament.id}
             onMatchClick={handleStartMatch}
           />
         </div>

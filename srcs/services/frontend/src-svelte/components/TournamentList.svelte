@@ -6,6 +6,7 @@
 <script lang="ts">
   import { createEventDispatcher } from 'svelte';
   import type { Tournament, TournamentStats } from '../shared/services/tournamentService';
+  import { _ } from 'svelte-i18n';
 
   // Props
   export let tournaments: Tournament[];
@@ -43,10 +44,10 @@
 
   function getStatusText(status: string) {
     switch (status) {
-      case 'registration': return 'Registration Open';
-      case 'active': return 'In Progress';
-      case 'completed': return 'Completed';
-      case 'cancelled': return 'Cancelled';
+      case 'registration': return $_('status.registration');
+      case 'active': return $_('status.active');
+      case 'completed': return $_('status.completed');
+      case 'cancelled': return $_('status.cancelled');
       default: return status;
     }
   }
@@ -56,23 +57,23 @@
   <!-- Stats Overview -->
   {#if stats}
     <div class="bg-white rounded-lg shadow p-6">
-      <h2 class="text-xl font-semibold text-gray-900 mb-4">Tournament Statistics</h2>
+      <h2 class="text-xl font-semibold text-gray-900 mb-4">{$_('label.tournamentstats')}</h2>
       <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
         <div class="text-center">
           <div class="text-2xl font-bold text-blue-600">{stats.totalTournaments}</div>
-          <div class="text-sm text-gray-600">Total Tournaments</div>
+          <div class="text-sm text-gray-600">{$_('rankinfo.totaltournaments')}</div>
         </div>
         <div class="text-center">
           <div class="text-2xl font-bold text-green-600">{stats.activeTournaments}</div>
-          <div class="text-sm text-gray-600">Active</div>
+          <div class="text-sm text-gray-600">{$_('rankinfo.active')}</div>
         </div>
         <div class="text-center">
           <div class="text-2xl font-bold text-gray-600">{stats.completedTournaments}</div>
-          <div class="text-sm text-gray-600">Completed</div>
+          <div class="text-sm text-gray-600">{$_('rankinfo.completed')}</div>
         </div>
         <div class="text-center">
           <div class="text-2xl font-bold text-purple-600">{stats.totalParticipants}</div>
-          <div class="text-sm text-gray-600">Participants</div>
+          <div class="text-sm text-gray-600">{$_('rankinfo.participants')}</div>
         </div>
       </div>
     </div>
@@ -80,12 +81,12 @@
 
   <!-- Create Tournament Button -->
   <div class="flex justify-between items-center">
-    <h2 class="text-2xl font-bold text-gray-900">Tournaments</h2>
+    <h2 class="text-2xl font-bold text-gray-900">{$_('label.tournaments')}</h2>
     <button 
       on:click={handleCreate}
       class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
     >
-      Create Tournament
+      {$_('button.createtournament')}
     </button>
   </div>
 
@@ -115,7 +116,7 @@
             <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4 text-sm text-gray-600">
               <div>
                 <span class="font-medium">Type:</span> 
-                {tournament.tournament_type.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())}
+                {tournament.tournament_type?.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase()) || 'Unknown'}
               </div>
               <div>
                 <span class="font-medium">Max Participants:</span> 

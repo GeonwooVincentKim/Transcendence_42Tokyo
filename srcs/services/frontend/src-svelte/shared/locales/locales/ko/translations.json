@@ -38,6 +38,8 @@
 		"deleteacct": "Delete Account",
 		"pwreset": "Password Reset",
 		"recoverusrnm": "Recover Username",
+		"forgotusername": "사용자명 찾기",
+		"forgotpassword": "비밀번호 찾기",
 		"tournament": "Tournament",
 		"userranking": "User Ranking",
 		"welcomeuser": "Welcome, {{user}}!",
@@ -86,5 +88,9 @@
 		"regfailed": "User registration failed",
 		"statsfailed": "Failed to load statistics",
 		"leaderboardfailed": "Failed to load leaderboard"
+	},
+	"msg": {
+		"forgotusername": "이메일 주소를 입력하시면 사용자명을 보내드립니다.",
+		"forgotpassword": "사용자명과 이메일 주소를 입력하시면 비밀번호 재설정 토큰을 보내드립니다."
 	}
 }	

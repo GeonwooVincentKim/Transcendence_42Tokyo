@@ -6,6 +6,7 @@
 <script lang="ts">
   import { createEventDispatcher } from 'svelte';
   import { tournamentService, type Tournament } from '../shared/services/tournamentService';
+  import { _ } from 'svelte-i18n';
 
   // Props
   export let isAuthenticated: boolean;
@@ -95,12 +96,12 @@
 <div class="max-w-2xl mx-auto">
   <div class="bg-white rounded-lg shadow p-6">
     <div class="flex justify-between items-center mb-6">
-      <h2 class="text-2xl font-bold text-gray-900">Create Tournament</h2>
+        <h2 class="text-2xl font-bold text-gray-900">{$_('label.createtournament')}</h2>
       <button 
         on:click={handleBack}
         class="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
       >
-        Back
+        {$_('button.backtolist')}
       </button>
     </div>
 
@@ -114,14 +115,14 @@
       <!-- Tournament Name -->
       <div>
         <label for="name" class="block text-sm font-medium text-gray-700 mb-2">
-          Tournament Name *
+          {$_('label.tournamentname')} *
         </label>
         <input
           id="name"
           type="text"
           bind:value={name}
           class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-          placeholder="Enter tournament name"
+          placeholder={$_('placeholder.tournamentname')}
           disabled={loading}
         />
         {#if nameError}
@@ -132,14 +133,14 @@
       <!-- Description -->
       <div>
         <label for="description" class="block text-sm font-medium text-gray-700 mb-2">
-          Description
+          {$_('label.description')}
         </label>
         <textarea
           id="description"
           bind:value={description}
           rows="3"
           class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-          placeholder="Enter tournament description (optional)"
+          placeholder={$_('placeholder.tournamentdesc')}
           disabled={loading}
         ></textarea>
         {#if descriptionError}
@@ -150,7 +151,7 @@
       <!-- Tournament Type -->
       <div>
         <label for="tournamentType" class="block text-sm font-medium text-gray-700 mb-2">
-          Tournament Type *
+          {$_('label.tournamenttype')} *
         </label>
         <select
           id="tournamentType"
@@ -158,16 +159,16 @@
           class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
           disabled={loading}
         >
-          <option value="single_elimination">Single Elimination</option>
-          <option value="double_elimination">Double Elimination</option>
-          <option value="round_robin">Round Robin</option>
+          <option value="single_elimination">{$_('option.singleelim')}</option>
+          <option value="double_elimination">{$_('option.doubleelim')}</option>
+          <option value="round_robin">{$_('option.roundrobin')}</option>
         </select>
       </div>
 
       <!-- Max Participants -->
       <div>
         <label for="maxParticipants" class="block text-sm font-medium text-gray-700 mb-2">
-          Maximum Participants *
+          {$_('label.maxparticipants')} *
         </label>
         <input
           id="maxParticipants"
@@ -181,7 +182,7 @@
         {#if maxParticipantsError}
           <p class="mt-1 text-sm text-red-600">{maxParticipantsError}</p>
         {/if}
-        <p class="mt-1 text-sm text-gray-500">Minimum 2, Maximum 32 participants</p>
+        <p class="mt-1 text-sm text-gray-500">{$_('info.participantlimit')}</p>
       </div>
 
       <!-- Submit Button -->
@@ -192,7 +193,7 @@
           class="px-6 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
           disabled={loading}
         >
-          Cancel
+          {$_('button.cancel')}
         </button>
         <button
           type="submit"
@@ -205,10 +206,10 @@
                 <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
                 <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
               </svg>
-              Creating...
+              {$_('button.creating')}
             </span>
           {:else}
-            Create Tournament
+            {$_('button.createtournament')}
           {/if}
         </button>
       </div>

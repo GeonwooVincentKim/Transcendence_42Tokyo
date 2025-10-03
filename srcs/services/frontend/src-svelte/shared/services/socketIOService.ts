@@ -48,7 +48,7 @@ class SocketIOService {
         this.userId = userId;
 
         // Socket.IO server runs on the same port as the backend (8000)
-        const socketUrl = 'http://localhost:8000';
+        const socketUrl = window.location.origin;
         console.log('Connecting to Socket.IO server:', socketUrl);
 
         this.socket = io(socketUrl, {

@@ -81,7 +81,9 @@
 		"resetpw": "Reset Your Password",
 		"resettkn": "Reset Token",
 		"newpw": "New Password",
-		"findusrnm": "Find Your Username"
+		"findusrnm": "Find Your Username",
+		"forgotusername": "Forgot Username",
+		"forgotpassword": "Forgot Password"
 	},
 	"info": {
 		"usrnm": "Username:",
@@ -151,6 +153,8 @@
 		"deletewarning": "This action cannot be undone. All your data will be permanently deleted.",
 		"acctdeleted": "Account deleted successfully",
 		"pwresetrqsuccess": "Password reset token generated. Please check your email and enter the token below.",
-		"pwresetsuccess": "Password reset successful! You can now login with your new password."
+		"pwresetsuccess": "Password reset successful! You can now login with your new password.",
+		"forgotusername": "Enter your email address below and we'll send you your username.",
+		"forgotpassword": "Enter your username and email address below and we'll send you a password reset token."
 	}
 }	

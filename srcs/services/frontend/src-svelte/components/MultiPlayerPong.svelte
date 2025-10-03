@@ -26,15 +26,35 @@
   let keys = new Set<string>();
 
   onMount(() => {
-    // Parse roomId format: "tournament-{id}-match-{matchId}" (e.g., "tournament-72-match-75")
-    const match = roomId.match(/tournament-(\d+)-match-(\d+)/);
-    if (!match || match.length < 3) {
-      console.error('❌ Invalid roomId format:', roomId);
+    // Validate roomId first
+    if (!roomId || roomId.trim() === '') {
+      console.error('❌ Empty roomId provided');
       return;
     }
+
+    // Parse roomId format: "tournament-{id}-match-{matchId}" (e.g., "tournament-72-match-75") or simple number
+    let tournamentId: string;
+    let matchId: string;
     
-    const tournamentId = match[1];
-    const matchId = match[2];
+    const tournamentMatch = roomId.match(/tournament-(\d+)-match-(\d+)/);
+    if (tournamentMatch && tournamentMatch.length >= 3) {
+      tournamentId = tournamentMatch[1];
+      matchId = tournamentMatch[2];
+      console.log('🔍 Tournament room detected:', roomId);
+    } else {
+      // Check if roomId is a simple number (for regular multiplayer)
+      const simpleRoomMatch = roomId.match(/^\d+$/);
+      if (simpleRoomMatch) {
+        tournamentId = '0'; // Use 0 for non-tournament rooms
+        matchId = roomId; // Use the roomId as matchId
+        console.log('🔍 Simple multiplayer room detected:', roomId);
+      } else {
+        console.error('❌ Invalid roomId format:', roomId);
+        console.log('Expected formats: "123" (simple number) or "tournament-{id}-match-{matchId}"');
+        return;
+      }
+    }
+    
     // Generate unique userId for each connection to avoid conflicts
     const userId = `player_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     
@@ -77,7 +97,7 @@
     });
 
     // Connect to the room
-    socketService.connectToRoom(roomId, userId);
+    // Room connection is handled by the connect method above
 
     // Set up keyboard controls
     const handleKeyDown = (event: KeyboardEvent) => {
