@@ -27,15 +27,28 @@ export const MultiplayerPong: React.FC<MultiplayerPongProps> = ({
 
   // Connect to Socket.IO server
   useEffect(() => {
-    // Parse roomId format: "tournament-{id}-match-{matchId}" (e.g., "tournament-72-match-75")
-    const match = roomId.match(/tournament-(\d+)-match-(\d+)/);
-    if (!match || match.length < 3) {
-      console.error('❌ Invalid roomId format:', roomId);
-      return;
-    }
+    let tournamentId: string | null = null;
+    let matchId: string | null = null;
     
-    const tournamentId = match[1];
-    const matchId = match[2];
+    // Check if roomId is in tournament format: "tournament-{id}-match-{matchId}"
+    const tournamentMatch = roomId.match(/tournament-(\d+)-match-(\d+)/);
+    if (tournamentMatch && tournamentMatch.length >= 3) {
+      tournamentId = tournamentMatch[1];
+      matchId = tournamentMatch[2];
+      console.log('🔍 Tournament room detected:', roomId);
+    } else {
+      // Check if roomId is a simple number (for regular multiplayer)
+      const simpleRoomMatch = roomId.match(/^\d+$/);
+      if (simpleRoomMatch) {
+        tournamentId = '0'; // Use 0 for non-tournament rooms
+        matchId = roomId; // Use the roomId as matchId
+        console.log('🔍 Simple multiplayer room detected:', roomId);
+      } else {
+        console.error('❌ Invalid roomId format:', roomId);
+        console.log('Expected formats: "123" (simple number) or "tournament-{id}-match-{matchId}"');
+        return;
+      }
+    }
     // Generate unique userId for each connection to avoid conflicts
     const userId = `player_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     

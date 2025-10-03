@@ -112,15 +112,28 @@ class SocketIOService {
   private joinGameRoomById(socket: any, roomId: string, userId: string) {
     console.log(`🔍 Joining room by ID: ${roomId}`);
     
-    // Parse tournament and match IDs from roomId
-    const match = roomId.match(/tournament-(\d+)-match-(\d+)/);
-    if (!match) {
-      console.error('❌ Invalid roomId format:', roomId);
-      return;
-    }
+    let tournamentId: number;
+    let matchId: number;
     
-    const tournamentId = parseInt(match[1]);
-    const matchId = parseInt(match[2]);
+    // Parse tournament and match IDs from roomId
+    const tournamentMatch = roomId.match(/tournament-(\d+)-match-(\d+)/);
+    if (tournamentMatch) {
+      tournamentId = parseInt(tournamentMatch[1]);
+      matchId = parseInt(tournamentMatch[2]);
+      console.log(`🔍 Tournament room detected: tournamentId=${tournamentId}, matchId=${matchId}`);
+    } else {
+      // Check if roomId is a simple number (for regular multiplayer)
+      const simpleRoomMatch = roomId.match(/^\d+$/);
+      if (simpleRoomMatch) {
+        tournamentId = 0; // Use 0 for non-tournament rooms
+        matchId = parseInt(roomId); // Use the roomId as matchId
+        console.log(`🔍 Simple multiplayer room detected: tournamentId=${tournamentId}, matchId=${matchId}`);
+      } else {
+        console.error('❌ Invalid roomId format:', roomId);
+        console.log('Expected formats: "123" (simple number) or "tournament-{id}-match-{matchId}"');
+        return;
+      }
+    }
     
     console.log(`🔍 Parsed tournamentId: ${tournamentId}, matchId: ${matchId}`);
     

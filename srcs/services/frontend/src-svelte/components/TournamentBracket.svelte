@@ -1,0 +1,450 @@
+<!--
+  TournamentBracket.svelte - Tournament Bracket Visualization
+  Interactive tournament bracket with support for different tournament types
+-->
+
+<script lang="ts">
+  import { onMount, createEventDispatcher } from 'svelte';
+  import type { BracketNode, TournamentParticipant, TournamentMatch } from '../shared/services/tournamentService';
+
+  // Props
+  export let bracket: BracketNode[];
+  export let matches: TournamentMatch[];
+  export let tournamentType: 'single_elimination' | 'double_elimination' | 'round_robin';
+  export let tournamentId: number | undefined = undefined;
+  export let onMatchClick: ((match: TournamentMatch) => void) | undefined = undefined;
+
+  const dispatch = createEventDispatcher();
+
+  // State
+  let containerSize = { width: 0, height: 0 };
+  let zoom = 1;
+  let pan = { x: 0, y: 0 };
+  let container: HTMLDivElement;
+
+  // Bracket positioning
+  interface BracketPosition {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  }
+
+  const matchWidth = 200;
+  const matchHeight = 80;
+  const matchSpacing = 50;
+  const roundSpacing = 300;
+
+  onMount(() => {
+    updateContainerSize();
+    window.addEventListener('resize', updateContainerSize);
+    return () => window.removeEventListener('resize', updateContainerSize);
+  });
+
+  function updateContainerSize() {
+    if (container) {
+      containerSize = {
+        width: container.clientWidth,
+        height: container.clientHeight
+      };
+    }
+  }
+
+  function getPlayerDisplayName(participant?: TournamentParticipant): string {
+    if (!participant) return 'TBD';
+    return participant.display_name || 'Unknown Player';
+  }
+
+  function getPlayerAvatar(participant?: TournamentParticipant): string {
+    if (!participant || !participant.avatar_url) {
+      return '';
+    }
+    return participant.avatar_url;
+  }
+
+  function getBracketTypeStyling(node: BracketNode): string {
+    const bracketPos = node.position.x;
+    switch (bracketPos) {
+      case 1: // Main bracket
+        return 'border-blue-500 bg-blue-50';
+      case 2: // Losers bracket
+        return 'border-red-500 bg-red-50';
+      case 3: // Grand final
+        return 'border-yellow-500 bg-yellow-50';
+      default:
+        return 'border-gray-300 bg-white';
+    }
+  }
+
+  function calculateBracketPositions(): BracketPosition[] {
+    const positions: BracketPosition[] = [];
+    
+    if (tournamentType === 'round_robin') {
+      return positions; // Round robin doesn't use bracket positions
+    }
+
+    // Calculate positions for elimination brackets
+    const rounds = Math.ceil(Math.log2(bracket.length));
+    
+    bracket.forEach((node, index) => {
+      const round = Math.floor(index / Math.pow(2, Math.floor(Math.log2(index + 1))));
+      const positionInRound = index % Math.pow(2, round);
+      
+      const x = round * roundSpacing + 50;
+      const y = positionInRound * (matchHeight + matchSpacing) + 50;
+      
+      positions.push({
+        x,
+        y,
+        width: matchWidth,
+        height: matchHeight
+      });
+    });
+
+    return positions;
+  }
+
+  function handleMatchClick(node: BracketNode) {
+    if (node.match_id && onMatchClick) {
+      const match = matches.find(m => m.id === node.match_id);
+      if (match) {
+        onMatchClick(match);
+      }
+    }
+  }
+
+  function handleZoomIn() {
+    setZoom(Math.min(zoom * 1.2, 3));
+  }
+
+  function handleZoomOut() {
+    setZoom(Math.max(zoom / 1.2, 0.3));
+  }
+
+  function handleReset() {
+    setZoom(1);
+    setPan({ x: 0, y: 0 });
+  }
+
+  function setZoom(newZoom: number) {
+    zoom = newZoom;
+  }
+
+  function setPan(newPan: { x: number; y: number }) {
+    pan = newPan;
+  }
+
+  // Round Robin specific functions
+  function getRoundRobinStandings() {
+    const participants = bracket.map(node => node.player1).filter(Boolean);
+    const standings = participants.map(participant => ({
+      participant,
+      wins: 0,
+      losses: 0,
+      pointsFor: 0,
+      pointsAgainst: 0
+    }));
+
+    // Calculate standings from matches
+    matches.forEach(match => {
+      if (match.winner_id && match.player1_id && match.player2_id) {
+        const winnerStanding = standings.find(s => s.participant.id === match.winner_id);
+        const loserStanding = standings.find(s => 
+          s.participant.id === (match.winner_id === match.player1_id ? match.player2_id : match.player1_id)
+        );
+
+        if (winnerStanding) {
+          winnerStanding.wins++;
+          winnerStanding.pointsFor += match.player1_score || 0;
+          winnerStanding.pointsAgainst += match.player2_score || 0;
+        }
+        if (loserStanding) {
+          loserStanding.losses++;
+          loserStanding.pointsFor += match.player2_score || 0;
+          loserStanding.pointsAgainst += match.player1_score || 0;
+        }
+      }
+    });
+
+    // Sort by wins, then by win percentage
+    return standings.sort((a, b) => {
+      const aWinPct = a.wins / (a.wins + a.losses) || 0;
+      const bWinPct = b.wins / (b.wins + b.losses) || 0;
+      if (a.wins !== b.wins) return b.wins - a.wins;
+      return bWinPct - aWinPct;
+    });
+  }
+
+  function getWinPercentage(wins: number, losses: number): number {
+    const total = wins + losses;
+    return total > 0 ? Math.round((wins / total) * 100) : 0;
+  }
+
+  const positions = calculateBracketPositions();
+  const standings = getRoundRobinStandings();
+</script>
+
+<div class="tournament-bracket-container">
+  {#if tournamentType === 'round_robin'}
+    <!-- Round Robin Table -->
+    <div class="w-full max-w-6xl mx-auto space-y-6">
+      <!-- Standings Table -->
+      <div class="bg-white rounded-lg shadow-lg overflow-hidden">
+        <div class="bg-gradient-to-r from-blue-600 to-purple-600 text-white px-6 py-4">
+          <h3 class="text-xl font-bold">Round Robin Standings</h3>
+          <p class="text-blue-100 text-sm">All participants play against each other</p>
+        </div>
+        
+        <div class="overflow-x-auto">
+          <table class="w-full">
+            <thead class="bg-gray-50">
+              <tr>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Rank</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Player</th>
+                <th class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">W</th>
+                <th class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">L</th>
+                <th class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Win%</th>
+                <th class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">PF</th>
+                <th class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">PA</th>
+                <th class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Diff</th>
+              </tr>
+            </thead>
+            <tbody class="bg-white divide-y divide-gray-200">
+              {#each standings as standing, index}
+                <tr class="hover:bg-gray-50">
+                  <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                    {index + 1}
+                  </td>
+                  <td class="px-6 py-4 whitespace-nowrap">
+                    <div class="flex items-center">
+                      <div class="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center mr-3">
+                        <span class="text-blue-600 font-medium text-sm">
+                          {standing.participant.display_name?.charAt(0).toUpperCase() || '?'}
+                        </span>
+                      </div>
+                      <div class="text-sm font-medium text-gray-900">
+                        {standing.participant.display_name || 'Unknown Player'}
+                      </div>
+                    </div>
+                  </td>
+                  <td class="px-6 py-4 whitespace-nowrap text-sm text-center text-gray-900">
+                    {standing.wins}
+                  </td>
+                  <td class="px-6 py-4 whitespace-nowrap text-sm text-center text-gray-900">
+                    {standing.losses}
+                  </td>
+                  <td class="px-6 py-4 whitespace-nowrap text-sm text-center text-gray-900">
+                    {getWinPercentage(standing.wins, standing.losses)}%
+                  </td>
+                  <td class="px-6 py-4 whitespace-nowrap text-sm text-center text-gray-900">
+                    {standing.pointsFor}
+                  </td>
+                  <td class="px-6 py-4 whitespace-nowrap text-sm text-center text-gray-900">
+                    {standing.pointsAgainst}
+                  </td>
+                  <td class="px-6 py-4 whitespace-nowrap text-sm text-center text-gray-900">
+                    {standing.pointsFor - standing.pointsAgainst}
+                  </td>
+                </tr>
+              {/each}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Matches Grid -->
+      <div class="bg-white rounded-lg shadow-lg overflow-hidden">
+        <div class="bg-gradient-to-r from-green-600 to-blue-600 text-white px-6 py-4">
+          <h3 class="text-xl font-bold">Matches</h3>
+          <p class="text-green-100 text-sm">All matches in this tournament</p>
+        </div>
+        
+        <div class="p-6">
+          <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {#each matches as match (match.id)}
+              <div class="border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow">
+                <div class="flex justify-between items-center mb-2">
+                  <span class="text-sm font-medium text-gray-600">Match #{match.id}</span>
+                  <span class="px-2 py-1 rounded text-xs font-medium {match.status === 'completed' ? 'bg-green-100 text-green-800' : match.status === 'in_progress' ? 'bg-blue-100 text-blue-800' : 'bg-yellow-100 text-yellow-800'}">
+                    {match.status === 'completed' ? 'Completed' : match.status === 'in_progress' ? 'In Progress' : 'Pending'}
+                  </span>
+                </div>
+                
+                <div class="space-y-2">
+                  <div class="flex items-center justify-between">
+                    <span class="text-sm {match.winner_id === match.player1_id ? 'font-bold text-green-600' : ''}">
+                      {match.player1?.username || 'TBD'}
+                    </span>
+                    <span class="text-sm font-medium">{match.player1_score || 0}</span>
+                  </div>
+                  
+                  <div class="flex items-center justify-between">
+                    <span class="text-sm {match.winner_id === match.player2_id ? 'font-bold text-green-600' : ''}">
+                      {match.player2?.username || 'TBD'}
+                    </span>
+                    <span class="text-sm font-medium">{match.player2_score || 0}</span>
+                  </div>
+                </div>
+              </div>
+            {/each}
+          </div>
+        </div>
+      </div>
+    </div>
+  {:else}
+    <!-- Elimination Bracket -->
+    <div class="bracket-controls mb-4">
+      <div class="flex space-x-2">
+        <button 
+          on:click={handleZoomIn}
+          class="px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700"
+        >
+          Zoom In
+        </button>
+        <button 
+          on:click={handleZoomOut}
+          class="px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700"
+        >
+          Zoom Out
+        </button>
+        <button 
+          on:click={handleReset}
+          class="px-3 py-1 bg-gray-600 text-white rounded hover:bg-gray-700"
+        >
+          Reset
+        </button>
+      </div>
+    </div>
+
+    <div 
+      bind:this={container}
+      class="bracket-container relative overflow-auto border border-gray-300 rounded-lg"
+      style="height: 600px;"
+    >
+      <div 
+        class="bracket-content relative"
+        style="transform: scale({zoom}) translate({pan.x}px, {pan.y}px); transform-origin: 0 0; min-width: 1200px; min-height: 400px;"
+      >
+        {#each bracket as node, index (node.id)}
+          {@const position = positions[index]}
+          {#if position}
+            <!-- Match Box -->
+            <div
+              class="absolute border-2 rounded-lg shadow-sm hover:shadow-md transition-shadow cursor-pointer {getBracketTypeStyling(node)}"
+              style="left: {position.x}px; top: {position.y}px; width: {position.width}px; height: {position.height}px;"
+              on:click={() => handleMatchClick(node)}
+            >
+              <div class="p-3 h-full flex flex-col justify-between">
+                <!-- Player 1 -->
+                <div class="flex items-center gap-2 {node.winner?.id === node.player1?.id ? 'font-bold text-green-600' : ''}">
+                  {#if getPlayerAvatar(node.player1)}
+                    <img 
+                      src={getPlayerAvatar(node.player1)} 
+                      alt={getPlayerDisplayName(node.player1)}
+                      class="w-6 h-6 rounded-full object-cover"
+                    />
+                  {:else}
+                    <div class="w-6 h-6 bg-gray-300 rounded-full flex items-center justify-center">
+                      <span class="text-xs font-medium text-gray-600">
+                        {node.player1?.display_name?.charAt(0).toUpperCase() || '?'}
+                      </span>
+                    </div>
+                  {/if}
+                  <span class="text-sm truncate">{getPlayerDisplayName(node.player1)}</span>
+                </div>
+
+                <!-- VS separator -->
+                <div class="flex justify-center">
+                  <div class="w-4 h-px bg-gray-300"></div>
+                </div>
+
+                <!-- Player 2 -->
+                <div class="flex items-center gap-2 {node.winner?.id === node.player2?.id ? 'font-bold text-green-600' : ''}">
+                  {#if getPlayerAvatar(node.player2)}
+                    <img 
+                      src={getPlayerAvatar(node.player2)} 
+                      alt={getPlayerDisplayName(node.player2)}
+                      class="w-6 h-6 rounded-full object-cover"
+                    />
+                  {:else}
+                    <div class="w-6 h-6 bg-gray-300 rounded-full flex items-center justify-center">
+                      <span class="text-xs font-medium text-gray-600">
+                        {node.player2?.display_name?.charAt(0).toUpperCase() || '?'}
+                      </span>
+                    </div>
+                  {/if}
+                  <span class="text-sm truncate">{getPlayerDisplayName(node.player2)}</span>
+                </div>
+              </div>
+
+              <!-- Match status indicator -->
+              {#if node.match_id}
+                <div class="absolute -top-1 -right-1 w-3 h-3 rounded-full bg-blue-500"></div>
+              {/if}
+            </div>
+          {/if}
+        {/each}
+
+        <!-- Connection Lines -->
+        {#each bracket as node, index}
+          {@const position = positions[index]}
+          {#if position && node.parent}
+            {@const parentIndex = bracket.findIndex(n => n.id === node.parent?.id)}
+            {@const parentPosition = positions[parentIndex]}
+            {#if parentPosition}
+              <svg
+                class="absolute pointer-events-none"
+                style="left: {Math.min(position.x + matchWidth, parentPosition.x)}px; top: {Math.min(position.y + matchHeight / 2, parentPosition.y + matchHeight / 2)}px; width: {Math.abs(parentPosition.x - (position.x + matchWidth))}px; height: {Math.abs(parentPosition.y + matchHeight / 2 - (position.y + matchHeight / 2)) + 2}px;"
+              >
+                <path
+                  d="M {position.x + matchWidth - Math.min(position.x + matchWidth, parentPosition.x)} {position.y + matchHeight / 2 - Math.min(position.y + matchHeight / 2, parentPosition.y + matchHeight / 2)} 
+                      L {parentPosition.x - Math.min(position.x + matchWidth, parentPosition.x)} {parentPosition.y + matchHeight / 2 - Math.min(position.y + matchHeight / 2, parentPosition.y + matchHeight / 2)}"
+                  stroke="#6B7280"
+                  stroke-width="2"
+                  fill="none"
+                  marker-end="url(#arrowhead)"
+                />
+                <defs>
+                  <marker
+                    id="arrowhead"
+                    marker-width="10"
+                    marker-height="7"
+                    ref-x="9"
+                    ref-y="3.5"
+                    orient="auto"
+                  >
+                    <polygon
+                      points="0 0, 10 3.5, 0 7"
+                      fill="#6B7280"
+                    />
+                  </marker>
+                </defs>
+              </svg>
+            {/if}
+          {/if}
+        {/each}
+      </div>
+    </div>
+  {/if}
+</div>
+
+<style>
+  .tournament-bracket-container {
+    width: 100%;
+    height: 100%;
+  }
+
+  .bracket-controls {
+    display: flex;
+    justify-content: center;
+    padding: 1rem;
+  }
+
+  .bracket-container {
+    background: #f8fafc;
+  }
+
+  .bracket-content {
+    transition: transform 0.2s ease;
+  }
+</style>
