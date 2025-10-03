@@ -6,8 +6,8 @@
 -->
 
 <script lang="ts">
-  import { AuthService } from '@shared/services/authService';
-  import { LoginRequest, AuthResponse } from '@shared/types/auth';
+  import { AuthService } from '../shared/services/authService';
+  import { LoginRequest, AuthResponse } from '../shared/types/auth';
   import { onMount } from 'svelte';
   
   // Props
@@ -35,7 +35,7 @@
   
   async function loadTranslations() {
     try {
-      const response = await fetch(`/src-svelte/shared/locales/${currentLanguage}/translations.json`);
+      const response = await fetch(`/locales/${currentLanguage}/translations.json`);
       translations = await response.json();
     } catch (err) {
       console.error('Failed to load translations:', err);

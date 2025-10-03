@@ -4,7 +4,7 @@
  */
 
 import { writable, derived } from 'svelte/store';
-import type { User } from '@shared/types/auth';
+import type { User } from '../shared/types/auth';
 
 // Authentication store
 export const authStore = writable<{

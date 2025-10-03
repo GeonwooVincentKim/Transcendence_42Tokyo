@@ -5,7 +5,7 @@
 
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
-  import { GameStatsService } from '@shared/services/gameStatsService';
+  import { GameStatsService } from '../shared/services/gameStatsService';
   import { usePongEngine } from '../hooks/usePongEngine';
   import { useHumanController } from '../hooks/useHumanController';
 

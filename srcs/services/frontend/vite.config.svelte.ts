@@ -78,6 +78,7 @@ export default defineConfig(({ mode }) => ({
   resolve: {
     alias: {
       '@shared': path.resolve(__dirname, './src-svelte/shared'),
+      '@shared/*': path.resolve(__dirname, './src-svelte/shared/*'),
     }
   },
   

@@ -5,7 +5,7 @@
 
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
-  import SocketIOService from '@shared/services/socketIOService';
+  import SocketIOService from '../shared/services/socketIOService';
   import { _ } from 'svelte-i18n';
 
   export let roomId: string;

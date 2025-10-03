@@ -6,8 +6,8 @@
 -->
 
 <script lang="ts">
-  import { AuthService } from '@shared/services/authService';
-  import { RegisterRequest, AuthResponse } from '@shared/types/auth';
+  import { AuthService } from '../shared/services/authService';
+  import { RegisterRequest, AuthResponse } from '../shared/types/auth';
   import { onMount } from 'svelte';
   
   // Props

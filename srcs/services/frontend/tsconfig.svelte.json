@@ -27,6 +27,12 @@
     /* Svelte */
     "types": ["svelte"],
     
+    /* Path mapping */
+    "baseUrl": ".",
+    "paths": {
+      "@shared/*": ["./src-svelte/shared/*"]
+    },
+    
     /* Performance optimizations */
     "incremental": true,
     "tsBuildInfoFile": ".tsbuildinfo"

@@ -9,8 +9,9 @@ COPY package*.json ./
 # Install dependencies (much faster than React build)
 RUN npm install
 
-# Copy Svelte source code only
+# Copy Svelte source code and public assets
 COPY src-svelte ./src-svelte
+COPY public ./public
 COPY vite.config.svelte.ts ./
 COPY svelte.config.js ./
 COPY tsconfig.svelte.json ./

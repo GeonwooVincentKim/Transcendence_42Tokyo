@@ -7,10 +7,10 @@
 
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { AuthService } from '@shared/services/authService';
-  import { GameStatsService, type UserStatistics } from '@shared/services/gameStatsService';
+  import { AuthService } from '../shared/services/authService';
+  import { GameStatsService, type UserStatistics } from '../shared/services/gameStatsService';
   import { _ } from 'svelte-i18n';
-  import type { User } from '@shared/types/auth';
+  import type { User } from '../shared/types/auth';
 
   export let user: User;
   export let onLogout: () => void;
