@@ -10,6 +10,7 @@
   import Leaderboard from './components/Leaderboard.svelte';
   import ForgotUsername from './components/ForgotUsername.svelte';
   import ForgotPassword from './components/ForgotPassword.svelte';
+  import DeleteAccount from './components/DeleteAccount.svelte';
   import { _, t, locale, isLoading as i18nLoading } from 'svelte-i18n';
   import { AuthService } from './shared/services/authService';
   import type { AuthResponse, User } from './shared/types/auth';
@@ -307,6 +308,13 @@
             onBackToGame={() => setView('game')}
             onLogout={handleLogout}
             onDeleteAccount={() => setView('deleteAccount')}
+          />
+        {:else if view === 'deleteAccount'}
+          <!-- Delete Account -->
+          <DeleteAccount 
+            {user}
+            on:back={() => setView('profile')}
+            on:deleted={handleLogout}
           />
         {:else if view === 'tournament'}
           <!-- Tournament -->

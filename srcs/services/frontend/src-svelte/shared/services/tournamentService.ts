@@ -119,7 +119,7 @@ class TournamentService {
   private baseUrl: string;
 
   constructor() {
-    this.baseUrl = import.meta.env.VITE_API_URL || '';
+    this.baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000';
   }
 
   private async request<T>(

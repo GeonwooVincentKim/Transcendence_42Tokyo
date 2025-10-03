@@ -41,9 +41,12 @@
     try {
       loading = true;
       error = null;
+      console.log('Loading tournaments...');
       const data = await tournamentService.listTournaments();
+      console.log('Tournaments loaded:', data);
       tournaments = data;
     } catch (err) {
+      console.error('Failed to load tournaments:', err);
       error = err instanceof Error ? err.message : 'Failed to load tournaments';
     } finally {
       loading = false;
@@ -67,15 +70,21 @@
     success = null;
   }
 
-  function showDetail(tournament: TournamentData) {
-    selectedTournament = tournament;
+  function showDetail(event: CustomEvent<TournamentData>) {
+    console.log('Tournament.svelte: showDetail received event:', event);
+    console.log('Tournament.svelte: Event detail:', event.detail);
+    selectedTournament = event.detail;
+    console.log('Tournament.svelte: selectedTournament set to:', selectedTournament);
     view = 'detail';
     error = null;
     success = null;
   }
 
-  function showJoin(tournament: TournamentData) {
-    selectedTournament = tournament;
+  function showJoin(event: CustomEvent<TournamentData>) {
+    console.log('Tournament.svelte: showJoin received event:', event);
+    console.log('Tournament.svelte: Event detail:', event.detail);
+    selectedTournament = event.detail;
+    console.log('Tournament.svelte: selectedTournament set to:', selectedTournament);
     view = 'join';
     error = null;
     success = null;
@@ -90,21 +99,24 @@
 
   // Handle tournament creation
   function handleTournamentCreated(newTournament: TournamentData) {
+    console.log('Tournament.svelte: Tournament created:', newTournament);
     tournaments = [newTournament, ...tournaments];
     success = 'Tournament created successfully!';
     view = 'list';
+    // Force re-render by updating the tournaments array
+    tournaments = [...tournaments];
   }
 
   // Handle tournament join
   function handleTournamentJoined() {
-    success = $_('msg.joinedtournament');
+    success = 'Successfully joined tournament!';
     view = 'list';
     loadTournaments(); // Refresh the list
   }
 
   // Handle tournament start
   function handleTournamentStarted() {
-    success = $_('msg.startedtournament');
+    success = 'Tournament started successfully!';
     view = 'list';
     loadTournaments(); // Refresh the list
   }
@@ -115,12 +127,12 @@
     <!-- Header -->
     <div class="mb-8">
       <div class="flex justify-between items-center">
-        <h1 class="text-3xl font-bold text-gray-900">{$_('label.tournaments')}</h1>
+        <h1 class="text-3xl font-bold text-gray-900">Tournaments</h1>
         <button 
           on:click={onBack}
           class="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
         >
-          {$_('button.backtogame')}
+          Back to Game
         </button>
       </div>
     </div>
@@ -164,24 +176,52 @@
           on:back={showList}
         />
       <!-- Tournament Detail View -->
-      {:else if view === 'detail' && selectedTournament}
-        <TournamentDetail 
-          tournament={selectedTournament}
-          {isAuthenticated}
-          {currentUser}
-          {onStartMatch}
-          on:back={showList}
-          on:start={handleTournamentStarted}
-        />
+      {:else if view === 'detail'}
+        {#if selectedTournament}
+          <TournamentDetail 
+            tournament={selectedTournament}
+            {isAuthenticated}
+            {currentUser}
+            {onStartMatch}
+            on:back={showList}
+            on:start={handleTournamentStarted}
+          />
+        {:else}
+          <div class="bg-white rounded-lg shadow p-6">
+            <div class="text-center">
+              <p class="text-gray-600 mb-4">No tournament selected</p>
+              <button 
+                on:click={showList}
+                class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+              >
+                Back to Tournament List
+              </button>
+            </div>
+          </div>
+        {/if}
       <!-- Tournament Join View -->
-      {:else if view === 'join' && selectedTournament}
-        <TournamentJoin 
-          tournament={selectedTournament}
-          {isAuthenticated}
-          {currentUser}
-          on:joined={handleTournamentJoined}
-          on:back={showList}
-        />
+      {:else if view === 'join'}
+        {#if selectedTournament}
+          <TournamentJoin 
+            tournament={selectedTournament}
+            {isAuthenticated}
+            {currentUser}
+            on:joined={handleTournamentJoined}
+            on:back={showList}
+          />
+        {:else}
+          <div class="bg-white rounded-lg shadow p-6">
+            <div class="text-center">
+              <p class="text-gray-600 mb-4">No tournament selected</p>
+              <button 
+                on:click={showList}
+                class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+              >
+                Back to Tournament List
+              </button>
+            </div>
+          </div>
+        {/if}
       {/if}
     {/if}
   </div>

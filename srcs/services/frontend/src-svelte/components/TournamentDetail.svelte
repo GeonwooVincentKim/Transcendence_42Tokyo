@@ -22,9 +22,17 @@
   let bracket: BracketNode[] = [];
   let loading = false;
   let error: string | null = null;
+  let showFullBracket = false;
 
   onMount(() => {
-    loadTournamentData();
+    console.log('TournamentDetail mounted with tournament:', tournament);
+    if (tournament && tournament.id) {
+      console.log('Loading tournament data for ID:', tournament.id);
+      loadTournamentData();
+    } else {
+      console.error('Invalid tournament data:', tournament);
+      error = 'Invalid tournament data';
+    }
   });
 
   async function loadTournamentData() {
@@ -32,16 +40,21 @@
       loading = true;
       error = null;
       
+      console.log('Loading tournament data for tournament:', tournament);
+      
       const [participantsData, matchesData, bracketData] = await Promise.all([
         tournamentService.getTournamentParticipants(tournament.id),
         tournamentService.getTournamentMatches(tournament.id),
         tournamentService.getTournamentBracket(tournament.id)
       ]);
       
+      console.log('Tournament data loaded:', { participantsData, matchesData, bracketData });
+      
       participants = participantsData;
       matches = matchesData;
       bracket = bracketData;
     } catch (err) {
+      console.error('Failed to load tournament data:', err);
       error = err instanceof Error ? err.message : 'Failed to load tournament data';
     } finally {
       loading = false;
@@ -59,7 +72,15 @@
   function handleStartMatch(match: TournamentMatch) {
     if (onStartMatch) {
       const roomId = `tournament-${tournament.id}-match-${match.id}`;
+      console.log('Starting tournament match:', {
+        tournamentId: tournament.id,
+        matchId: match.id,
+        roomId: roomId,
+        match: match
+      });
       onStartMatch(tournament.id, match.id, roomId);
+    } else {
+      console.warn('onStartMatch callback not provided');
     }
   }
 
@@ -97,15 +118,31 @@
   function canStartMatch(match: TournamentMatch) {
     return match.status === 'pending' && 
            match.player1_id && 
-           match.player2_id && 
-           isAuthenticated;
+           match.player2_id;
+  }
+
+  function toggleFullBracket() {
+    showFullBracket = !showFullBracket;
   }
 </script>
 
 <div class="max-w-6xl mx-auto">
   <div class="space-y-6">
-    <!-- Header -->
-    <div class="bg-white rounded-lg shadow p-6">
+    {#if !tournament || !tournament.id}
+      <div class="bg-white rounded-lg shadow p-6">
+        <div class="text-center">
+          <p class="text-gray-600 mb-4">Invalid tournament data</p>
+          <button 
+            on:click={handleBack}
+            class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+          >
+            Back
+          </button>
+        </div>
+      </div>
+    {:else}
+      <!-- Header -->
+      <div class="bg-white rounded-lg shadow p-6">
       <div class="flex justify-between items-start mb-4">
         <div>
           <h2 class="text-2xl font-bold text-gray-900">{tournament.name}</h2>
@@ -201,14 +238,31 @@
       <!-- Tournament Bracket -->
       {#if bracket.length > 0}
         <div class="bg-white rounded-lg shadow p-6">
-          <h3 class="text-xl font-semibold text-gray-900 mb-4">Tournament Bracket</h3>
-          <TournamentBracket 
-            {bracket}
-            {matches}
-            tournamentType={tournament.tournament_type}
-            tournamentId={tournament.id}
-            onMatchClick={handleStartMatch}
-          />
+          <div class="flex justify-between items-center mb-4">
+            <h3 class="text-xl font-semibold text-gray-900">Tournament Bracket</h3>
+            <button 
+              on:click={toggleFullBracket}
+              class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+            >
+              {showFullBracket ? 'Hide Full Bracket' : 'View Full Bracket'}
+            </button>
+          </div>
+          
+          {#if showFullBracket}
+            <div class="overflow-x-auto">
+              <TournamentBracket 
+                {bracket}
+                {matches}
+                tournamentType={tournament.tournament_type}
+                tournamentId={tournament.id}
+                onMatchClick={handleStartMatch}
+              />
+            </div>
+          {:else}
+            <div class="text-center py-8 text-gray-500">
+              <p>Click "View Full Bracket" to see the complete tournament bracket</p>
+            </div>
+          {/if}
         </div>
       {/if}
 
@@ -245,10 +299,21 @@
                   {#if canStartMatch(match)}
                     <button 
                       on:click={() => handleStartMatch(match)}
+                      class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+                    >
+                      Play Match
+                    </button>
+                  {:else if match.status === 'active'}
+                    <button 
+                      on:click={() => handleStartMatch(match)}
                       class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
                     >
-                      Start Match
+                      Join Match
                     </button>
+                  {:else if match.status === 'completed'}
+                    <span class="px-4 py-2 bg-gray-100 text-gray-600 rounded-lg">
+                      Completed
+                    </span>
                   {/if}
                 </div>
               </div>
@@ -256,6 +321,7 @@
           </div>
         </div>
       {/if}
+    {/if}
     {/if}
   </div>
 </div>
