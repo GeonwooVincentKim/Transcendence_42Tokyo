@@ -35,11 +35,13 @@ export const useHumanController = (
     let direction = 0;
 
     if (side === 'left') {
-      if (keys.has('w') || keys.has('arrowup')) direction = -1;
-      if (keys.has('s') || keys.has('arrowdown')) direction = 1;
+      // Left player uses W/S keys
+      if (keys.has('w')) direction = -1;
+      if (keys.has('s')) direction = 1;
     } else {
-      if (keys.has('w') || keys.has('arrowup')) direction = -1;
-      if (keys.has('s') || keys.has('arrowdown')) direction = 1;
+      // Right player uses Arrow Up/Down keys
+      if (keys.has('arrowup')) direction = -1;
+      if (keys.has('arrowdown')) direction = 1;
     }
 
     if (direction !== 0) {

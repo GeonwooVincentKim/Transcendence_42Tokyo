@@ -12,7 +12,7 @@
   import { _ } from 'svelte-i18n';
   import type { User } from '../shared/types/auth';
 
-  export let user: User;
+  export let user: User | null = null;
   export let onLogout: () => void;
   export let onBackToGame: () => void;
   export let onDeleteAccount: () => void;
@@ -81,16 +81,17 @@
   };
 </script>
 
-<div class="max-w-md mx-auto bg-white rounded-lg shadow-md p-6">
-  <div class="text-center mb-6">
-    <div class="w-20 h-20 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
-      <span class="text-2xl font-bold text-blue-600">
-        {user.username.charAt(0).toUpperCase()}
-      </span>
+{#if user}
+  <div class="max-w-md mx-auto bg-white rounded-lg shadow-md p-6">
+    <div class="text-center mb-6">
+      <div class="w-20 h-20 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
+        <span class="text-2xl font-bold text-blue-600">
+          {user.username.charAt(0).toUpperCase()}
+        </span>
+      </div>
+      <h2 class="text-2xl font-bold text-gray-800">{user.username}</h2>
+      <p class="text-gray-600">{user.email}</p>
     </div>
-    <h2 class="text-2xl font-bold text-gray-800">{user.username}</h2>
-    <p class="text-gray-600">{user.email}</p>
-  </div>
 
   <div class="space-y-4 mb-6">
     <!-- Account Information -->
@@ -209,4 +210,17 @@
       {$_('button.deleteacct')}
     </button>
   </div>
-</div>
+  </div>
+{:else}
+  <div class="max-w-md mx-auto bg-white rounded-lg shadow-md p-6">
+    <div class="text-center">
+      <p class="text-gray-600 mb-4">No user data available</p>
+      <button
+        on:click={onBackToGame}
+        class="bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700"
+      >
+        Back to Game
+      </button>
+    </div>
+  </div>
+{/if}

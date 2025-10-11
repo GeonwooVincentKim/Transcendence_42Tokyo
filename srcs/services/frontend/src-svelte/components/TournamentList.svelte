@@ -6,6 +6,7 @@
 <script lang="ts">
   import { createEventDispatcher } from 'svelte';
   import type { Tournament, TournamentStats } from '../shared/services/tournamentService';
+  import { _ } from 'svelte-i18n';
 
   // Props
   export let tournaments: Tournament[];
@@ -27,10 +28,6 @@
     dispatch('join', tournament);
   }
 
-  function formatDate(dateString: string) {
-    return new Date(dateString).toLocaleDateString();
-  }
-
   function getStatusColor(status: string) {
     switch (status) {
       case 'registration': return 'bg-blue-100 text-blue-800';
@@ -50,6 +47,16 @@
       default: return status;
     }
   }
+
+  function formatDate(dateString: string) {
+    if (!dateString) return 'Invalid Date';
+    try {
+      return new Date(dateString).toLocaleDateString();
+    } catch (error) {
+      console.error('Error formatting date:', dateString, error);
+      return 'Invalid Date';
+    }
+  }
 </script>
 
 <div class="space-y-6">
@@ -59,19 +66,19 @@
       <h2 class="text-xl font-semibold text-gray-900 mb-4">Tournament Statistics</h2>
       <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
         <div class="text-center">
-          <div class="text-2xl font-bold text-blue-600">{stats.totalTournaments}</div>
+          <div class="text-2xl font-bold text-blue-600">{stats.total_tournaments}</div>
           <div class="text-sm text-gray-600">Total Tournaments</div>
         </div>
         <div class="text-center">
-          <div class="text-2xl font-bold text-green-600">{stats.activeTournaments}</div>
+          <div class="text-2xl font-bold text-green-600">{stats.active_tournaments}</div>
           <div class="text-sm text-gray-600">Active</div>
         </div>
         <div class="text-center">
-          <div class="text-2xl font-bold text-gray-600">{stats.completedTournaments}</div>
+          <div class="text-2xl font-bold text-gray-600">{stats.completed_tournaments}</div>
           <div class="text-sm text-gray-600">Completed</div>
         </div>
         <div class="text-center">
-          <div class="text-2xl font-bold text-purple-600">{stats.totalParticipants}</div>
+          <div class="text-2xl font-bold text-purple-600">{stats.total_participants}</div>
           <div class="text-sm text-gray-600">Participants</div>
         </div>
       </div>
@@ -102,7 +109,7 @@
           <div class="p-6">
             <div class="flex justify-between items-start mb-4">
               <div>
-                <h3 class="text-xl font-semibold text-gray-900">{tournament.name}</h3>
+                <h3 class="text-xl font-semibold text-gray-900">{tournament.name || 'Unnamed Tournament'}</h3>
                 {#if tournament.description}
                   <p class="text-gray-600 mt-1">{tournament.description}</p>
                 {/if}
@@ -115,11 +122,11 @@
             <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4 text-sm text-gray-600">
               <div>
                 <span class="font-medium">Type:</span> 
-                {tournament.tournament_type.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())}
+                {tournament.tournament_type?.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase()) || 'Unknown'}
               </div>
               <div>
                 <span class="font-medium">Max Participants:</span> 
-                {tournament.max_participants}
+                {tournament.max_participants || 'Unknown'}
               </div>
               <div>
                 <span class="font-medium">Created:</span> 

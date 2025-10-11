@@ -108,8 +108,30 @@
     if (node.match_id && onMatchClick) {
       const match = matches.find(m => m.id === node.match_id);
       if (match) {
+        console.log('Bracket match clicked:', {
+          node: node,
+          match: match,
+          tournamentId: tournamentId
+        });
         onMatchClick(match);
       }
+    } else {
+      console.warn('Match click handler not available:', {
+        match_id: node.match_id,
+        onMatchClick: !!onMatchClick
+      });
+    }
+  }
+
+  function handlePlayMatch(match: TournamentMatch) {
+    if (onMatchClick) {
+      console.log('Play match clicked:', {
+        match: match,
+        tournamentId: tournamentId
+      });
+      onMatchClick(match);
+    } else {
+      console.warn('Match click handler not available for match:', match.id);
     }
   }
 
@@ -265,26 +287,53 @@
               <div class="border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow">
                 <div class="flex justify-between items-center mb-2">
                   <span class="text-sm font-medium text-gray-600">Match #{match.id}</span>
-                  <span class="px-2 py-1 rounded text-xs font-medium {match.status === 'completed' ? 'bg-green-100 text-green-800' : match.status === 'in_progress' ? 'bg-blue-100 text-blue-800' : 'bg-yellow-100 text-yellow-800'}">
-                    {match.status === 'completed' ? 'Completed' : match.status === 'in_progress' ? 'In Progress' : 'Pending'}
+                  <span class="px-2 py-1 rounded text-xs font-medium {match.status === 'completed' ? 'bg-green-100 text-green-800' : match.status === 'active' ? 'bg-blue-100 text-blue-800' : 'bg-yellow-100 text-yellow-800'}">
+                    {match.status === 'completed' ? 'Completed' : match.status === 'active' ? 'Active' : 'Pending'}
                   </span>
                 </div>
                 
                 <div class="space-y-2">
                   <div class="flex items-center justify-between">
                     <span class="text-sm {match.winner_id === match.player1_id ? 'font-bold text-green-600' : ''}">
-                      {match.player1?.username || 'TBD'}
+                      {match.player1?.display_name || 'TBD'}
                     </span>
                     <span class="text-sm font-medium">{match.player1_score || 0}</span>
                   </div>
                   
                   <div class="flex items-center justify-between">
                     <span class="text-sm {match.winner_id === match.player2_id ? 'font-bold text-green-600' : ''}">
-                      {match.player2?.username || 'TBD'}
+                      {match.player2?.display_name || 'TBD'}
                     </span>
                     <span class="text-sm font-medium">{match.player2_score || 0}</span>
                   </div>
                 </div>
+
+                <!-- Play/Join Button -->
+                {#if match.status === 'pending' && match.player1_id && match.player2_id}
+                  <div class="mt-3">
+                    <button 
+                      on:click={() => handlePlayMatch(match)}
+                      class="w-full px-3 py-2 bg-green-600 text-white rounded hover:bg-green-700 transition-colors text-sm"
+                    >
+                      Play Match
+                    </button>
+                  </div>
+                {:else if match.status === 'active'}
+                  <div class="mt-3">
+                    <button 
+                      on:click={() => handlePlayMatch(match)}
+                      class="w-full px-3 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors text-sm"
+                    >
+                      Join Match
+                    </button>
+                  </div>
+                {:else if match.status === 'completed'}
+                  <div class="mt-3">
+                    <div class="w-full px-3 py-2 bg-gray-100 text-gray-600 rounded text-sm text-center">
+                      Match Completed
+                    </div>
+                  </div>
+                {/if}
               </div>
             {/each}
           </div>
@@ -377,9 +426,20 @@
                 </div>
               </div>
 
-              <!-- Match status indicator -->
+              <!-- Match status indicator and Play button -->
               {#if node.match_id}
                 <div class="absolute -top-1 -right-1 w-3 h-3 rounded-full bg-blue-500"></div>
+                <!-- Play Match Button -->
+                {#if node.player1 && node.player2}
+                  <div class="absolute bottom-1 left-1 right-1">
+                    <button 
+                      on:click={() => handleMatchClick(node)}
+                      class="w-full px-2 py-1 bg-green-600 text-white text-xs rounded hover:bg-green-700 transition-colors"
+                    >
+                      Play
+                    </button>
+                  </div>
+                {/if}
               {/if}
             </div>
           {/if}

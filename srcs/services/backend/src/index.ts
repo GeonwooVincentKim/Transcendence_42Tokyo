@@ -190,6 +190,7 @@ const start = async () => {
     
     // Make Socket.IO service available to routes for cleanup
     (server as any).socketIOService = socketIOService;
+    (global as any).socketIOService = socketIOService;
     server.log.info('Socket.IO service initialized');
 
     server.log.info(`Server listening on http://${host}:${port}`);

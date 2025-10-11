@@ -61,9 +61,11 @@
 		"deleteacct": "Delete Account",
 		"pwreset": "パスワード再設定",
 		"recoverusrnm": "Recover Username",
+		"forgotusername": "ユーザー名を忘れた",
+		"forgotpassword": "パスワードを忘れた",
 		"tournament": "Tournament",
 		"userranking": "User Ranking",
-		"welcomeuser": "Welcome, {{user}}!",
+		"welcomeuser": "Welcome, {user}!",
 		"registeracct": "Register Account",
 		"email": "メールアドレス",
 		"confirmpw": "Confirm Password",
@@ -151,6 +153,8 @@
 		"deletewarning": "This action cannot be undone. All your data will be permanently deleted.",
 		"acctdeleted": "Account deleted successfully",
 		"pwresetrqsuccess": "Password reset token generated. Please check your email and enter the token below.",
-		"pwresetsuccess": "Password reset successful! You can now login with your new password."
+		"pwresetsuccess": "Password reset successful! You can now login with your new password.",
+		"forgotusername": "メールアドレスを入力してください。ユーザー名をお送りします。",
+		"forgotpassword": "ユーザー名とメールアドレスを入力してください。パスワードリセットトークンをお送りします。"
 	}
 }	

@@ -220,6 +220,11 @@ export class TournamentService {
     }
 
     const rows = await DatabaseService.query(query, params);
+    console.log('🔍 listTournaments query result:', JSON.stringify(rows, null, 2));
+    if (rows && rows.length > 0) {
+      console.log('🔍 First tournament:', rows[0]);
+      console.log('🔍 First tournament ID:', rows[0].id, 'Type:', typeof rows[0].id);
+    }
     return rows as Tournament[];
   }
 
@@ -1474,5 +1479,43 @@ export class TournamentService {
     });
 
     return nodes;
+  }
+
+  /**
+   * Clear all tournament data (for testing/development)
+   * Preserves user data
+   */
+  static async clearAllTournaments(): Promise<void> {
+    console.log('🧹 Clearing all tournament data...');
+    
+    try {
+      // Delete in correct order (respecting foreign keys)
+      await DatabaseService.run('DELETE FROM tournament_matches');
+      console.log('   ✅ Cleared tournament_matches');
+      
+      await DatabaseService.run('DELETE FROM tournament_participants');
+      console.log('   ✅ Cleared tournament_participants');
+      
+      await DatabaseService.run('DELETE FROM tournaments');
+      console.log('   ✅ Cleared tournaments');
+      
+      // Reset auto-increment counters
+      await DatabaseService.run("DELETE FROM sqlite_sequence WHERE name='tournaments'");
+      await DatabaseService.run("DELETE FROM sqlite_sequence WHERE name='tournament_participants'");
+      await DatabaseService.run("DELETE FROM sqlite_sequence WHERE name='tournament_matches'");
+      console.log('   ✅ Reset auto-increment counters');
+      
+      // Clear in-memory game rooms from SocketIO service
+      const socketIOService = (global as any).socketIOService;
+      if (socketIOService && typeof socketIOService.clearAllGameRooms === 'function') {
+        socketIOService.clearAllGameRooms();
+        console.log('   ✅ Cleared in-memory game rooms');
+      }
+      
+      console.log('✅ Tournament data cleanup completed successfully!');
+    } catch (error) {
+      console.error('❌ Error during tournament cleanup:', error);
+      throw error;
+    }
   }
 }

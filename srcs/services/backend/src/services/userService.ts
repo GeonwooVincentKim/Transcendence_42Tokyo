@@ -326,19 +326,27 @@ export class UserService {
    */
   static async updateUserStatistics(userId: string, score: number, won: boolean): Promise<void> {
     try {
+      console.log(`🔧 UserService.updateUserStatistics called: userId=${userId}, score=${score}, won=${won}`);
+      
       // Convert userId to integer for database operations
       const userIdInt = parseInt(userId, 10);
+      console.log(`🔧 Converted userId to integer: ${userIdInt}`);
       
       // Get current statistics
+      console.log('🔧 Getting current statistics...');
       const currentStats = await this.getUserStatistics(userId);
+      console.log('🔧 Current stats:', currentStats);
       
       if (!currentStats) {
+        console.log('🔧 No existing stats found, creating new record...');
         // Create initial statistics if they don't exist
         await DatabaseService.run(
           'INSERT INTO user_statistics (user_id, total_games, games_won, games_lost, total_score, highest_score, average_score) VALUES ($1, $2, $3, $4, $5, $6, $7)',
           [userIdInt, 1, won ? 1 : 0, won ? 0 : 1, score, score, score]
         );
+        console.log('✅ Created new user statistics record');
       } else {
+        console.log('🔧 Updating existing statistics...');
         // Update existing statistics
         const stats = currentStats as any;
         const newTotalGames = stats.totalGames + 1;
@@ -348,13 +356,18 @@ export class UserService {
         const newHighestScore = Math.max(stats.highestScore, score);
         const newAverageScore = newTotalScore / newTotalGames;
 
+        console.log(`🔧 New stats: games=${newTotalGames}, won=${newGamesWon}, lost=${newGamesLost}, score=${newTotalScore}, high=${newHighestScore}, avg=${newAverageScore}`);
+
         await DatabaseService.run(
           'UPDATE user_statistics SET total_games = $1, games_won = $2, games_lost = $3, total_score = $4, highest_score = $5, average_score = $6, updated_at = CURRENT_TIMESTAMP WHERE user_id = $7',
           [newTotalGames, newGamesWon, newGamesLost, newTotalScore, newHighestScore, newAverageScore, userIdInt]
         );
+        console.log('✅ Updated existing user statistics record');
       }
+      console.log('✅ UserService.updateUserStatistics completed successfully');
     } catch (error) {
-      console.error('Failed to update user statistics:', error);
+      console.error('❌ Failed to update user statistics:', error);
+      console.error('❌ Error stack:', error instanceof Error ? error.stack : 'No stack trace');
       throw error;
     }
   }

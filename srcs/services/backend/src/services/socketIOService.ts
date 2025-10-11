@@ -3,8 +3,15 @@
  * Provides automatic fallback and reconnection capabilities
  */
 
-import { Server as SocketIOServer } from 'socket.io';
+import { Server as SocketIOServer, Socket } from 'socket.io';
 import { Server as HTTPServer } from 'http';
+
+// Extend Socket type to include userId
+declare module 'socket.io' {
+  interface Socket {
+    userId?: string;
+  }
+}
 
 interface GameRoom {
   id: string;
@@ -26,6 +33,7 @@ class SocketIOService {
   private gameRooms: Map<string, GameRoom> = new Map();
   private playerRooms: Map<string, string> = new Map();
   private gameLoops: Map<string, NodeJS.Timeout> = new Map(); // userId -> roomId
+  private playerIdMapping: Map<string, string> = new Map(); // tempUserId -> realUserId
 
   constructor(httpServer: HTTPServer) {
     this.io = new SocketIOServer(httpServer, {
@@ -51,12 +59,48 @@ class SocketIOService {
       console.log(`Socket.IO connection established: ${socket.id}`);
 
       // Handle joining game room
-      socket.on('join_game_room', (data: { roomId?: string, tournamentId: number, matchId: number, userId: string }) => {
-        console.log('🔍 Backend received join_game_room:', data);
-        if (data.roomId) {
-          this.joinGameRoomById(socket, data.roomId, data.userId);
+      socket.on('join_game_room', (data: { roomId?: string, tournamentId: number, matchId: number, userId: string, token?: string }) => {
+        console.log('🔍 Backend received join_game_room:', { ...data, token: data.token ? 'provided' : 'not provided' });
+        
+        // If token is provided, try to extract real user ID
+        if (data.token) {
+          this.extractUserIdFromToken(data.token).then(realUserId => {
+            if (realUserId) {
+              console.log('🔍 Extracted real user ID from token:', realUserId);
+              socket.userId = realUserId; // Store real user ID in socket
+              
+              // Store mapping between temp userId and real userId
+              this.playerIdMapping.set(data.userId, realUserId);
+              console.log('🔍 Stored player ID mapping:', data.userId, '->', realUserId);
+              
+              if (data.roomId) {
+                this.joinGameRoomById(socket, data.roomId, realUserId);
+              } else {
+                this.joinGameRoom(socket, data.tournamentId, data.matchId, realUserId);
+              }
+            } else {
+              console.log('⚠️ Failed to extract user ID from token, using provided userId');
+              if (data.roomId) {
+                this.joinGameRoomById(socket, data.roomId, data.userId);
+              } else {
+                this.joinGameRoom(socket, data.tournamentId, data.matchId, data.userId);
+              }
+            }
+          }).catch(error => {
+            console.error('❌ Error extracting user ID from token:', error);
+            if (data.roomId) {
+              this.joinGameRoomById(socket, data.roomId, data.userId);
+            } else {
+              this.joinGameRoom(socket, data.tournamentId, data.matchId, data.userId);
+            }
+          });
         } else {
-          this.joinGameRoom(socket, data.tournamentId, data.matchId, data.userId);
+          console.log('⚠️ No token provided, using provided userId');
+          if (data.roomId) {
+            this.joinGameRoomById(socket, data.roomId, data.userId);
+          } else {
+            this.joinGameRoom(socket, data.tournamentId, data.matchId, data.userId);
+          }
         }
       });
 
@@ -68,6 +112,29 @@ class SocketIOService {
       // Handle player ready status
       socket.on('player_ready', (data: { userId: string, ready: boolean }) => {
         this.setPlayerReady(data.userId, data.ready);
+      });
+
+      // Handle start game request
+      socket.on('start_game', (data: { tournamentId: number, matchId: number }) => {
+        console.log('🔍 Backend received start_game:', data);
+        this.handleStartGame(socket, data.tournamentId, data.matchId);
+      });
+
+      // Handle pause game request
+      socket.on('pause_game', (data: { tournamentId: number, matchId: number }) => {
+        console.log('🔍 Backend received pause_game:', data);
+        this.handlePauseGame(socket, data.tournamentId, data.matchId);
+      });
+
+      // Handle reset game request
+      socket.on('reset_game', (data: { tournamentId: number, matchId: number }) => {
+        console.log('🔍 Backend received reset_game:', data);
+        this.handleResetGame(socket, data.tournamentId, data.matchId);
+      });
+
+      // Handle paddle movement
+      socket.on('paddle_movement', (data: { tournamentId: number, matchId: number, userId: string, direction: number }) => {
+        this.handlePaddleMovement(data.userId, data.direction);
       });
 
       // Handle game state updates
@@ -154,12 +221,24 @@ class SocketIOService {
       this.gameRooms.set(roomId, room);
     }
 
+    // Determine player side (left or right)
+    const playerCount = room.players.size;
+    const playerSide = playerCount === 0 ? 'left' : 'right';
+    
+    // Create player object with user information
+    const playerInfo = {
+      socket: socket,
+      userId: socket.userId || userId, // Use socket.userId if available, fallback to userId
+      side: playerSide,
+      ready: false
+    };
+    
     // Add player to room
-    room.players.set(userId, socket);
+    room.players.set(userId, playerInfo);
     this.playerRooms.set(userId, roomId);
     socket.join(roomId);
 
-    console.log(`Player ${userId} joined room ${roomId}`, {
+    console.log(`Player ${userId} joined room ${roomId} as ${playerSide}`, {
       player1Id: room.gameState.player1Id,
       player2Id: room.gameState.player2Id,
       totalPlayers: room.players.size
@@ -259,9 +338,9 @@ class SocketIOService {
     const room = this.gameRooms.get(roomId);
     if (!room) return;
 
-    const socket = room.players.get(userId);
-    if (socket) {
-      socket.leave(roomId);
+    const playerInfo = room.players.get(userId);
+    if (playerInfo && playerInfo.socket) {
+      playerInfo.socket.leave(roomId);
     }
 
     // Remove player from room
@@ -332,11 +411,21 @@ class SocketIOService {
     const room = this.gameRooms.get(roomId);
     if (!room) return;
 
-    const { player1Id, player2Id, player1Ready, player2Ready } = room.gameState;
+    const { player1Id, player2Id, player1Ready, player2Ready, status } = room.gameState;
 
-    // Check if both players are present and ready
-    if (player1Id && player2Id && player1Ready && player2Ready) {
+    // Check if both players are present and game hasn't started yet
+    // Auto-start game when both players join (no need for manual ready)
+    if (room.players.size >= 2 && status !== 'ready' && status !== 'playing') {
+      // Set player IDs from the players map
+      const playersArray = Array.from(room.players.entries());
+      if (playersArray.length >= 2) {
+        room.gameState.player1Id = playersArray[0][0]; // First player's userId
+        room.gameState.player2Id = playersArray[1][0]; // Second player's userId
+      }
+      
       room.gameState.status = 'ready';
+      room.gameState.player1Ready = true;
+      room.gameState.player2Ready = true;
       
       console.log(`Starting game in room ${roomId}`);
       
@@ -344,7 +433,7 @@ class SocketIOService {
       console.log(`Broadcasting game_start to room ${roomId} with ${room.players.size} players`);
       this.broadcastToRoom(roomId, 'game_start', {
         roomState: room.gameState,
-        message: 'Both players ready! Starting game...'
+        message: 'Both players joined! Starting game...'
       });
 
       // Set game status to playing after a short delay
@@ -575,7 +664,7 @@ class SocketIOService {
   /**
    * Start game loop for a room
    */
-  public startGameLoop(roomId: string) {
+  public async startGameLoop(roomId: string) {
     const room = this.gameRooms.get(roomId);
     if (!room || !room.gameState.gameData) return;
 
@@ -612,14 +701,17 @@ class SocketIOService {
   /**
    * Update game physics (ball movement, collisions, scoring)
    */
-  private updateGamePhysics(roomId: string) {
+  private async updateGamePhysics(roomId: string) {
     const room = this.gameRooms.get(roomId);
     if (!room || !room.gameState.gameData || room.gameState.status !== 'playing') {
-      console.log(`Game physics update skipped for room ${roomId}:`, {
-        roomExists: !!room,
-        hasGameData: !!room?.gameState?.gameData,
-        status: room?.gameState?.status
-      });
+      // Don't log when paused to reduce console noise
+      if (room?.gameState?.status !== 'paused') {
+        console.log(`Game physics update skipped for room ${roomId}:`, {
+          roomExists: !!room,
+          hasGameData: !!room?.gameState?.gameData,
+          status: room?.gameState?.status
+        });
+      }
       return;
     }
 
@@ -693,9 +785,16 @@ class SocketIOService {
       room.gameState.status = 'finished';
       
       // Save tournament match result if this is a tournament game
-      this.saveTournamentMatchResult(roomId, gameData, winner);
+      console.log(`💾 Attempting to save tournament match result for room: ${roomId}`);
+      await this.saveTournamentMatchResult(roomId, gameData, winner);
       
       // Broadcast game end
+      console.log(`📡 Broadcasting game end to room ${roomId}:`, {
+        winner,
+        leftScore: gameData.leftScore,
+        rightScore: gameData.rightScore
+      });
+      
       this.broadcastToRoom(roomId, 'game_end', {
         gameResult: {
           winner,
@@ -774,6 +873,13 @@ class SocketIOService {
         return;
       }
 
+      // Handle regular multiplayer games (tournamentId = 0) - CHECK THIS FIRST
+      if (tournamentId === 0) {
+        console.log('🎮 Regular multiplayer game detected, updating user statistics directly');
+        await this.updateRegularMultiplayerStatistics(roomId, gameData, winner);
+        return;
+      }
+
       console.log(`💾 Saving tournament match result: Tournament ${tournamentId}, Match ${matchId}`);
       
       // Import TournamentService dynamically to avoid circular dependency
@@ -817,15 +923,19 @@ class SocketIOService {
       console.log(`🏆 Match result: Winner ID ${winnerId}, Scores: ${player1Score} - ${player2Score}`);
 
       // Update match result in database
+      console.log('📝 Updating match result in database...');
       await TournamentService.updateMatchResult(
         matchId,
         winnerId,
         player1Score,
         player2Score
       );
+      console.log('✅ Match result updated in database');
 
       // Update user statistics for both players
+      console.log('📊 Starting user statistics update...');
       await this.updateUserStatistics(match, winnerId, player1Score, player2Score);
+      console.log('✅ User statistics update completed');
 
       console.log('✅ Tournament match result saved successfully!');
     } catch (error) {
@@ -856,10 +966,122 @@ class SocketIOService {
   }
 
   /**
+   * Extract user ID from JWT token
+   */
+  private async extractUserIdFromToken(token: string): Promise<string | null> {
+    try {
+      // Simple JWT decode without verification (for now)
+      // Token format: "header.payload.signature"
+      const parts = token.split('.');
+      if (parts.length !== 3) {
+        console.log('⚠️ Invalid JWT token format');
+        return null;
+      }
+      
+      const payload = Buffer.from(parts[1], 'base64').toString('utf-8');
+      const decoded = JSON.parse(payload);
+      
+      if (decoded && decoded.userId) {
+        console.log('✅ Extracted userId from token:', decoded.userId);
+        return decoded.userId.toString();
+      }
+      
+      return null;
+    } catch (error) {
+      console.error('❌ Error extracting user ID from token:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Update user statistics for regular multiplayer games
+   */
+  private async updateRegularMultiplayerStatistics(roomId: string, gameData: any, winner: string) {
+    try {
+      console.log('🎮 Updating regular multiplayer statistics for room:', roomId);
+      
+      // Get the room to find connected players
+      const room = this.gameRooms.get(roomId);
+      if (!room || !room.players || room.players.size < 2) {
+        console.log('⚠️ Room not found or insufficient players for statistics update');
+        return;
+      }
+
+      const players = Array.from(room.players.values());
+      if (players.length < 2) {
+        console.log('⚠️ Not enough players for statistics update');
+        return;
+      }
+
+      // Import UserService dynamically to avoid circular dependency
+      const { UserService } = await import('./userService.js');
+      
+      // Determine winner and loser based on game result
+      const leftPlayer = players.find(p => p.side === 'left');
+      const rightPlayer = players.find(p => p.side === 'right');
+      
+      if (!leftPlayer || !rightPlayer) {
+        console.log('⚠️ Could not find left or right player for statistics update');
+        console.log('Available players:', players.map(p => ({ side: p.side, userId: p.userId })));
+        return;
+      }
+
+      // Update statistics for both players
+      const leftPlayerWon = winner === 'left';
+      const rightPlayerWon = winner === 'right';
+      
+      // Update left player statistics
+      if (leftPlayer.userId) {
+        // Try to get real user ID from mapping
+        const realLeftUserId = this.playerIdMapping.get(leftPlayer.userId) || leftPlayer.userId;
+        console.log(`🔍 Left player ID mapping: ${leftPlayer.userId} -> ${realLeftUserId}`);
+        
+        await UserService.updateUserStatistics(
+          realLeftUserId,
+          gameData.leftScore,
+          leftPlayerWon
+        );
+        console.log(`📊 Updated stats for left player ${realLeftUserId}: Score ${gameData.leftScore}, Won: ${leftPlayerWon}`);
+      } else {
+        console.log('⚠️ Left player has no userId, skipping statistics update');
+      }
+
+      // Update right player statistics
+      if (rightPlayer.userId) {
+        // Try to get real user ID from mapping
+        const realRightUserId = this.playerIdMapping.get(rightPlayer.userId) || rightPlayer.userId;
+        console.log(`🔍 Right player ID mapping: ${rightPlayer.userId} -> ${realRightUserId}`);
+        
+        await UserService.updateUserStatistics(
+          realRightUserId,
+          gameData.rightScore,
+          rightPlayerWon
+        );
+        console.log(`📊 Updated stats for right player ${realRightUserId}: Score ${gameData.rightScore}, Won: ${rightPlayerWon}`);
+      } else {
+        console.log('⚠️ Right player has no userId, skipping statistics update');
+      }
+
+      console.log('✅ Regular multiplayer statistics updated successfully!');
+    } catch (error) {
+      console.error('❌ Error updating regular multiplayer statistics:', error);
+    }
+  }
+
+  /**
    * Update user statistics for tournament match
    */
   private async updateUserStatistics(match: any, winnerId: number, player1Score: number, player2Score: number) {
     try {
+      console.log('📊 updateUserStatistics called with:', { 
+        matchId: match.id,
+        player1_id: match.player1_id, 
+        player2_id: match.player2_id,
+        winnerId, 
+        player1Score, 
+        player2Score 
+      });
+      
       // Import UserService dynamically to avoid circular dependency
       const { UserService } = await import('./userService.js');
       
@@ -867,40 +1089,245 @@ class SocketIOService {
       const { TournamentService } = await import('./tournamentService.js');
       
       // Get participant details
+      console.log('🔍 Fetching participant 1 (ID:', match.player1_id, ')');
       const participant1 = await TournamentService.getParticipant(match.player1_id);
+      console.log('🔍 Participant 1:', participant1);
+      
+      console.log('🔍 Fetching participant 2 (ID:', match.player2_id, ')');
       const participant2 = await TournamentService.getParticipant(match.player2_id);
+      console.log('🔍 Participant 2:', participant2);
       
       if (!participant1 || !participant2) {
         console.log('⚠️ Could not find participants for statistics update');
+        console.log('⚠️ participant1:', participant1);
+        console.log('⚠️ participant2:', participant2);
         return;
       }
 
       // Update statistics for player 1
+      console.log('📊 Checking participant1.user_id:', participant1.user_id);
       if (participant1.user_id) {
         const player1Won = match.player1_id === winnerId;
+        console.log(`📊 Updating stats for user ${participant1.user_id}: Score ${player1Score}, Won: ${player1Won}`);
         await UserService.updateUserStatistics(
           participant1.user_id.toString(),
           player1Score,
           player1Won
         );
-        console.log(`📊 Updated stats for user ${participant1.user_id}: Score ${player1Score}, Won: ${player1Won}`);
+        console.log(`✅ Updated stats for user ${participant1.user_id}`);
+      } else {
+        console.log('⚠️ participant1 has no user_id, skipping');
       }
 
       // Update statistics for player 2
+      console.log('📊 Checking participant2.user_id:', participant2.user_id);
       if (participant2.user_id) {
         const player2Won = match.player2_id === winnerId;
+        console.log(`📊 Updating stats for user ${participant2.user_id}: Score ${player2Score}, Won: ${player2Won}`);
         await UserService.updateUserStatistics(
           participant2.user_id.toString(),
           player2Score,
           player2Won
         );
-        console.log(`📊 Updated stats for user ${participant2.user_id}: Score ${player2Score}, Won: ${player2Won}`);
+        console.log(`✅ Updated stats for user ${participant2.user_id}`);
+      } else {
+        console.log('⚠️ participant2 has no user_id, skipping');
       }
 
       console.log('✅ User statistics updated successfully!');
     } catch (error) {
       console.error('❌ Error updating user statistics:', error);
+      console.error('❌ Error stack:', error instanceof Error ? error.stack : 'No stack trace');
     }
+  }
+
+  /**
+   * Handle start game request
+   */
+  private handleStartGame(socket: any, tournamentId: number, matchId: number) {
+    const roomId = `tournament-${tournamentId}-match-${matchId}`;
+    const room = this.gameRooms.get(roomId);
+    
+    if (!room) {
+      console.error(`❌ Room ${roomId} not found`);
+      return;
+    }
+
+    // Find the user ID for this socket
+    let userId: string | undefined;
+    for (const [uid, roomId] of this.playerRooms.entries()) {
+      if (roomId === room.id) {
+        const playerSocket = room.players.get(uid);
+        if (playerSocket === socket) {
+          userId = uid;
+          break;
+        }
+      }
+    }
+
+    if (!userId) {
+      console.error('❌ User ID not found for socket');
+      return;
+    }
+
+    console.log(`🎮 Player ${userId} requested to start game in room ${roomId}`);
+    
+    // Set player as ready
+    this.setPlayerReady(userId, true);
+  }
+
+  /**
+   * Handle pause game request
+   */
+  private handlePauseGame(socket: any, tournamentId: number, matchId: number) {
+    const roomId = `tournament-${tournamentId}-match-${matchId}`;
+    const room = this.gameRooms.get(roomId);
+    
+    if (!room) {
+      console.error(`❌ Cannot pause game: Room ${roomId} not found`);
+      return;
+    }
+
+    // Toggle pause/resume
+    if (room.gameState.status === 'playing') {
+      room.gameState.status = 'paused';
+      console.log(`⏸️ Game paused in room ${roomId}`);
+      
+      this.broadcastToRoom(roomId, 'game_pause', {
+        roomState: room.gameState,
+        message: 'Game paused'
+      });
+    } else if (room.gameState.status === 'paused') {
+      room.gameState.status = 'playing';
+      console.log(`▶️ Game resumed in room ${roomId}`);
+      
+      this.broadcastToRoom(roomId, 'game_start', {
+        roomState: room.gameState,
+        message: 'Game resumed'
+      });
+    } else {
+      console.error(`❌ Cannot pause/resume game: Room ${roomId} status is ${room.gameState.status}`);
+    }
+  }
+
+  /**
+   * Handle reset game request
+   */
+  private handleResetGame(socket: any, tournamentId: number, matchId: number) {
+    const roomId = `tournament-${tournamentId}-match-${matchId}`;
+    const room = this.gameRooms.get(roomId);
+    
+    if (!room) {
+      console.error(`❌ Room ${roomId} not found`);
+      return;
+    }
+
+    // Stop current game loop
+    const gameLoop = this.gameLoops.get(roomId);
+    if (gameLoop) {
+      clearInterval(gameLoop);
+      this.gameLoops.delete(roomId);
+    }
+
+    // Reset game state but keep players connected
+    room.gameState.status = 'waiting';
+    room.gameState.player1Ready = false;
+    room.gameState.player2Ready = false;
+    room.gameState.gameData = undefined;
+    
+    console.log(`🔄 Game reset in room ${roomId}`);
+    
+    this.broadcastToRoom(roomId, 'game_reset', {
+      roomState: room.gameState,
+      message: 'Game reset - ready for new game'
+    });
+
+    // Auto-restart game since both players are still connected
+    setTimeout(() => {
+      if (room.gameState.player1Id && room.gameState.player2Id) {
+        console.log(`🔄 Auto-restarting game in room ${roomId}`);
+        room.gameState.status = 'ready';
+        room.gameState.player1Ready = true;
+        room.gameState.player2Ready = true;
+        
+        this.broadcastToRoom(roomId, 'game_start', {
+          roomState: room.gameState,
+          message: 'Game restarted! Starting new game...'
+        });
+
+        // Set game status to playing after a short delay
+        setTimeout(() => {
+          room.gameState.status = 'playing';
+          
+          // Initialize fresh game data
+          const initialGameData = {
+            leftPaddle: { y: 200 },
+            rightPaddle: { y: 200 },
+            ball: { x: 400, y: 200, dx: 5, dy: 3 },
+            leftScore: 0,
+            rightScore: 0
+          };
+          
+          room.gameState.gameData = initialGameData;
+          
+          console.log(`Broadcasting game_playing after reset to room ${roomId} with ${room.players.size} players`);
+          this.broadcastToRoom(roomId, 'game_playing', {
+            roomState: room.gameState,
+            gameState: initialGameData,
+            message: 'New game is now playing!'
+          });
+          
+          // Start new game loop
+          this.startGameLoop(roomId);
+        }, 2000);
+      }
+    }, 1000);
+  }
+
+  /**
+   * Handle paddle movement
+   */
+  private handlePaddleMovement(userId: string, direction: number) {
+    const roomId = this.playerRooms.get(userId);
+    if (!roomId) {
+      console.error(`❌ User ${userId} not in any room`);
+      return;
+    }
+
+    const room = this.gameRooms.get(roomId);
+    if (!room || room.gameState.status !== 'playing') {
+      return;
+    }
+
+    // Update paddle position in game state
+    if (!room.gameState.gameData) {
+      console.error(`❌ No game data found for room ${roomId}`);
+      return;
+    }
+
+    const gameData = room.gameState.gameData;
+    const paddleSpeed = 10;
+    const paddleHeight = 80;
+    const canvasHeight = 400;
+
+    // Determine which paddle to move based on userId
+    if (room.gameState.player1Id === userId) {
+      // Player 1 controls left paddle
+      gameData.leftPaddle.y += direction * paddleSpeed;
+      gameData.leftPaddle.y = Math.max(0, Math.min(canvasHeight - paddleHeight, gameData.leftPaddle.y));
+    } else if (room.gameState.player2Id === userId) {
+      // Player 2 controls right paddle
+      gameData.rightPaddle.y += direction * paddleSpeed;
+      gameData.rightPaddle.y = Math.max(0, Math.min(canvasHeight - paddleHeight, gameData.rightPaddle.y));
+    }
+
+    console.log(`Paddle movement: User ${userId}, direction ${direction}, leftPaddle: ${gameData.leftPaddle.y}, rightPaddle: ${gameData.rightPaddle.y}`);
+
+    // Broadcast updated game state to all players
+    this.broadcastToRoom(roomId, 'game_state_update', {
+      gameState: gameData,
+      fromPlayer: userId
+    });
   }
 
   /**
