@@ -14,7 +14,9 @@ interface SocketIOEventHandlers {
   onPlayerReady?: (data: any) => void;
   onGameStart?: (data: any) => void;
   onGamePlaying?: (data: any) => void;
+  onGamePause?: (data: any) => void;
   onGameStateUpdate?: (data: any) => void;
+  onGameState?: (data: any) => void;
   onGameReset?: (data: any) => void;
   onGameEnd?: (data: any) => void;
   onPong?: () => void;
@@ -40,14 +42,14 @@ class SocketIOService {
   /**
    * Connect to Socket.IO server
    */
-  connect(tournamentId: number, matchId: number, userId: string): Promise<void> {
+  connect(tournamentId: number, matchId: number, userId: string, roomId?: string): Promise<void> {
     return new Promise((resolve, reject) => {
       try {
         this.tournamentId = tournamentId;
         this.matchId = matchId;
         this.userId = userId;
 
-        // Socket.IO server runs on the same port as the backend (8000)
+        // Socket.IO server runs on the backend port (8000)
         const socketUrl = 'http://localhost:8000';
         console.log('Connecting to Socket.IO server:', socketUrl);
 
@@ -61,14 +63,21 @@ class SocketIOService {
           console.log('Socket.IO connected:', this.socket?.id);
           this.reconnectAttempts = 0;
           
-          // Join game room
-          const roomId = `tournament-${tournamentId}-match-${matchId}`;
-          console.log('🔍 SocketIOService joining room:', roomId);
+          // Use provided roomId or generate one
+          const finalRoomId = roomId || `tournament-${tournamentId}-match-${matchId}`;
+          console.log('🔍 SocketIOService joining room:', finalRoomId);
+          console.log('🔍 SocketIOService tournamentId:', tournamentId, 'matchId:', matchId);
+          
+          // Get JWT token from localStorage
+          const token = localStorage.getItem('token');
+          console.log('🔍 SocketIOService token:', token ? 'provided' : 'not provided');
+          
           this.socket?.emit('join_game_room', {
-            roomId,
+            roomId: finalRoomId,
             tournamentId,
             matchId,
-            userId
+            userId,
+            token
           });
 
           // Start ping interval
@@ -218,9 +227,19 @@ class SocketIOService {
       this.eventHandlers.onGamePlaying?.(data);
     });
 
+    this.socket.on('game_pause', (data) => {
+      console.log('Game pause:', data);
+      this.eventHandlers.onGamePause?.(data);
+    });
+
     this.socket.on('game_state_update', (data) => {
       console.log('Game state update:', data);
       this.eventHandlers.onGameStateUpdate?.(data);
+    });
+
+    this.socket.on('game_state', (data) => {
+      console.log('Game state:', data);
+      this.eventHandlers.onGameState?.(data);
     });
 
     this.socket.on('game_reset', (data) => {
@@ -269,6 +288,65 @@ class SocketIOService {
   }
 
   /**
+   * Start the game
+   */
+  startGame() {
+    if (this.socket?.connected) {
+      console.log('Starting game...');
+      this.socket.emit('start_game', {
+        tournamentId: this.tournamentId,
+        matchId: this.matchId
+      });
+    } else {
+      console.error('Cannot start game: Socket not connected');
+    }
+  }
+
+  /**
+   * Pause the game
+   */
+  pauseGame() {
+    if (this.socket?.connected) {
+      console.log('Pausing game...');
+      this.socket.emit('pause_game', {
+        tournamentId: this.tournamentId,
+        matchId: this.matchId
+      });
+    } else {
+      console.error('Cannot pause game: Socket not connected');
+    }
+  }
+
+  /**
+   * Reset the game
+   */
+  resetGame() {
+    if (this.socket?.connected) {
+      console.log('Resetting game...');
+      this.socket.emit('reset_game', {
+        tournamentId: this.tournamentId,
+        matchId: this.matchId
+      });
+    } else {
+      console.error('Cannot reset game: Socket not connected');
+    }
+  }
+
+  /**
+   * Send paddle movement
+   */
+  sendPaddleMovement(direction: number) {
+    if (this.socket?.connected) {
+      this.socket.emit('paddle_movement', {
+        tournamentId: this.tournamentId,
+        matchId: this.matchId,
+        userId: this.userId,
+        direction
+      });
+    }
+  }
+
+  /**
    * Attempt to reconnect
    */
   private attemptReconnect() {
@@ -284,6 +362,7 @@ class SocketIOService {
 
     setTimeout(() => {
       if (this.tournamentId && this.matchId && this.userId) {
+        // Don't pass roomId on reconnect, let it be regenerated
         this.connect(this.tournamentId, this.matchId, this.userId)
           .catch(error => {
             console.error('Reconnection failed:', error);
