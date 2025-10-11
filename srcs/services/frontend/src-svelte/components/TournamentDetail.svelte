@@ -25,12 +25,16 @@
   let showFullBracket = false;
 
   onMount(() => {
-    console.log('TournamentDetail mounted with tournament:', tournament);
+    console.log('🔍 TournamentDetail mounted with tournament:', tournament);
+    console.log('🔍 Tournament ID:', tournament?.id, 'Type:', typeof tournament?.id);
+    console.log('🔍 Full tournament object:', JSON.stringify(tournament, null, 2));
+    
     if (tournament && tournament.id) {
       console.log('Loading tournament data for ID:', tournament.id);
       loadTournamentData();
     } else {
-      console.error('Invalid tournament data:', tournament);
+      console.error('❌ Invalid tournament data:', tournament);
+      console.error('❌ Tournament ID is:', tournament?.id);
       error = 'Invalid tournament data';
     }
   });
@@ -94,9 +98,14 @@
   }
 
   function handleStartMatch(match: TournamentMatch) {
+    console.log('🔍 handleStartMatch called');
+    console.log('🔍 tournament object:', tournament);
+    console.log('🔍 tournament.id:', tournament?.id, 'Type:', typeof tournament?.id);
+    console.log('🔍 match.id:', match?.id, 'Type:', typeof match?.id);
+    
     if (onStartMatch) {
       const roomId = `tournament-${tournament.id}-match-${match.id}`;
-      console.log('Starting tournament match:', {
+      console.log('🎮 Starting tournament match:', {
         tournamentId: tournament.id,
         matchId: match.id,
         roomId: roomId,
@@ -104,7 +113,7 @@
       });
       onStartMatch(tournament.id, match.id, roomId);
     } else {
-      console.warn('onStartMatch callback not provided');
+      console.warn('⚠️ onStartMatch callback not provided');
     }
   }
 

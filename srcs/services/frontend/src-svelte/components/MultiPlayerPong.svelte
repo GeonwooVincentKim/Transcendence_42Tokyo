@@ -10,6 +10,7 @@
 
   export let roomId: string;
   export let playerSide: 'left' | 'right';
+  export let user: any = null; // Add user prop
 
   let canvasRef: HTMLCanvasElement;
   let socketService: SocketIOService | null = null;
@@ -24,6 +25,8 @@
   };
   let connected = false;
   let keys = new Set<string>();
+  let gameEndMessage = '';
+  let showGameEndMessage = false;
 
   const setConnected = (status: boolean) => {
     connected = status;
@@ -111,11 +114,13 @@
       }
     }
     
-    // Generate unique userId for each connection to avoid conflicts
-    const userId = `player_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    // Get actual user ID from authentication context
+    const userId = user?.id || `guest_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     
     console.log('Connecting to Socket.IO server for room:', roomId);
     console.log('🔍 Parsed tournamentId:', tournamentId, 'matchId:', matchId);
+    console.log('🔍 Using userId:', userId);
+    console.log('🔍 User info:', user);
     
     socketService = new SocketIOService();
 
@@ -179,13 +184,50 @@
       },
       onGameEnd: (data) => {
         console.log('Game ended:', data);
+        
+        // Extract game result from the data structure
+        const gameResult = data.gameResult || data;
+        const winner = gameResult.winner;
+        const leftScore = gameResult.leftScore;
+        const rightScore = gameResult.rightScore;
+        
         setGameState(prev => ({ 
           ...prev, 
           status: 'finished', 
-          winner: data.winner,
-          leftScore: data.leftScore,
-          rightScore: data.rightScore
+          winner: winner,
+          leftScore: leftScore,
+          rightScore: rightScore
         }));
+        
+        // Show game end message based on player's perspective
+        if (winner) {
+          if (winner === playerSide) {
+            gameEndMessage = '🎉 Victory! You Won! 🎉';
+          } else {
+            gameEndMessage = '😞 Defeat! You Lost! 😞';
+          }
+        } else {
+          gameEndMessage = '🤝 Game Ended! 🤝';
+        }
+        
+        showGameEndMessage = true;
+        
+        // Auto return to main menu after 5 seconds
+        setTimeout(() => {
+          // Dispatch event to parent component to return to main menu
+          const event = new CustomEvent('returnToMain', {
+            detail: {
+              roomId,
+              gameResult: {
+                winner: winner,
+                leftScore: leftScore,
+                rightScore: rightScore,
+                playerSide
+              }
+            }
+          });
+          window.dispatchEvent(event);
+        }, 5000);
       },
       onGamePlaying: (data) => {
         console.log('Game playing:', data);
@@ -212,7 +254,14 @@
     });
 
     // Connect to the room
-    socketService.connect(parseInt(tournamentId), parseInt(matchId), userId)
+    console.log('🔍 MultiPlayerPong calling connect with:', {
+      tournamentId: parseInt(tournamentId),
+      matchId: parseInt(matchId),
+      userId,
+      roomId
+    });
+    
+    socketService.connect(parseInt(tournamentId), parseInt(matchId), userId, roomId)
       .then(() => {
         console.log('Socket.IO connected successfully');
         setConnected(true);
@@ -355,9 +404,17 @@
     {/if}
     
     {#if gameState.status === 'finished'}
-      <div class="absolute inset-0 flex items-center justify-center bg-black bg-opacity-50 rounded-lg">
-        <div class="text-white text-xl font-bold">
-          {$_('label.gameover')}! {$_('label.winner')}: {gameState.winner === playerSide ? $_('label.you') : $_('label.opponent')}
+      <div class="absolute inset-0 flex items-center justify-center bg-black bg-opacity-75 rounded-lg">
+        <div class="text-center">
+          <div class="text-white text-2xl font-bold mb-2">
+            {gameEndMessage}
+          </div>
+          <div class="text-white text-lg">
+            Final Score: {gameState.leftScore} - {gameState.rightScore}
+          </div>
+          <div class="text-white text-sm mt-2">
+            Returning to main menu in 5 seconds...
+          </div>
         </div>
       </div>
     {/if}

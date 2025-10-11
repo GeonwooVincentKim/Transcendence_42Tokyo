@@ -42,7 +42,7 @@ class SocketIOService {
   /**
    * Connect to Socket.IO server
    */
-  connect(tournamentId: number, matchId: number, userId: string): Promise<void> {
+  connect(tournamentId: number, matchId: number, userId: string, roomId?: string): Promise<void> {
     return new Promise((resolve, reject) => {
       try {
         this.tournamentId = tournamentId;
@@ -63,14 +63,21 @@ class SocketIOService {
           console.log('Socket.IO connected:', this.socket?.id);
           this.reconnectAttempts = 0;
           
-          // Join game room
-          const roomId = `tournament-${tournamentId}-match-${matchId}`;
-          console.log('🔍 SocketIOService joining room:', roomId);
+          // Use provided roomId or generate one
+          const finalRoomId = roomId || `tournament-${tournamentId}-match-${matchId}`;
+          console.log('🔍 SocketIOService joining room:', finalRoomId);
+          console.log('🔍 SocketIOService tournamentId:', tournamentId, 'matchId:', matchId);
+          
+          // Get JWT token from localStorage
+          const token = localStorage.getItem('token');
+          console.log('🔍 SocketIOService token:', token ? 'provided' : 'not provided');
+          
           this.socket?.emit('join_game_room', {
-            roomId,
+            roomId: finalRoomId,
             tournamentId,
             matchId,
-            userId
+            userId,
+            token
           });
 
           // Start ping interval
@@ -355,6 +362,7 @@ class SocketIOService {
 
     setTimeout(() => {
       if (this.tournamentId && this.matchId && this.userId) {
+        // Don't pass roomId on reconnect, let it be regenerated
         this.connect(this.tournamentId, this.matchId, this.userId)
           .catch(error => {
             console.error('Reconnection failed:', error);

@@ -1,110 +1,93 @@
 /**
- * Tournament Data Cleanup Script
+ * Tournament Cleanup Script
  * 
- * This script deletes all tournament-related data from the database.
- * It removes data from:
- * - tournament_matches
- * - tournament_participants  
- * - tournaments
+ * Clears all tournament-related data while preserving user information
+ * Usage: node cleanup-tournaments.js
  */
 
 const Database = require('better-sqlite3');
 const path = require('path');
 
 // Database path
-const dbPath = process.env.DB_PATH || './pong.db';
+const dbPath = path.join(__dirname, 'services', 'backend', 'pong.db');
 
-async function cleanupTournaments() {
-  console.log('Starting tournament data cleanup...');
-  console.log('Database path:', dbPath);
+console.log('🧹 Starting tournament data cleanup...');
+console.log('📂 Database path:', dbPath);
 
-  let db;
+try {
+  // Open database connection
+  const db = new Database(dbPath);
+  
+  console.log('✅ Database connection established');
+  
+  // Begin transaction
+  db.exec('BEGIN TRANSACTION');
+  
   try {
-    // Initialize database connection
-    db = new Database(dbPath);
-    db.pragma('foreign_keys = ON');
-
-    console.log('Database connection established');
-
-    // Check current tournament data
-    console.log('\n=== Current Tournament Data ===');
+    // Clear tournament-related tables in correct order (respecting foreign keys)
+    console.log('🗑️  Deleting tournament brackets...');
+    const bracketsDeleted = db.exec('DELETE FROM tournament_brackets');
+    console.log(`   ✅ Cleared tournament_brackets`);
     
-    const tournamentCount = db.prepare('SELECT COUNT(*) as count FROM tournaments').get();
-    console.log(`Tournaments: ${tournamentCount.count}`);
-
-    const participantCount = db.prepare('SELECT COUNT(*) as count FROM tournament_participants').get();
-    console.log(`Tournament Participants: ${participantCount.count}`);
-
-    const matchCount = db.prepare('SELECT COUNT(*) as count FROM tournament_matches').get();
-    console.log(`Tournament Matches: ${matchCount.count}`);
-
-    if (tournamentCount.count === 0) {
-      console.log('\nNo tournament data found. Nothing to clean up.');
-      return;
-    }
-
-    // Show tournament details before deletion
-    console.log('\n=== Tournament Details ===');
-    const tournaments = db.prepare('SELECT id, name, status, created_at FROM tournaments ORDER BY id').all();
-    tournaments.forEach(t => {
-      console.log(`ID: ${t.id}, Name: "${t.name}", Status: ${t.status}, Created: ${t.created_at}`);
-    });
-
-    // Confirm deletion
-    console.log('\n=== Starting Deletion ===');
+    console.log('🗑️  Deleting tournament matches...');
+    const matchesDeleted = db.exec('DELETE FROM tournament_matches');
+    console.log(`   ✅ Cleared tournament_matches`);
     
-    // Delete in order to respect foreign key constraints
-    // 1. Delete tournament matches first
-    const deletedMatches = db.prepare('DELETE FROM tournament_matches').run();
-    console.log(`Deleted ${deletedMatches.changes} tournament matches`);
-
-    // 2. Delete tournament participants
-    const deletedParticipants = db.prepare('DELETE FROM tournament_participants').run();
-    console.log(`Deleted ${deletedParticipants.changes} tournament participants`);
-
-    // 3. Delete tournaments
-    const deletedTournaments = db.prepare('DELETE FROM tournaments').run();
-    console.log(`Deleted ${deletedTournaments.changes} tournaments`);
-
-    // Verify deletion
-    console.log('\n=== Verification ===');
-    const finalTournamentCount = db.prepare('SELECT COUNT(*) as count FROM tournaments').get();
-    const finalParticipantCount = db.prepare('SELECT COUNT(*) as count FROM tournament_participants').get();
-    const finalMatchCount = db.prepare('SELECT COUNT(*) as count FROM tournament_matches').get();
-
-    console.log(`Final count - Tournaments: ${finalTournamentCount.count}`);
-    console.log(`Final count - Participants: ${finalParticipantCount.count}`);
-    console.log(`Final count - Matches: ${finalMatchCount.count}`);
-
-    if (finalTournamentCount.count === 0 && finalParticipantCount.count === 0 && finalMatchCount.count === 0) {
-      console.log('\n✅ Tournament data cleanup completed successfully!');
-    } else {
-      console.log('\n❌ Some tournament data may still remain. Please check manually.');
-    }
-
+    console.log('🗑️  Deleting tournament participants...');
+    const participantsDeleted = db.exec('DELETE FROM tournament_participants');
+    console.log(`   ✅ Cleared tournament_participants`);
+    
+    console.log('🗑️  Deleting tournaments...');
+    const tournamentsDeleted = db.exec('DELETE FROM tournaments');
+    console.log(`   ✅ Cleared tournaments`);
+    
+    // Reset auto-increment counters
+    console.log('🔄 Resetting auto-increment counters...');
+    db.exec("DELETE FROM sqlite_sequence WHERE name='tournaments'");
+    db.exec("DELETE FROM sqlite_sequence WHERE name='tournament_participants'");
+    db.exec("DELETE FROM sqlite_sequence WHERE name='tournament_matches'");
+    db.exec("DELETE FROM sqlite_sequence WHERE name='tournament_brackets'");
+    console.log('   ✅ Auto-increment counters reset');
+    
+    // Commit transaction
+    db.exec('COMMIT');
+    
+    console.log('');
+    console.log('✅ Tournament data cleanup completed successfully!');
+    console.log('');
+    console.log('📊 Summary:');
+    console.log('   - Tournament brackets: cleared');
+    console.log('   - Tournament matches: cleared');
+    console.log('   - Tournament participants: cleared');
+    console.log('   - Tournaments: cleared');
+    console.log('   - Users: preserved ✓');
+    console.log('   - Game statistics: preserved ✓');
+    console.log('');
+    
+    // Verify user data is intact
+    const userCount = db.prepare('SELECT COUNT(*) as count FROM users').get();
+    console.log(`✓ Users table intact: ${userCount.count} users preserved`);
+    
   } catch (error) {
-    console.error('Error during tournament cleanup:', error);
+    // Rollback on error
+    db.exec('ROLLBACK');
     throw error;
   } finally {
-    if (db) {
-      db.close();
-      console.log('Database connection closed');
-    }
+    // Close database connection
+    db.close();
+    console.log('');
+    console.log('📦 Database connection closed');
   }
+  
+} catch (error) {
+  console.error('');
+  console.error('❌ Error during tournament cleanup:');
+  console.error(error);
+  process.exit(1);
 }
 
-// Run the cleanup
-if (require.main === module) {
-  cleanupTournaments()
-    .then(() => {
-      console.log('Cleanup script completed');
-      process.exit(0);
-    })
-    .catch((error) => {
-      console.error('Cleanup script failed:', error);
-      process.exit(1);
-    });
-}
-
-module.exports = { cleanupTournaments };
+console.log('');
+console.log('🎉 Cleanup process completed!');
+console.log('💡 You can now restart the backend to clear in-memory game rooms:');
+console.log('   docker-compose restart backend');
 

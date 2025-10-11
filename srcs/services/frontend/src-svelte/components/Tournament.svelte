@@ -45,6 +45,16 @@
       const data = await tournamentService.listTournaments();
       console.log('Tournaments loaded:', data);
       console.log('Tournaments array before assignment:', tournaments);
+      
+      // Debug: Check each tournament's ID
+      if (data && data.length > 0) {
+        console.log('🔍 First tournament from API:', data[0]);
+        console.log('🔍 First tournament ID:', data[0].id, 'Type:', typeof data[0].id);
+        data.forEach((t, index) => {
+          console.log(`🔍 Tournament [${index}] - ID: ${t.id}, Name: ${t.name}`);
+        });
+      }
+      
       tournaments = data;
       console.log('Tournaments array after assignment:', tournaments);
     } catch (err) {

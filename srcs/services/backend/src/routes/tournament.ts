@@ -13,6 +13,36 @@ import { TournamentService, CreateTournamentInput, JoinTournamentInput } from '.
  * Register tournament routes
  */
 export async function tournamentRoutes(fastify: FastifyInstance) {
+  // Cleanup all tournament data (for testing/development)
+  fastify.post('/api/tournaments/cleanup', {
+    schema: {
+      description: 'Clear all tournament data (preserves user data)',
+      tags: ['tournaments'],
+      response: {
+        200: {
+          type: 'object',
+          properties: {
+            success: { type: 'boolean' },
+            message: { type: 'string' }
+          }
+        }
+      }
+    }
+  }, async (request, reply) => {
+    try {
+      await TournamentService.clearAllTournaments();
+      reply.send({
+        success: true,
+        message: 'All tournament data cleared successfully'
+      });
+    } catch (error) {
+      reply.code(500).send({
+        success: false,
+        error: error instanceof Error ? error.message : 'Failed to clear tournament data'
+      });
+    }
+  });
+
   // Create tournament
   fastify.post('/api/tournaments', {
     schema: {

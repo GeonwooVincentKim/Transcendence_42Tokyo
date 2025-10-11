@@ -37,6 +37,18 @@
       await new Promise(resolve => setTimeout(resolve, 100));
     }
     await checkAuth();
+    
+    // Add event listener for game end and return to main menu
+    const handleReturnToMainEvent = (event: CustomEvent) => {
+      handleReturnToMain(event);
+    };
+    
+    window.addEventListener('returnToMain', handleReturnToMainEvent as EventListener);
+    
+    // Cleanup function
+    return () => {
+      window.removeEventListener('returnToMain', handleReturnToMainEvent as EventListener);
+    };
   });
 
   const checkAuth = async () => {
@@ -110,6 +122,16 @@
 
   const setShowSettings = (show: boolean) => {
     showSettings = show;
+  };
+
+  // Handle game end and return to main menu
+  const handleReturnToMain = (event: CustomEvent) => {
+    console.log('Game ended, returning to main menu:', event.detail);
+    gameMode = 'menu';
+    view = 'game';
+    // Reset multiplayer state
+    showRoomInput = true;
+    roomId = '';
   };
 </script>
 
@@ -283,7 +305,7 @@
               </div>
             {:else}
               <!-- Multiplayer Game -->
-              <MultiPlayerPong {roomId} {playerSide} />
+              <MultiPlayerPong {roomId} {playerSide} {user} />
               <button 
                 on:click={handleReturnToMenu}
                 class="mt-4 px-4 py-2 bg-gray-600 rounded hover:bg-gray-700"
@@ -320,10 +342,12 @@
           <!-- Tournament -->
           <Tournament 
             onBack={() => setView('game')}
-            onStartMatch={(tournamentId, matchId, roomId) => {
+            onStartMatch={(tournamentId, matchId, newRoomId) => {
+              console.log('🎮 App.svelte onStartMatch called:', { tournamentId, matchId, newRoomId });
               gameMode = 'multiplayer';
-              roomId = roomId;
+              roomId = newRoomId;  // ✅ 파라미터 이름을 newRoomId로 변경
               playerSide = 'left';
+              console.log('🎮 App.svelte roomId set to:', roomId);
               setView('game');
             }}
           />
