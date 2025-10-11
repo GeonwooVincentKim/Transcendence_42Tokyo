@@ -28,10 +28,6 @@
     dispatch('join', tournament);
   }
 
-  function formatDate(dateString: string) {
-    return new Date(dateString).toLocaleDateString();
-  }
-
   function getStatusColor(status: string) {
     switch (status) {
       case 'registration': return 'bg-blue-100 text-blue-800';
@@ -49,6 +45,16 @@
       case 'completed': return 'Completed';
       case 'cancelled': return 'Cancelled';
       default: return status;
+    }
+  }
+
+  function formatDate(dateString: string) {
+    if (!dateString) return 'Invalid Date';
+    try {
+      return new Date(dateString).toLocaleDateString();
+    } catch (error) {
+      console.error('Error formatting date:', dateString, error);
+      return 'Invalid Date';
     }
   }
 </script>
@@ -103,7 +109,7 @@
           <div class="p-6">
             <div class="flex justify-between items-start mb-4">
               <div>
-                <h3 class="text-xl font-semibold text-gray-900">{tournament.name}</h3>
+                <h3 class="text-xl font-semibold text-gray-900">{tournament.name || 'Unnamed Tournament'}</h3>
                 {#if tournament.description}
                   <p class="text-gray-600 mt-1">{tournament.description}</p>
                 {/if}
@@ -120,7 +126,7 @@
               </div>
               <div>
                 <span class="font-medium">Max Participants:</span> 
-                {tournament.max_participants}
+                {tournament.max_participants || 'Unknown'}
               </div>
               <div>
                 <span class="font-medium">Created:</span> 

@@ -44,7 +44,9 @@
       console.log('Loading tournaments...');
       const data = await tournamentService.listTournaments();
       console.log('Tournaments loaded:', data);
+      console.log('Tournaments array before assignment:', tournaments);
       tournaments = data;
+      console.log('Tournaments array after assignment:', tournaments);
     } catch (err) {
       console.error('Failed to load tournaments:', err);
       error = err instanceof Error ? err.message : 'Failed to load tournaments';
@@ -98,13 +100,24 @@
   }
 
   // Handle tournament creation
-  function handleTournamentCreated(newTournament: TournamentData) {
-    console.log('Tournament.svelte: Tournament created:', newTournament);
+  function handleTournamentCreated(event: CustomEvent<TournamentData>) {
+    console.log('Tournament.svelte: Tournament created event:', event);
+    const newTournament = event.detail;
+    console.log('Tournament.svelte: Tournament data:', newTournament);
+    
+    if (!newTournament || !newTournament.id) {
+      console.error('Tournament.svelte: Invalid tournament data received:', newTournament);
+      error = 'Invalid tournament data received';
+      return;
+    }
+    
     tournaments = [newTournament, ...tournaments];
     success = 'Tournament created successfully!';
     view = 'list';
     // Force re-render by updating the tournaments array
     tournaments = [...tournaments];
+    // Also refresh stats to update the count
+    loadStats();
   }
 
   // Handle tournament join

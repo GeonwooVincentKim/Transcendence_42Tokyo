@@ -49,6 +49,13 @@
       ]);
       
       console.log('Tournament data loaded:', { participantsData, matchesData, bracketData });
+      console.log('Participants count:', participantsData.length);
+      console.log('Tournament status:', tournament.status);
+      console.log('Can start tournament check:', {
+        status: tournament.status === 'registration',
+        participants: participantsData.length >= 2,
+        canStart: tournament.status === 'registration' && participantsData.length >= 2
+      });
       
       participants = participantsData;
       matches = matchesData;
@@ -65,8 +72,25 @@
     dispatch('back');
   }
 
-  function handleStart() {
-    dispatch('start');
+  async function handleStart() {
+    try {
+      loading = true;
+      error = null;
+      
+      console.log('Starting tournament:', tournament.id);
+      await tournamentService.startTournament(tournament.id);
+      
+      console.log('Tournament started successfully');
+      dispatch('start');
+      
+      // Reload tournament data to get updated status and matches
+      await loadTournamentData();
+    } catch (err) {
+      console.error('Failed to start tournament:', err);
+      error = err instanceof Error ? err.message : 'Failed to start tournament';
+    } finally {
+      loading = false;
+    }
   }
 
   function handleStartMatch(match: TournamentMatch) {
@@ -109,10 +133,28 @@
   }
 
   function canStartTournament() {
-    return tournament.status === 'registration' && 
-           participants.length >= 2 && 
-           isAuthenticated && 
-           currentUser?.id === tournament.creator_id;
+    // Ensure we have valid data
+    if (!tournament || !participants) {
+      console.log('TournamentDetail: Missing tournament or participants data');
+      return false;
+    }
+    
+    const statusCheck = tournament.status === 'registration';
+    const participantsCheck = participants.length >= 2;
+    const canStart = statusCheck && participantsCheck;
+    
+    console.log('TournamentDetail: canStartTournament check:', {
+      tournament: !!tournament,
+      participants: !!participants,
+      tournamentStatus: tournament.status,
+      participantsLength: participants.length,
+      statusCheck: statusCheck,
+      participantsCheck: participantsCheck,
+      canStart: canStart,
+      timestamp: new Date().toISOString()
+    });
+    
+    return canStart;
   }
 
   function canStartMatch(match: TournamentMatch) {
@@ -182,14 +224,62 @@
         </div>
       </div>
 
-      {#if canStartTournament()}
+      <!-- Debug Information -->
+      <div class="mt-4 p-3 bg-gray-100 rounded text-sm">
+        <div class="text-gray-700 font-bold">Debug Info:</div>
+        <div>Status: {tournament.status}</div>
+        <div>Participants: {participants.length}</div>
+        <div>Max Participants: {tournament.max_participants}</div>
+        <div>Can Start: {canStartTournament()}</div>
+        <div class="mt-2">
+          <div class="text-gray-700 font-bold">Participants Array:</div>
+          {#each participants as participant, index}
+            <div class="ml-2">
+              {index + 1}. ID: {participant.id}, User: {participant.user?.username || 'No user'}, Display: {participant.display_name || 'No display name'}
+            </div>
+          {/each}
+        </div>
+        <div class="mt-2">
+          <div class="text-gray-700 font-bold">Conditions Check:</div>
+          <div>Status === 'registration': {tournament.status === 'registration'}</div>
+          <div>Participants >= 2: {participants.length >= 2}</div>
+          <div>Final Result (inline): {tournament.status === 'registration' && participants.length >= 2}</div>
+          <div>Final Result (function): {canStartTournament()}</div>
+        </div>
+      </div>
+
+      {#if tournament.status === 'registration' && participants.length >= 2}
         <div class="mt-4">
           <button 
             on:click={handleStart}
             class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
           >
-            Start Tournament
+            Start Tournament ({participants.length}/{tournament.max_participants})
           </button>
+        </div>
+      {:else if tournament.status === 'registration' && participants.length < 2}
+        <div class="mt-4">
+          <div class="text-sm text-gray-600">
+            Need at least 2 participants to start ({participants.length}/2+)
+          </div>
+        </div>
+      {:else if tournament.status === 'registration' && participants.length >= 2 && participants.length < tournament.max_participants}
+        <div class="mt-4">
+          <div class="text-sm text-gray-600">
+            Ready to start, but waiting for more participants ({participants.length}/{tournament.max_participants})
+          </div>
+          <button 
+            on:click={handleStart}
+            class="mt-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+          >
+            Start Now ({participants.length} participants)
+          </button>
+        </div>
+      {:else}
+        <div class="mt-4">
+          <div class="text-sm text-gray-600">
+            Tournament status: {tournament.status}, Participants: {participants.length}
+          </div>
         </div>
       {/if}
     </div>
@@ -217,12 +307,12 @@
                 <div class="flex items-center space-x-3">
                   <div class="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
                     <span class="text-blue-600 font-medium">
-                      {participant.user?.username?.charAt(0).toUpperCase() || '?'}
+                      {(participant.display_name || participant.user?.username)?.charAt(0).toUpperCase() || '?'}
                     </span>
                   </div>
                   <div>
                     <div class="font-medium text-gray-900">
-                      {participant.user?.username || 'Unknown User'}
+                      {participant.display_name || participant.user?.username || 'Unknown User'}
                     </div>
                     <div class="text-sm text-gray-500">
                       Joined: {formatDate(participant.joined_at)}
