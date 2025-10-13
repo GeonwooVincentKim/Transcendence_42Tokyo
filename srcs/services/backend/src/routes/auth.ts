@@ -454,8 +454,12 @@ export async function authRoutes(fastify: FastifyInstance) {
   fastify.post('/api/auth/2fa/setup', async (request, reply) => {
     try {
       await request.jwtVerify();
-      const userId = (request.user as any).id;
+      const userId = (request.user as any).userId || (request.user as any).id;
       const username = (request.user as any).username;
+      
+      if (!userId) {
+        return reply.status(401).send({ error: 'Invalid token: user ID not found' });
+      }
 
       const setup = await TwoFactorService.setupTwoFactor(userId, username);
       
@@ -480,8 +484,12 @@ export async function authRoutes(fastify: FastifyInstance) {
   fastify.post<{ Body: { token: string } }>('/api/auth/2fa/enable', async (request, reply) => {
     try {
       await request.jwtVerify();
-      const userId = (request.user as any).id;
+      const userId = (request.user as any).userId || (request.user as any).id;
       const { token } = request.body;
+      
+      if (!userId) {
+        return reply.status(401).send({ error: 'Invalid token: user ID not found' });
+      }
 
       const verified = await TwoFactorService.enableTwoFactor(userId, token);
       
@@ -511,8 +519,12 @@ export async function authRoutes(fastify: FastifyInstance) {
   fastify.post<{ Body: { token: string } }>('/api/auth/2fa/disable', async (request, reply) => {
     try {
       await request.jwtVerify();
-      const userId = (request.user as any).id;
+      const userId = (request.user as any).userId || (request.user as any).id;
       const { token } = request.body;
+      
+      if (!userId) {
+        return reply.status(401).send({ error: 'Invalid token: user ID not found' });
+      }
 
       const verified = await TwoFactorService.disableTwoFactor(userId, token);
       
@@ -591,7 +603,11 @@ export async function authRoutes(fastify: FastifyInstance) {
   fastify.get('/api/auth/2fa/status', async (request, reply) => {
     try {
       await request.jwtVerify();
-      const userId = (request.user as any).id;
+      const userId = (request.user as any).userId || (request.user as any).id;
+      
+      if (!userId) {
+        return reply.status(401).send({ error: 'Invalid token: user ID not found' });
+      }
 
       const enabled = await TwoFactorService.isTwoFactorEnabled(userId);
       
@@ -614,8 +630,12 @@ export async function authRoutes(fastify: FastifyInstance) {
   fastify.post<{ Body: { token: string } }>('/api/auth/2fa/backup-codes', async (request, reply) => {
     try {
       await request.jwtVerify();
-      const userId = (request.user as any).id;
+      const userId = (request.user as any).userId || (request.user as any).id;
       const { token } = request.body;
+      
+      if (!userId) {
+        return reply.status(401).send({ error: 'Invalid token: user ID not found' });
+      }
 
       const backupCodes = await TwoFactorService.regenerateBackupCodes(userId, token);
       
