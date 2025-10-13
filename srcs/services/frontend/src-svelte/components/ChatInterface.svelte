@@ -43,6 +43,34 @@
       messages = [...messages, message];
     });
 
+    socket.on('channel_created', (data: { channel: any }) => {
+      console.log('New channel created:', data.channel);
+      // Check if channel already exists to avoid duplicates
+      const exists = channels.find(c => c.id === data.channel.id);
+      if (!exists) {
+        channels = [...channels, data.channel];
+        console.log('Added new channel to list. Total channels:', channels.length);
+      } else {
+        console.log('Channel already exists, not adding duplicate');
+      }
+    });
+
+    socket.on('channel_updated', (data: { channel: any }) => {
+      console.log('Channel updated:', data.channel);
+      // Update existing channel in the list
+      channels = channels.map(ch => 
+        ch.id === data.channel.id ? data.channel : ch
+      );
+    });
+
+    socket.on('channel_message', (data: { channelId: string, message: any, timestamp: string }) => {
+      console.log('New message received:', data.message);
+      // Add message to current channel if it matches
+      if (currentChannel && currentChannel.id === data.channelId) {
+        messages = [...messages, data.message];
+      }
+    });
+
     socket.on('error', (err: any) => {
       error = err.message || 'Socket error';
     });
@@ -138,6 +166,10 @@
         const data = await response.json();
         messages = data.messages || [];
         currentChannel = channels.find(c => c.id === channelId);
+      } else if (response.status === 403) {
+        // User is not a member, try to auto-join for public channels
+        error = 'Not a member of this channel. Trying to join...';
+        await joinChannel(channelId);
       }
     } catch (err) {
       error = 'Failed to load messages';
@@ -147,6 +179,22 @@
   async function sendMessage() {
     if (!newMessage.trim() || !currentChannel) return;
     
+    const messageText = newMessage.trim();
+    const tempMessage = {
+      id: `temp-${Date.now()}`,
+      message: messageText,
+      user_id: user?.id || 'unknown',
+      username: user?.username || 'unknown',
+      created_at: new Date().toISOString(),
+      isPending: true
+    };
+    
+    // Clear input immediately for better UX
+    newMessage = '';
+    
+    // Add temporary message to UI immediately
+    messages = [...messages, tempMessage];
+    
     try {
       const response = await fetch(`/api/chat/channels/${currentChannel.id}/messages`, {
         method: 'POST',
@@ -154,17 +202,27 @@
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${AuthService.getToken()}`
         },
-        body: JSON.stringify({ message: newMessage })
+        body: JSON.stringify({ message: messageText })
       });
       
       if (response.ok) {
-        newMessage = '';
+        const data = await response.json();
+        // Remove temp message and add real message (Socket.IO will handle this)
+        messages = messages.filter(m => m.id !== tempMessage.id);
       } else {
+        // Remove temp message on error
+        messages = messages.filter(m => m.id !== tempMessage.id);
         const errorData = await response.json();
         error = errorData.error || 'Failed to send message';
+        // Restore message to input on error
+        newMessage = messageText;
       }
     } catch (err) {
+      // Remove temp message on error
+      messages = messages.filter(m => m.id !== tempMessage.id);
       error = 'Failed to send message';
+      // Restore message to input on error
+      newMessage = messageText;
     }
   }
 
@@ -266,14 +324,19 @@
         <div class="flex-1 p-4 overflow-y-auto">
           <div class="space-y-2">
             {#each messages as message}
-              <div class="flex items-start space-x-2">
+              <div class="flex items-start space-x-2 {message.isPending ? 'opacity-60' : ''}">
                 <div class="w-6 h-6 bg-blue-500 rounded-full flex items-center justify-center text-white text-xs">
                   {message.username.charAt(0).toUpperCase()}
                 </div>
                 <div class="flex-1">
                   <div class="flex items-center space-x-2">
                     <span class="font-semibold text-sm">{message.username}</span>
-                    <span class="text-xs text-gray-500">{new Date(message.createdAt).toLocaleTimeString()}</span>
+                    <span class="text-xs text-gray-500">
+                      {message.isPending ? 'Sending...' : new Date(message.created_at || message.createdAt).toLocaleTimeString()}
+                    </span>
+                    {#if message.isPending}
+                      <span class="text-xs text-blue-500">●</span>
+                    {/if}
                   </div>
                   <div class="text-sm">{message.message}</div>
                 </div>

@@ -152,9 +152,75 @@ class SocketIOService {
         socket.emit('pong');
       });
 
+      // Handle user online status updates
+      socket.on('user_online', async (data: { userId: string }) => {
+        try {
+          const { FriendsService } = await import('./friendsService.js');
+          await FriendsService.updateOnlineStatus(data.userId, 'online');
+          console.log(`User ${data.userId} is now online`);
+          
+          // Broadcast to all connected users that this user is online
+          this.io.emit('user_status_changed', {
+            userId: data.userId,
+            status: 'online'
+          });
+        } catch (error) {
+          console.error('Error updating user online status:', error);
+        }
+      });
+
+      // Handle user offline status updates
+      socket.on('user_offline', async (data: { userId: string }) => {
+        try {
+          const { FriendsService } = await import('./friendsService.js');
+          await FriendsService.updateOnlineStatus(data.userId, 'offline');
+          console.log(`User ${data.userId} is now offline`);
+          
+          // Broadcast to all connected users that this user is offline
+          this.io.emit('user_status_changed', {
+            userId: data.userId,
+            status: 'offline'
+          });
+        } catch (error) {
+          console.error('Error updating user offline status:', error);
+        }
+      });
+
+      // Handle chat channel creation
+      socket.on('channel_created', (data: { channel: any }) => {
+        console.log('Channel created, broadcasting to all users:', data.channel);
+        // Broadcast new channel to all connected users
+        this.io.emit('channel_created', data);
+      });
+
+      // Handle chat channel updates
+      socket.on('channel_updated', (data: { channel: any }) => {
+        console.log('Channel updated, broadcasting to all users:', data.channel);
+        // Broadcast channel update to all connected users
+        this.io.emit('channel_updated', data);
+      });
+
       // Handle disconnection
-      socket.on('disconnect', (reason) => {
+      socket.on('disconnect', async (reason) => {
         console.log(`Socket.IO disconnected: ${socket.id}, reason: ${reason}`);
+        
+        // Update user status to offline on disconnect
+        if (socket.userId) {
+          try {
+            const { FriendsService } = await import('./friendsService.js');
+            await FriendsService.updateOnlineStatus(socket.userId, 'offline');
+            console.log(`User ${socket.userId} went offline due to disconnect`);
+            
+            // Broadcast to all connected users that this user is offline
+            this.io.emit('user_status_changed', {
+              userId: socket.userId,
+              status: 'offline'
+            });
+          } catch (error) {
+            console.error('Error updating user offline status on disconnect:', error);
+          }
+        }
+        
         // Find and remove player from any room
         for (const [userId, roomId] of this.playerRooms.entries()) {
           const room = this.gameRooms.get(roomId);

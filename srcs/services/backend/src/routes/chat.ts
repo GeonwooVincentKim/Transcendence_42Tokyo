@@ -25,10 +25,29 @@ export async function chatRoutes(server: FastifyInstance) {
   }>, reply: FastifyReply) => {
     try {
       await request.jwtVerify();
-      const userId = (request.user as any).id;
+      const userId = (request.user as any).userId || (request.user as any).id;
+      
+      if (!userId) {
+        return reply.status(401).send({ error: 'Invalid token: user ID not found' });
+      }
       const { name, type, description, password } = request.body;
 
       const channel = await ChatService.createChannel(userId, name, type, description, password);
+      
+      // Broadcast channel creation to all connected users
+      try {
+        // Get SocketIOService instance from global scope
+        const socketIOService = (global as any).socketIOService;
+        if (socketIOService && socketIOService.getIO) {
+          const io = socketIOService.getIO();
+          io.emit('channel_created', { channel });
+          console.log('Broadcasted channel creation:', channel);
+        } else {
+          console.error('SocketIOService not available for broadcasting');
+        }
+      } catch (error) {
+        console.error('Failed to broadcast channel creation:', error);
+      }
       
       return reply.status(201).send({ channel });
     } catch (error: any) {
@@ -43,7 +62,11 @@ export async function chatRoutes(server: FastifyInstance) {
   server.get('/api/chat/channels', async (request: FastifyRequest, reply: FastifyReply) => {
     try {
       await request.jwtVerify();
-      const userId = (request.user as any).id;
+      const userId = (request.user as any).userId || (request.user as any).id;
+      
+      if (!userId) {
+        return reply.status(401).send({ error: 'Invalid token: user ID not found' });
+      }
 
       const channels = await ChatService.getUserChannels(userId);
       
@@ -77,7 +100,11 @@ export async function chatRoutes(server: FastifyInstance) {
   }>, reply: FastifyReply) => {
     try {
       await request.jwtVerify();
-      const userId = (request.user as any).id;
+      const userId = (request.user as any).userId || (request.user as any).id;
+      
+      if (!userId) {
+        return reply.status(401).send({ error: 'Invalid token: user ID not found' });
+      }
       const { channelId } = request.params;
       const { password } = request.body;
 
@@ -98,7 +125,11 @@ export async function chatRoutes(server: FastifyInstance) {
   }>, reply: FastifyReply) => {
     try {
       await request.jwtVerify();
-      const userId = (request.user as any).id;
+      const userId = (request.user as any).userId || (request.user as any).id;
+      
+      if (!userId) {
+        return reply.status(401).send({ error: 'Invalid token: user ID not found' });
+      }
       const { channelId } = request.params;
 
       await ChatService.leaveChannel(userId, channelId);
@@ -119,13 +150,81 @@ export async function chatRoutes(server: FastifyInstance) {
   }>, reply: FastifyReply) => {
     try {
       await request.jwtVerify();
-      const userId = (request.user as any).id;
+      const userId = (request.user as any).userId || (request.user as any).id;
+      
+      if (!userId) {
+        return reply.status(401).send({ error: 'Invalid token: user ID not found' });
+      }
       const { channelId } = request.params;
       const { message } = request.body;
 
-      const msg = await ChatService.sendChannelMessage(userId, channelId, message);
-      
-      return reply.status(201).send({ message: msg });
+      // Check if user is a member of the channel, if not, auto-join for public channels
+      try {
+        const msg = await ChatService.sendChannelMessage(userId, channelId, message);
+        
+        // Broadcast message to all connected users in real-time
+        try {
+          const socketIOService = (global as any).socketIOService;
+          if (socketIOService && socketIOService.getIO) {
+            const io = socketIOService.getIO();
+            io.emit('channel_message', { 
+              channelId, 
+              message: msg,
+              timestamp: new Date().toISOString()
+            });
+            console.log('Broadcasted message to channel:', channelId);
+          } else {
+            console.error('SocketIOService not available for message broadcasting');
+          }
+        } catch (broadcastError) {
+          console.error('Failed to broadcast message:', broadcastError);
+        }
+        
+        return reply.status(201).send({ message: msg });
+      } catch (error: any) {
+        // If user is not a member, try to auto-join if it's a public channel
+        if (error.message === 'Not a member of this channel') {
+          try {
+            // Get channel info to check if it's public
+            const channels = await ChatService.getPublicChannels();
+            const channel = channels.find(c => c.id === channelId);
+            
+            if (channel && channel.type === 'public') {
+              // Auto-join public channel
+              await ChatService.joinChannel(userId, channelId);
+              // Now try sending the message again
+              const msg = await ChatService.sendChannelMessage(userId, channelId, message);
+              
+              // Broadcast message to all connected users in real-time
+              try {
+                const socketIOService = (global as any).socketIOService;
+                if (socketIOService && socketIOService.getIO) {
+                  const io = socketIOService.getIO();
+                  io.emit('channel_message', { 
+                    channelId, 
+                    message: msg,
+                    timestamp: new Date().toISOString()
+                  });
+                  console.log('Broadcasted auto-joined message to channel:', channelId);
+                } else {
+                  console.error('SocketIOService not available for auto-joined message broadcasting');
+                }
+              } catch (broadcastError) {
+                console.error('Failed to broadcast auto-joined message:', broadcastError);
+              }
+              
+              return reply.status(201).send({ message: msg });
+            } else {
+              return reply.status(403).send({ error: 'Not a member of this channel' });
+            }
+          } catch (joinError: any) {
+            server.log.error('Failed to auto-join channel:', joinError);
+            return reply.status(400).send({ error: 'Failed to join channel' });
+          }
+        } else {
+          throw error;
+        }
+      }
     } catch (error: any) {
       server.log.error('Failed to send message:', error);
       return reply.status(400).send({ error: error.message || 'Failed to send message' });
@@ -205,7 +304,11 @@ export async function chatRoutes(server: FastifyInstance) {
   }>, reply: FastifyReply) => {
     try {
       await request.jwtVerify();
-      const userId = (request.user as any).id;
+      const userId = (request.user as any).userId || (request.user as any).id;
+      
+      if (!userId) {
+        return reply.status(401).send({ error: 'Invalid token: user ID not found' });
+      }
       const { messageId } = request.params;
 
       await ChatService.markAsRead(userId, messageId);
@@ -248,7 +351,11 @@ export async function chatRoutes(server: FastifyInstance) {
   }>, reply: FastifyReply) => {
     try {
       await request.jwtVerify();
-      const userId = (request.user as any).id;
+      const userId = (request.user as any).userId || (request.user as any).id;
+      
+      if (!userId) {
+        return reply.status(401).send({ error: 'Invalid token: user ID not found' });
+      }
       const { invitationId } = request.params;
       const { accept } = request.body;
 
@@ -267,7 +374,11 @@ export async function chatRoutes(server: FastifyInstance) {
   server.get('/api/chat/invitations', async (request: FastifyRequest, reply: FastifyReply) => {
     try {
       await request.jwtVerify();
-      const userId = (request.user as any).id;
+      const userId = (request.user as any).userId || (request.user as any).id;
+      
+      if (!userId) {
+        return reply.status(401).send({ error: 'Invalid token: user ID not found' });
+      }
 
       const invitations = await ChatService.getPendingInvitations(userId);
       

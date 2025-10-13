@@ -1,6 +1,7 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onMount, onDestroy } from 'svelte';
   import { AuthService } from '../shared/services/authService';
+  import io from 'socket.io-client';
 
   export let user: any;
   export let onBack: () => void;
@@ -13,12 +14,54 @@
   let error = '';
   let activeTab: 'friends' | 'requests' | 'blocked' = 'friends';
   let newFriendUsername = '';
+  let socket: any = null;
 
   onMount(() => {
     loadFriends();
     loadPendingRequests();
     loadBlockedUsers();
+    initializeSocket();
   });
+
+  onDestroy(() => {
+    if (socket) {
+      socket.disconnect();
+    }
+  });
+
+  function initializeSocket() {
+    try {
+      socket = io('http://localhost:8000', {
+        transports: ['websocket', 'polling']
+      });
+
+      socket.on('connect', () => {
+        console.log('Socket connected for friends list');
+        // Notify server that user is online
+        if (user?.id) {
+          socket.emit('user_online', { userId: user.id });
+        }
+      });
+
+      socket.on('user_status_changed', (data: { userId: string, status: string }) => {
+        console.log('User status changed:', data);
+        // Update friend status in real-time
+        friends = friends.map(friend => {
+          if (friend.id === data.userId) {
+            return { ...friend, onlineStatus: data.status };
+          }
+          return friend;
+        });
+      });
+
+      socket.on('disconnect', () => {
+        console.log('Socket disconnected');
+      });
+
+    } catch (error) {
+      console.error('Failed to initialize socket:', error);
+    }
+  }
 
   async function loadFriends() {
     try {

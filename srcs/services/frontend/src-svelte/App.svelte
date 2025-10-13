@@ -14,6 +14,7 @@
   import { _, t, locale, isLoading as i18nLoading } from 'svelte-i18n';
   import { AuthService } from './shared/services/authService';
   import type { AuthResponse, User } from './shared/types/auth';
+  import io from 'socket.io-client';
 
   // Game mode state
   let gameMode: 'menu' | 'single' | 'multiplayer' | 'ai' = 'menu';
@@ -29,6 +30,7 @@
   let view: 'game' | 'profile' | 'deleteAccount' | 'forgotPassword' | 'forgotUsername' | 'settings' | 'ranking' | 'tournament' = 'game';
   let showSettings = false;
   let selectedLanguage = 'en';
+  let socket: any = null;
 
   // Check authentication status on component mount
   onMount(async () => {
@@ -77,15 +79,58 @@
     user = authData.user;
     isAuthenticated = true;
     view = 'game';
+    
+    // Initialize socket connection for real-time updates
+    initializeSocket();
   };
+
+  // Initialize Socket.IO connection
+  function initializeSocket() {
+    try {
+      socket = io('http://localhost:8000', {
+        transports: ['websocket', 'polling']
+      });
+
+      socket.on('connect', () => {
+        console.log('Socket connected');
+        // Notify server that user is online
+        if (user?.id) {
+          socket.emit('user_online', { userId: user.id });
+        }
+      });
+
+      socket.on('user_status_changed', (data: { userId: string, status: string }) => {
+        console.log('User status changed:', data);
+        // This will be handled by individual components that need real-time updates
+      });
+
+      socket.on('disconnect', () => {
+        console.log('Socket disconnected');
+      });
+
+    } catch (error) {
+      console.error('Failed to initialize socket:', error);
+    }
+  }
 
   // Handle logout
   const handleLogout = async () => {
     try {
+      // Notify server that user is going offline
+      if (socket && user?.id) {
+        socket.emit('user_offline', { userId: user.id });
+      }
+      
       await AuthService.logout();
     } catch (error) {
       console.error('Logout failed:', error);
     } finally {
+      // Disconnect socket
+      if (socket) {
+        socket.disconnect();
+        socket = null;
+      }
+      
       user = null;
       isAuthenticated = false;
       authMode = 'login';

@@ -52,7 +52,7 @@ export class ChatService {
   ): Promise<Channel> {
     // Check if channel name already exists
     const existing = await DatabaseService.query(
-      'SELECT id FROM chat_channels WHERE name = $1',
+      'SELECT id FROM chat_channels WHERE name = ?',
       [name]
     );
 
@@ -68,13 +68,13 @@ export class ChatService {
 
     // Create channel
     await DatabaseService.run(
-      'INSERT INTO chat_channels (name, description, type, password_hash, owner_id) VALUES ($1, $2, $3, $4, $5)',
+      'INSERT INTO chat_channels (name, description, type, password_hash, owner_id) VALUES (?, ?, ?, ?, ?)',
       [name, description, type, passwordHash, ownerId]
     );
 
     // Get created channel
     const result = await DatabaseService.query(
-      'SELECT id, name, description, type, owner_id, created_at FROM chat_channels WHERE name = $1',
+      'SELECT id, name, description, type, owner_id, created_at FROM chat_channels WHERE name = ?',
       [name]
     );
 
@@ -82,11 +82,11 @@ export class ChatService {
 
     // Add owner as admin member
     await DatabaseService.run(
-      'INSERT INTO channel_members (channel_id, user_id, role) VALUES ($1, $2, $3)',
+      'INSERT INTO channel_members (channel_id, user_id, role) VALUES (?, ?, ?)',
       [channel.id, ownerId, 'admin']
     );
 
-    return {
+    const channelData = {
       id: channel.id.toString(),
       name: channel.name,
       description: channel.description,
@@ -94,6 +94,11 @@ export class ChatService {
       ownerId: channel.owner_id.toString(),
       createdAt: channel.created_at
     };
+
+    // Note: Socket.IO broadcasting will be handled by the route handler
+    // This ensures proper separation of concerns
+
+    return channelData;
   }
 
   /**
@@ -102,7 +107,7 @@ export class ChatService {
   static async joinChannel(userId: string, channelId: string, password?: string): Promise<void> {
     // Get channel info
     const channelResult = await DatabaseService.query(
-      'SELECT type, password_hash FROM chat_channels WHERE id = $1',
+      'SELECT type, password_hash FROM chat_channels WHERE id = ?',
       [channelId]
     );
 
@@ -114,7 +119,7 @@ export class ChatService {
 
     // Check if already a member
     const existing = await DatabaseService.query(
-      'SELECT id FROM channel_members WHERE channel_id = $1 AND user_id = $2',
+      'SELECT id FROM channel_members WHERE channel_id = ? AND user_id = ?',
       [channelId, userId]
     );
 
@@ -136,7 +141,7 @@ export class ChatService {
 
     // Add member
     await DatabaseService.run(
-      'INSERT INTO channel_members (channel_id, user_id, role) VALUES ($1, $2, $3)',
+      'INSERT INTO channel_members (channel_id, user_id, role) VALUES (?, ?, ?)',
       [channelId, userId, 'member']
     );
   }
@@ -146,7 +151,7 @@ export class ChatService {
    */
   static async leaveChannel(userId: string, channelId: string): Promise<void> {
     const result = await DatabaseService.run(
-      'DELETE FROM channel_members WHERE channel_id = $1 AND user_id = $2',
+      'DELETE FROM channel_members WHERE channel_id = ? AND user_id = ?',
       [channelId, userId]
     );
 
@@ -164,7 +169,7 @@ export class ChatService {
         c.id, c.name, c.description, c.type, c.owner_id, c.created_at,
         COUNT(cm.id) as member_count
        FROM chat_channels c
-       INNER JOIN channel_members cm1 ON c.id = cm1.channel_id AND cm1.user_id = $1
+       INNER JOIN channel_members cm1 ON c.id = cm1.channel_id AND cm1.user_id = ?
        LEFT JOIN channel_members cm ON c.id = cm.channel_id
        GROUP BY c.id, c.name, c.description, c.type, c.owner_id, c.created_at
        ORDER BY c.created_at DESC`,
@@ -214,7 +219,7 @@ export class ChatService {
   static async sendChannelMessage(userId: string, channelId: string, message: string): Promise<ChannelMessage> {
     // Check if user is a member
     const memberResult = await DatabaseService.query(
-      'SELECT id, muted_until FROM channel_members WHERE channel_id = $1 AND user_id = $2',
+      'SELECT id, muted_until FROM channel_members WHERE channel_id = ? AND user_id = ?',
       [channelId, userId]
     );
 
@@ -231,7 +236,7 @@ export class ChatService {
 
     // Insert message
     await DatabaseService.run(
-      'INSERT INTO channel_messages (channel_id, user_id, message) VALUES ($1, $2, $3)',
+      'INSERT INTO channel_messages (channel_id, user_id, message) VALUES (?, ?, ?)',
       [channelId, userId, message]
     );
 
@@ -242,7 +247,7 @@ export class ChatService {
         u.username, u.avatar_url
        FROM channel_messages cm
        JOIN users u ON cm.user_id = u.id
-       WHERE cm.channel_id = $1 AND cm.user_id = $2
+       WHERE cm.channel_id = ? AND cm.user_id = ?
        ORDER BY cm.created_at DESC
        LIMIT 1`,
       [channelId, userId]
@@ -272,9 +277,9 @@ export class ChatService {
         u.username, u.avatar_url
        FROM channel_messages cm
        JOIN users u ON cm.user_id = u.id
-       WHERE cm.channel_id = $1 AND cm.deleted = 0
+       WHERE cm.channel_id = ? AND cm.deleted = 0
        ORDER BY cm.created_at DESC
-       LIMIT $2`,
+       LIMIT ?`,
       [channelId, limit]
     );
 
@@ -296,7 +301,7 @@ export class ChatService {
   static async sendDirectMessage(senderId: string, receiverId: string, message: string): Promise<DirectMessage> {
     // Check if receiver is blocked
     const blocked = await DatabaseService.query(
-      'SELECT id FROM blocked_users WHERE (user_id = $1 AND blocked_user_id = $2) OR (user_id = $2 AND blocked_user_id = $1)',
+      'SELECT id FROM blocked_users WHERE (user_id = ? AND blocked_user_id = ?) OR (user_id = ? AND blocked_user_id = ?)',
       [senderId, receiverId]
     );
 
@@ -306,7 +311,7 @@ export class ChatService {
 
     // Insert message
     await DatabaseService.run(
-      'INSERT INTO direct_messages (sender_id, receiver_id, message) VALUES ($1, $2, $3)',
+      'INSERT INTO direct_messages (sender_id, receiver_id, message) VALUES (?, ?, ?)',
       [senderId, receiverId, message]
     );
 
@@ -319,7 +324,7 @@ export class ChatService {
        FROM direct_messages dm
        JOIN users u1 ON dm.sender_id = u1.id
        JOIN users u2 ON dm.receiver_id = u2.id
-       WHERE dm.sender_id = $1 AND dm.receiver_id = $2
+       WHERE dm.sender_id = ? AND dm.receiver_id = ?
        ORDER BY dm.created_at DESC
        LIMIT 1`,
       [senderId, receiverId]
@@ -351,10 +356,10 @@ export class ChatService {
        FROM direct_messages dm
        JOIN users u1 ON dm.sender_id = u1.id
        JOIN users u2 ON dm.receiver_id = u2.id
-       WHERE ((dm.sender_id = $1 AND dm.receiver_id = $2 AND dm.deleted_by_sender = 0) 
-              OR (dm.sender_id = $2 AND dm.receiver_id = $1 AND dm.deleted_by_receiver = 0))
+       WHERE ((dm.sender_id = ? AND dm.receiver_id = ? AND dm.deleted_by_sender = 0) 
+              OR (dm.sender_id = ? AND dm.receiver_id = ? AND dm.deleted_by_receiver = 0))
        ORDER BY dm.created_at DESC
-       LIMIT $3`,
+       LIMIT ?`,
       [userId1, userId2, limit]
     );
 
@@ -375,7 +380,7 @@ export class ChatService {
    */
   static async markAsRead(userId: string, messageId: string): Promise<void> {
     await DatabaseService.run(
-      'UPDATE direct_messages SET read_at = CURRENT_TIMESTAMP WHERE id = $1 AND receiver_id = $2 AND read_at IS NULL',
+      'UPDATE direct_messages SET read_at = CURRENT_TIMESTAMP WHERE id = ? AND receiver_id = ? AND read_at IS NULL',
       [messageId, userId]
     );
   }
@@ -385,7 +390,7 @@ export class ChatService {
    */
   static async sendGameInvitation(senderId: string, receiverId: string, gameType?: string): Promise<void> {
     await DatabaseService.run(
-      'INSERT INTO game_invitations (sender_id, receiver_id, game_type, status) VALUES ($1, $2, $3, $4)',
+      'INSERT INTO game_invitations (sender_id, receiver_id, game_type, status) VALUES (?, ?, ?, ?)',
       [senderId, receiverId, gameType || 'pong', 'pending']
     );
   }
@@ -397,7 +402,7 @@ export class ChatService {
     const status = accept ? 'accepted' : 'rejected';
     
     const result = await DatabaseService.run(
-      'UPDATE game_invitations SET status = $1, responded_at = CURRENT_TIMESTAMP WHERE id = $2 AND receiver_id = $3 AND status = $4',
+      'UPDATE game_invitations SET status = ?, responded_at = CURRENT_TIMESTAMP WHERE id = ? AND receiver_id = ? AND status = ?',
       [status, invitationId, userId, 'pending']
     );
 
@@ -416,7 +421,7 @@ export class ChatService {
         u.username as sender_username, u.avatar_url as sender_avatar
        FROM game_invitations gi
        JOIN users u ON gi.sender_id = u.id
-       WHERE gi.receiver_id = $1 AND gi.status = 'pending'
+       WHERE gi.receiver_id = ? AND gi.status = 'pending'
        ORDER BY gi.created_at DESC`,
       [userId]
     );
