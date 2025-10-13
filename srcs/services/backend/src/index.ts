@@ -1,10 +1,14 @@
 import Fastify from 'fastify';
 import cors from '@fastify/cors';
 import jwt from '@fastify/jwt';
+import fastifyStatic from '@fastify/static';
 import { createServer } from 'http';
+import path from 'path';
 import { authRoutes } from './routes/auth';
 import { gameRoutes } from './routes/game';
 import { tournamentRoutes } from './routes/tournament';
+import { userRoutes } from './routes/users';
+import { chatRoutes } from './routes/chat';
 import { DatabaseService } from './services/databaseService';
 import { initializeDatabase } from './utils/databaseInit';
 import SocketIOService from './services/socketIOService';
@@ -164,6 +168,12 @@ const start = async () => {
     await initializeDatabase();
     server.log.info('Database schema initialized successfully');
     
+    // Register static file serving for uploads
+    await server.register(fastifyStatic, {
+      root: path.join(process.cwd(), 'uploads'),
+      prefix: '/uploads/',
+    });
+
     // Register JWT plugin for authentication FIRST
     const jwtSecret = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
     await server.register(jwt, { 
@@ -175,6 +185,12 @@ const start = async () => {
     
     // Register authentication routes
     await server.register(authRoutes);
+    
+    // Register user routes
+    await server.register(userRoutes);
+    
+    // Register chat routes
+    await server.register(chatRoutes);
     
     // Register game routes
     await server.register(gameRoutes);

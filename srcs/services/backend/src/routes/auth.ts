@@ -7,6 +7,8 @@
 
 import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { UserService } from '../services/userService';
+import { TwoFactorService } from '../services/twoFactorService';
+import { FriendsService } from '../services/friendsService';
 import { LoginRequest, RegisterRequest, AuthResponse, ErrorResponse } from '../types/auth';
 
 /**
@@ -52,8 +54,9 @@ export async function authRoutes(fastify: FastifyInstance) {
         username: user.username
       } as JWTPayload);
 
-      // Update user activity
+      // Update user activity and online status
       await UserService.updateUserActivity(user.id);
+      await FriendsService.updateOnlineStatus(user.id, 'online');
 
       const response: AuthResponse = {
         user,
@@ -92,14 +95,27 @@ export async function authRoutes(fastify: FastifyInstance) {
       // Authenticate the user
       const user = await UserService.authenticateUser(username, password);
 
-      // Generate JWT token
+      // Check if 2FA is enabled
+      const twoFactorEnabled = await TwoFactorService.isTwoFactorEnabled(user.id);
+
+      if (twoFactorEnabled) {
+        // Return partial response indicating 2FA is required
+        return reply.status(200).send({
+          requiresTwoFactor: true,
+          userId: user.id,
+          message: '2FA verification required'
+        });
+      }
+
+      // Generate JWT token (if no 2FA)
       const token = fastify.jwt.sign({
         userId: user.id,
         username: user.username
       } as JWTPayload);
 
-      // Update user activity
+      // Update user activity and online status
       await UserService.updateUserActivity(user.id);
+      await FriendsService.updateOnlineStatus(user.id, 'online');
 
       const response: AuthResponse = {
         user,
@@ -143,8 +159,9 @@ export async function authRoutes(fastify: FastifyInstance) {
         });
       }
 
-      // Update user activity
+      // Update user activity and online status
       await UserService.updateUserActivity(user.id);
+      await FriendsService.updateOnlineStatus(user.id, 'online');
 
       return reply.status(200).send({ user });
     } catch (error) {
@@ -189,8 +206,9 @@ export async function authRoutes(fastify: FastifyInstance) {
         username: user.username
       } as JWTPayload);
 
-      // Update user activity
+      // Update user activity and online status
       await UserService.updateUserActivity(user.id);
+      await FriendsService.updateOnlineStatus(user.id, 'online');
 
       const response: AuthResponse = {
         user,
@@ -404,6 +422,211 @@ export async function authRoutes(fastify: FastifyInstance) {
         valid: false,
         error: error instanceof Error ? error.message : 'Unknown error',
         message: 'Token is invalid'
+      });
+    }
+  });
+
+  /**
+   * POST /api/auth/logout
+   * Logout user and update online status
+   */
+  fastify.post('/api/auth/logout', async (request, reply) => {
+    try {
+      await request.jwtVerify();
+      const userId = (request.user as any).userId || (request.user as any).id;
+      
+      if (userId) {
+        // Update user to offline status
+        await FriendsService.updateOnlineStatus(userId, 'offline');
+      }
+      
+      return reply.status(200).send({ message: 'Logged out successfully' });
+    } catch (error) {
+      // Even if token is invalid, consider it a successful logout
+      return reply.status(200).send({ message: 'Logged out successfully' });
+    }
+  });
+
+  /**
+   * POST /api/auth/2fa/setup
+   * Setup 2FA for authenticated user
+   */
+  fastify.post('/api/auth/2fa/setup', async (request, reply) => {
+    try {
+      await request.jwtVerify();
+      const userId = (request.user as any).id;
+      const username = (request.user as any).username;
+
+      const setup = await TwoFactorService.setupTwoFactor(userId, username);
+      
+      return reply.status(200).send({
+        secret: setup.secret,
+        qrCode: setup.qrCodeUrl,
+        backupCodes: setup.backupCodes
+      });
+    } catch (error) {
+      fastify.log.error('2FA setup failed:', error);
+      return reply.status(500).send({
+        error: 'Failed to setup 2FA',
+        message: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
+  });
+
+  /**
+   * POST /api/auth/2fa/enable
+   * Enable 2FA after setup
+   */
+  fastify.post<{ Body: { token: string } }>('/api/auth/2fa/enable', async (request, reply) => {
+    try {
+      await request.jwtVerify();
+      const userId = (request.user as any).id;
+      const { token } = request.body;
+
+      const verified = await TwoFactorService.enableTwoFactor(userId, token);
+      
+      if (!verified) {
+        return reply.status(400).send({
+          error: 'Invalid 2FA token'
+        });
+      }
+
+      return reply.status(200).send({
+        success: true,
+        message: '2FA enabled successfully'
+      });
+    } catch (error) {
+      fastify.log.error('2FA enable failed:', error);
+      return reply.status(500).send({
+        error: 'Failed to enable 2FA',
+        message: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
+  });
+
+  /**
+   * POST /api/auth/2fa/disable
+   * Disable 2FA
+   */
+  fastify.post<{ Body: { token: string } }>('/api/auth/2fa/disable', async (request, reply) => {
+    try {
+      await request.jwtVerify();
+      const userId = (request.user as any).id;
+      const { token } = request.body;
+
+      const verified = await TwoFactorService.disableTwoFactor(userId, token);
+      
+      if (!verified) {
+        return reply.status(400).send({
+          error: 'Invalid 2FA token'
+        });
+      }
+
+      return reply.status(200).send({
+        success: true,
+        message: '2FA disabled successfully'
+      });
+    } catch (error) {
+      fastify.log.error('2FA disable failed:', error);
+      return reply.status(500).send({
+        error: 'Failed to disable 2FA',
+        message: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
+  });
+
+  /**
+   * POST /api/auth/2fa/verify
+   * Verify 2FA token during login
+   */
+  fastify.post<{ Body: { userId: string; token: string } }>('/api/auth/2fa/verify', async (request, reply) => {
+    try {
+      const { userId, token } = request.body;
+
+      const verified = await TwoFactorService.verifyToken(userId, token);
+      
+      if (!verified) {
+        return reply.status(400).send({
+          error: 'Invalid 2FA token'
+        });
+      }
+
+      // Get user info
+      const user = await UserService.getUserById(userId);
+      if (!user) {
+        return reply.status(404).send({
+          error: 'User not found'
+        });
+      }
+
+      // Generate JWT token
+      const jwtToken = fastify.jwt.sign({
+        id: user.id,
+        username: user.username,
+        email: user.email
+      });
+
+      return reply.status(200).send({
+        success: true,
+        token: jwtToken,
+        user: {
+          id: user.id,
+          username: user.username,
+          email: user.email
+        }
+      });
+    } catch (error) {
+      fastify.log.error('2FA verification failed:', error);
+      return reply.status(500).send({
+        error: 'Failed to verify 2FA',
+        message: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
+  });
+
+  /**
+   * GET /api/auth/2fa/status
+   * Check 2FA status
+   */
+  fastify.get('/api/auth/2fa/status', async (request, reply) => {
+    try {
+      await request.jwtVerify();
+      const userId = (request.user as any).id;
+
+      const enabled = await TwoFactorService.isTwoFactorEnabled(userId);
+      
+      return reply.status(200).send({
+        enabled
+      });
+    } catch (error) {
+      fastify.log.error('Failed to check 2FA status:', error);
+      return reply.status(500).send({
+        error: 'Failed to check 2FA status',
+        message: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
+  });
+
+  /**
+   * POST /api/auth/2fa/backup-codes
+   * Regenerate backup codes
+   */
+  fastify.post<{ Body: { token: string } }>('/api/auth/2fa/backup-codes', async (request, reply) => {
+    try {
+      await request.jwtVerify();
+      const userId = (request.user as any).id;
+      const { token } = request.body;
+
+      const backupCodes = await TwoFactorService.regenerateBackupCodes(userId, token);
+      
+      return reply.status(200).send({
+        backupCodes
+      });
+    } catch (error) {
+      fastify.log.error('Failed to regenerate backup codes:', error);
+      return reply.status(500).send({
+        error: 'Failed to regenerate backup codes',
+        message: error instanceof Error ? error.message : 'Unknown error'
       });
     }
   });

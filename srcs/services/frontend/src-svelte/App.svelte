@@ -80,12 +80,17 @@
   };
 
   // Handle logout
-  const handleLogout = () => {
-    user = null;
-    isAuthenticated = false;
-    authMode = 'login';
-    view = 'game';
-    AuthService.clearAuthData();
+  const handleLogout = async () => {
+    try {
+      await AuthService.logout();
+    } catch (error) {
+      console.error('Logout failed:', error);
+    } finally {
+      user = null;
+      isAuthenticated = false;
+      authMode = 'login';
+      view = 'game';
+    }
   };
 
   // Game mode functions

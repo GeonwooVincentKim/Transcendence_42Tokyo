@@ -155,6 +155,28 @@ export class AuthService {
   }
 
   /**
+   * Logout user and clear authentication data
+   */
+  static async logout(): Promise<void> {
+    try {
+      const token = this.getToken();
+      if (token) {
+        await fetch(`${API_BASE_URL}/api/auth/logout`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+        });
+      }
+    } catch (error) {
+      console.error('Logout API call failed:', error);
+    } finally {
+      this.clearAuthData();
+    }
+  }
+
+  /**
    * Clear stored authentication data from localStorage
    */
   static clearAuthData(): void {

@@ -11,6 +11,9 @@
   import { GameStatsService, type UserStatistics } from '../shared/services/gameStatsService';
   import { _ } from 'svelte-i18n';
   import type { User } from '../shared/types/auth';
+  import FriendsList from './FriendsList.svelte';
+  import ChatInterface from './ChatInterface.svelte';
+  import TwoFactorAuth from './TwoFactorAuth.svelte';
 
   export let user: User | null = null;
   export let onLogout: () => void;
@@ -20,6 +23,7 @@
   let statistics: UserStatistics | null = null;
   let loading = true;
   let error: string | null = null;
+  let currentView: 'profile' | 'friends' | 'chat' | '2fa' = 'profile';
 
   /**
    * Fetch user statistics on component mount
@@ -82,16 +86,46 @@
 </script>
 
 {#if user}
-  <div class="max-w-md mx-auto bg-white rounded-lg shadow-md p-6">
-    <div class="text-center mb-6">
-      <div class="w-20 h-20 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
-        <span class="text-2xl font-bold text-blue-600">
-          {user.username.charAt(0).toUpperCase()}
-        </span>
-      </div>
-      <h2 class="text-2xl font-bold text-gray-800">{user.username}</h2>
-      <p class="text-gray-600">{user.email}</p>
+  <div class="max-w-6xl mx-auto bg-white rounded-lg shadow-md p-6">
+    <!-- Navigation Tabs -->
+    <div class="flex space-x-1 mb-6 border-b">
+      <button 
+        on:click={() => currentView = 'profile'}
+        class="px-4 py-2 rounded-t {currentView === 'profile' ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-700'}"
+      >
+        Profile
+      </button>
+      <button 
+        on:click={() => currentView = 'friends'}
+        class="px-4 py-2 rounded-t {currentView === 'friends' ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-700'}"
+      >
+        Friends
+      </button>
+      <button 
+        on:click={() => currentView = 'chat'}
+        class="px-4 py-2 rounded-t {currentView === 'chat' ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-700'}"
+      >
+        Chat
+      </button>
+      <button 
+        on:click={() => currentView = '2fa'}
+        class="px-4 py-2 rounded-t {currentView === '2fa' ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-700'}"
+      >
+        2FA
+      </button>
     </div>
+
+    <!-- Profile View -->
+    {#if currentView === 'profile'}
+      <div class="text-center mb-6">
+        <div class="w-20 h-20 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
+          <span class="text-2xl font-bold text-blue-600">
+            {user.username.charAt(0).toUpperCase()}
+          </span>
+        </div>
+        <h2 class="text-2xl font-bold text-gray-800">{user.username}</h2>
+        <p class="text-gray-600">{user.email}</p>
+      </div>
 
   <div class="space-y-4 mb-6">
     <!-- Account Information -->
@@ -187,29 +221,45 @@
     </div>
   </div>
 
-  <!-- Action Buttons -->
-  <div class="space-y-3">
-    <button
-      on:click={handleLogout}
-      class="w-full bg-red-600 text-white py-2 px-4 rounded-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2"
-    >
-      {$_('button.logout')}
-    </button>
-    
-    <button
-      on:click={onBackToGame}
-      class="w-full bg-gray-600 text-white py-2 px-4 rounded-md hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2"
-    >
-      {$_('button.backtogame')}
-    </button>
+      <!-- Action Buttons -->
+      <div class="space-y-3">
+        <button
+          on:click={handleLogout}
+          class="w-full bg-red-600 text-white py-2 px-4 rounded-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2"
+        >
+          {$_('button.logout')}
+        </button>
+        
+        <button
+          on:click={onBackToGame}
+          class="w-full bg-gray-600 text-white py-2 px-4 rounded-md hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2"
+        >
+          {$_('button.backtogame')}
+        </button>
 
-    <button
-      on:click={onDeleteAccount}
-      class="w-full bg-red-800 text-white py-2 px-4 rounded-md hover:bg-red-900 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2"
-    >
-      {$_('button.deleteacct')}
-    </button>
-  </div>
+        <button
+          on:click={onDeleteAccount}
+          class="w-full bg-red-800 text-white py-2 px-4 rounded-md hover:bg-red-900 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2"
+        >
+          {$_('button.deleteacct')}
+        </button>
+      </div>
+    {/if}
+
+    <!-- Friends View -->
+    {#if currentView === 'friends'}
+      <FriendsList {user} onBack={() => currentView = 'profile'} />
+    {/if}
+
+    <!-- Chat View -->
+    {#if currentView === 'chat'}
+      <ChatInterface {user} onBack={() => currentView = 'profile'} />
+    {/if}
+
+    <!-- 2FA View -->
+    {#if currentView === '2fa'}
+      <TwoFactorAuth {user} onBack={() => currentView = 'profile'} />
+    {/if}
   </div>
 {:else}
   <div class="max-w-md mx-auto bg-white rounded-lg shadow-md p-6">
