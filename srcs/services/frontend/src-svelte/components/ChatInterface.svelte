@@ -29,10 +29,12 @@
   });
 
   function initializeSocket() {
-    socket = io('http://localhost:8000', {
+    const socketUrl = window.location.origin;
+    socket = io(socketUrl, {
       auth: {
         token: AuthService.getToken()
-      }
+      },
+      path: '/socket.io'
     });
 
     socket.on('connect', () => {

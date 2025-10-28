@@ -37,15 +37,10 @@ class SocketIOService {
 
   constructor(httpServer: HTTPServer) {
     this.io = new SocketIOServer(httpServer, {
-      cors: {
-        origin: process.env.NODE_ENV === 'production'
-          ? ['http://localhost:3000', 'http://localhost:80', 'http://frontend:80']
-          : ['http://localhost:3000', 'http://localhost:3002', 'http://localhost:5173', 'http://127.0.0.1:3000', 'http://127.0.0.1:3002', 'http://127.0.0.1:5173'],
-        methods: ['GET', 'POST'],
-        credentials: true
-      },
-      transports: ['websocket', 'polling'], // Enable fallback to polling
-      allowEIO3: true // Backward compatibility
+      // Accept the request origin (behind Nginx same-origin proxy)
+      cors: { origin: true, methods: ['GET', 'POST'], credentials: true },
+      transports: ['websocket', 'polling'],
+      allowEIO3: true
     });
 
     this.setupSocketHandlers();

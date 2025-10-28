@@ -87,8 +87,10 @@
   // Initialize Socket.IO connection
   function initializeSocket() {
     try {
-      socket = io('http://localhost:8000', {
-        transports: ['websocket', 'polling']
+      const socketUrl = window.location.origin;
+      socket = io(socketUrl, {
+        transports: ['websocket', 'polling'],
+        path: '/socket.io'
       });
 
       socket.on('connect', () => {

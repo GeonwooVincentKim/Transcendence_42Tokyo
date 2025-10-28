@@ -49,14 +49,15 @@ class SocketIOService {
         this.matchId = matchId;
         this.userId = userId;
 
-        // Socket.IO server runs on the backend port (8000)
-        const socketUrl = 'http://localhost:8000';
+        // Use same-origin path via Nginx proxy for cross-machine
+        const socketUrl = window.location.origin;
         console.log('Connecting to Socket.IO server:', socketUrl);
 
         this.socket = io(socketUrl, {
           transports: ['websocket', 'polling'], // Enable fallback to polling
           timeout: 20000,
-          forceNew: true
+          forceNew: true,
+          path: '/socket.io'
         });
 
         this.socket.on('connect', () => {
