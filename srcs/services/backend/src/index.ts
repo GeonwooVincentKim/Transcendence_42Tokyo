@@ -43,9 +43,15 @@ const server = Fastify({
  * Allows requests from any origin in development
  */
 server.register(cors, {
-  origin: process.env.NODE_ENV === 'production'
-    ? ['http://localhost:3000', 'http://localhost:80', 'http://frontend:80']
-    : ['http://localhost:3000', 'http://localhost:3001', 'http://localhost:3002', 'http://localhost:5173', 'http://127.0.0.1:3000', 'http://127.0.0.1:3001', 'http://127.0.0.1:3002', 'http://127.0.0.1:5173'],
+  origin: (origin, cb) => {
+    // Allow same-origin and unset origin (server-to-server) and any http(s) origin in non-production
+    const isDev = process.env.NODE_ENV !== 'production';
+    if (!origin || origin === undefined) return cb(null, true);
+    if (isDev) return cb(null, true);
+    const allowed = ['http://localhost:3000', 'http://localhost:80', 'http://frontend:80'];
+    if (allowed.includes(origin)) return cb(null, true);
+    cb(new Error('Not allowed by CORS'), false);
+  },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],

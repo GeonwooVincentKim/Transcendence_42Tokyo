@@ -7,7 +7,8 @@
 
 import { LoginRequest, RegisterRequest, AuthResponse, User, ErrorResponse } from '../types/auth';
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+// Default to same-origin '/api' unless explicitly configured
+const API_BASE_URL = import.meta.env.VITE_API_URL || '';
 
 /**
  * Authentication Service Class
