@@ -6,9 +6,9 @@ import { register, init, getLocaleFromNavigator } from 'svelte-i18n'
 const initialLocale = getLocaleFromNavigator() || 'en'
 
 // Register translation files with async imports
-register('en', () => import('./shared/locales/locales/en/translations.json').then(m => m.default))
-register('ko', () => import('./shared/locales/locales/ko/translations.json').then(m => m.default))
-register('jp', () => import('./shared/locales/locales/jp/translations.json').then(m => m.default))
+register('en', () => import('./shared/locales/en/translations.json').then(m => m.default))
+register('ko', () => import('./shared/locales/ko/translations.json').then(m => m.default))
+register('jp', () => import('./shared/locales/jp/translations.json').then(m => m.default))
 
 // Initialize i18n and wait for it to be ready
 init({
