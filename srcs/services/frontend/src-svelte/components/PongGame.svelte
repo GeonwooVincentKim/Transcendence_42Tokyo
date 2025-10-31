@@ -18,6 +18,7 @@
   let gameStateStore: any;
   let gameState: any;
   let controls: any;
+  let who = 'no one';
 
   /**
    * Handle game end
@@ -52,6 +53,10 @@
         // Subscribe to game state changes
         gameStateStore.subscribe(state => {
           gameState = state;
+		  if (gameState?.winner == 'left')
+			who = $_('option.leftplayer');
+		  else
+			who = $_('option.rightplayer');
         });
         
         // Initialize controllers for both paddles
@@ -86,16 +91,16 @@
 </script>
 
 <div class="flex flex-col items-center" data-testid="game-container">
-  <h2 class="text-2xl mb-4">{$_('label.playervsplayer')}</h2>
+  <h2 class="text-2xl mb-4">{$_('label.pvp')}</h2>
   
   <div class="mb-4 flex justify-center space-x-8">
     <div class="text-center">
       <div class="text-2xl font-bold text-blue-600">{gameState?.leftScore || 0}</div>
-      <div class="text-sm text-gray-600">{$_('label.player1')}</div>
+      <div class="text-sm text-gray-600">{$_('option.leftplayer')}</div>
     </div>
     <div class="text-center">
       <div class="text-2xl font-bold text-red-600">{gameState?.rightScore || 0}</div>
-      <div class="text-sm text-gray-600">Player 2</div>
+      <div class="text-sm text-gray-600">{$_('option.rightplayer')}</div>
     </div>
   </div>
 
@@ -110,14 +115,14 @@
     
     {#if gameState?.status === 'paused'}
       <div class="absolute inset-0 flex items-center justify-center bg-black bg-opacity-50 rounded-lg">
-        <div class="text-white text-xl font-bold">PAUSED</div>
+        <div class="text-white text-xl font-bold">{$_('label.paused')}</div>
       </div>
     {/if}
     
     {#if gameState?.status === 'finished'}
       <div class="absolute inset-0 flex items-center justify-center bg-black bg-opacity-50 rounded-lg">
         <div class="text-white text-xl font-bold">
-          Game Over! Winner: {gameState?.winner === 'left' ? 'Player 1' : 'Player 2'}
+          {$_('msg.matchwinner', { values: { who } })}
         </div>
       </div>
     {/if}
@@ -166,8 +171,8 @@
   </div>
 
   <div class="mt-4 text-sm text-gray-600 text-center">
-    <p>Player 1: Use W/S keys to move up/down</p>
-    <p>Player 2: Use Arrow Up/Down keys to move up/down</p>
-    <p>Press SPACE to start/pause the game</p>
+    <p>{$_('msg.leftplayerkeys')}</p>
+    <p>{$_('msg.rightplayerkeys')}</p>
+    <p>{$_('msg.startstop')}</p>
   </div>
 </div>
