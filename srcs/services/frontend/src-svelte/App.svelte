@@ -31,6 +31,7 @@
   let showSettings = false;
   let selectedLanguage = 'en';
   let socket: any = null;
+  let username = "Guest";
 
   // Check authentication status on component mount
   onMount(async () => {
@@ -59,6 +60,7 @@
       if (storedAuth && AuthService.isAuthenticated()) {
         user = storedAuth.user;
         isAuthenticated = true;
+		username = user.username;
       } else {
         // Clear invalid auth data
         AuthService.clearAuthData();
@@ -82,6 +84,12 @@
     
     // Initialize socket connection for real-time updates
     initializeSocket();
+
+	// Set welcome message
+	username = user.username;
+	const welcomemsgLabel = document.getElementById("welcomemsg");
+	if (welcomemsgLabel)
+		welcomemsgLabel.innerText = $_('label.welcomeuser', { values: { username } });
   };
 
   // Initialize Socket.IO connection
@@ -225,7 +233,7 @@
         <div class="flex justify-between items-center mb-8">
           <div class="text-left">
             <h1 class="text-4xl">{$_('label.title')}</h1>
-            <p class="text-gray-400 mt-2">Welcome, {user?.username || 'Guest'}!</p>
+            <p id="welcomemsg" class="text-gray-400 mt-2">{$_('label.welcomeuser', { values: { username } })}</p>
           </div>
           <div class="flex gap-4">
             <button 
