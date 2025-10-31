@@ -86,7 +86,7 @@
 		"recoverusrnm": "Recover Username",
 		"tournament": "Tournament",
 		"userranking": "User Ranking",
-		"welcomeuser": "Welcome, {user}!",
+		"welcomeuser": "Welcome, {username}!",
 		"registeracct": "Register Account",
 		"email": "Email",
 		"confirmpw": "Confirm Password",
@@ -286,6 +286,7 @@
 	},
 	"instruction": {
 		"player1": "Player 1",
+		"player2": "Player 2",
 		"wskeys": "W/S keys",
 		"space": "Space",
 		"startpause": "Start/Pause"

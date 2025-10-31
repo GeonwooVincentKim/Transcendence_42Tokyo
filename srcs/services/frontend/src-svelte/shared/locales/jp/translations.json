@@ -86,7 +86,7 @@
 		"recoverusrnm": "ユーザー名を復元",
 		"tournament": "トーナメント",
 		"userranking": "ユーザーランキング",
-		"welcomeuser": "ようこそ、{user} さん!",
+		"welcomeuser": "ようこそ、{username} さん!",
 		"registeracct": "アカウント登録",
 		"email": "メールアドレス",
 		"confirmpw": "パスワード確認",
@@ -286,6 +286,7 @@
 	},
 	"instruction": {
 		"player1": "プレイヤー1",
+		"player2": "プレイヤー2",
 		"wskeys": "W/Sキー",
 		"space": "スペース",
 		"startpause": "開始/一時停止"

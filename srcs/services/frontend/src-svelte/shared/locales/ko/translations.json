@@ -86,7 +86,7 @@
 		"recoverusrnm": "Recover Username",
 		"tournament": "Tournament",
 		"userranking": "User Ranking",
-		"welcomeuser": "Welcome, {user}!",
+		"welcomeuser": "Welcome, {username}!",
 		"registeracct": "Register Account",
 		"email": "Email",
 		"confirmpw": "Confirm Password",
