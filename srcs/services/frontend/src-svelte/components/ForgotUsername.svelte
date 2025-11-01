@@ -59,18 +59,14 @@
 
 <div class="max-w-md mx-auto bg-white rounded-lg shadow-md p-6">
   <h2 class="text-2xl font-bold text-center text-gray-800 mb-6">
-    Find Your Username
+    {$_('label.findusrnm')}
   </h2>
-  
-  <p class="text-gray-600 mb-6 text-center">
-    Enter your email address below and we'll send you your username.
-  </p>
   
   <form on:submit={handleSubmit} class="space-y-4">
     <!-- Email Field -->
     <div>
       <label for="email" class="block text-sm font-medium text-gray-700 mb-1">
-        Email
+        {$_('label.email')}
       </label>
       <input
         type="email"
@@ -79,7 +75,7 @@
         bind:value={email}
         on:input={handleInputChange}
         class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-        placeholder="Enter your email address"
+        placeholder={$_('placeholder.newemail')}
         disabled={isLoading}
         required
       />
@@ -105,7 +101,7 @@
       disabled={isLoading}
       class="w-full bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
     >
-      {isLoading ? 'Finding username...' : 'Find Username'}
+      {isLoading ? $_('button.findingusrnm') : $_('button.findusrnm')}
     </button>
   </form>
 
@@ -116,7 +112,7 @@
       on:click={onBackToLogin}
       class="text-blue-600 hover:text-blue-800 font-medium"
     >
-      Back to Login
+      {$_('button.backtologin')}
     </button>
   </div>
 </div>
