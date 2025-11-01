@@ -118,19 +118,15 @@
 
 <div class="max-w-md mx-auto bg-white rounded-lg shadow-md p-6">
   <h2 class="text-2xl font-bold text-center text-gray-800 mb-6">
-    Reset Your Password
+    {$_('label.resetpw')}
   </h2>
-  
-  <p class="text-gray-600 mb-6 text-center">
-    Enter your username and email address below and we'll send you a password reset token.
-  </p>
   
   {#if step === 'email'}
     <form on:submit={handleEmailSubmit} class="space-y-4">
       <!-- Email Field -->
       <div>
         <label for="email" class="block text-sm font-medium text-gray-700 mb-1">
-          Email
+          {$_('label.email')}
         </label>
         <input
           type="email"
@@ -139,7 +135,7 @@
           bind:value={email}
           on:input={handleInputChange}
           class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-          placeholder="Enter your email address"
+          placeholder={$_('placeholder.newemail')}
           disabled={isLoading}
           required
         />
@@ -158,7 +154,7 @@
         disabled={isLoading}
         class="w-full bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
       >
-        {isLoading ? 'Sending reset token...' : 'Send Reset Token'}
+        {isLoading ? $_('button.sendingresettkn') : $_('button.sendresettkn')}
       </button>
     </form>
   {:else}
@@ -166,7 +162,7 @@
       <!-- Reset Token Field -->
       <div>
         <label for="resetToken" class="block text-sm font-medium text-gray-700 mb-1">
-          Reset Token
+          {$_('label.resettkn')}
         </label>
         <input
           type="text"
@@ -175,7 +171,7 @@
           bind:value={resetToken}
           on:input={handleInputChange}
           class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-          placeholder="Enter the reset token from your email"
+          placeholder={$_('placeholder.resettkn')}
           disabled={isLoading}
           required
         />
@@ -184,7 +180,7 @@
       <!-- New Password Field -->
       <div>
         <label for="newPassword" class="block text-sm font-medium text-gray-700 mb-1">
-          New Password
+          {$_('label.newpw')}
         </label>
         <input
           type="password"
@@ -193,7 +189,7 @@
           bind:value={newPassword}
           on:input={handleInputChange}
           class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-          placeholder="Choose a password (min 6 characters)"
+          placeholder={$_('placeholder.newpw')}
           disabled={isLoading}
           required
         />
@@ -202,7 +198,7 @@
       <!-- Confirm Password Field -->
       <div>
         <label for="confirmPassword" class="block text-sm font-medium text-gray-700 mb-1">
-          Confirm Password
+          {$_('label.confirmpw')}
         </label>
         <input
           type="password"
@@ -211,7 +207,7 @@
           bind:value={confirmPassword}
           on:input={handleInputChange}
           class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-          placeholder="Type your password again to confirm"
+          placeholder={$_('placeholder.pwcnfm')}
           disabled={isLoading}
           required
         />
@@ -237,7 +233,7 @@
         disabled={isLoading}
         class="w-full bg-green-600 text-white py-2 px-4 rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
       >
-        {isLoading ? 'Resetting password...' : 'Reset Password'}
+        {isLoading ? $_('button.resettingpw') : $_('button.resetpw')}
       </button>
 
       <!-- Back to Email -->
@@ -246,7 +242,7 @@
         on:click={handleBackToEmail}
         class="w-full bg-gray-600 text-white py-2 px-4 rounded-md hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2"
       >
-        Back to Email
+        {$_('button.backtoemail')}
       </button>
     </form>
   {/if}
@@ -258,7 +254,7 @@
       on:click={onBackToLogin}
       class="text-blue-600 hover:text-blue-800 font-medium"
     >
-      Back to Login
+      {$_('button.backtologin')}
     </button>
   </div>
 </div>
