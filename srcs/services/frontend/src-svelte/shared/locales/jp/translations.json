@@ -54,7 +54,16 @@
 		"joining": "参加中...",
 		"backtodetails": "詳細に戻る",
 		"playgame": "ゲーム開始",
-		"startgame": "ゲーム開始"
+		"startgame": "ゲーム開始",
+		"friends": "Friends",
+		"requests": "Requests",
+		"blocked": "Blocked",
+		"remove": "Remove",
+		"accept": "Accept",
+		"reject": "Reject",
+		"unblock": "Unblock",
+		"sending": "Sending...",
+		"sendrequest": "Send request"
 	},
 	"placeholder": {
 		"username": "ユーザー名を入力してください",
@@ -71,7 +80,8 @@
 		"tournamentdesc": "トーナメントの説明を入力してください (任意)",
 		"displayname": "表示名を入力してください",
 		"alias": "一意の別名を入力してください",
-		"avatarurl": "アバターURLを入力してください (任意"
+		"avatarurl": "アバターURLを入力してください (任意)",
+		"otherusername": "Enter a username"
 	},
 	"label": {
 		"usrnm": "ユーザー名 ",
@@ -144,7 +154,10 @@
 		"ai": "AI",
 		"paused": "一時停止",
 		"winner": "勝者",
-		"aidebug": "AIデバッグ情報"
+		"aidebug": "AIデバッグ情報",
+		"friends": "Friends",
+		"addfriend": "Add Friend",
+		"blocked": "Blocked"
 	},
 	"info": {
 		"usrnm": "ユーザー名:",
@@ -218,7 +231,10 @@
 		"roundrobin": "総当たり戦",
 		"tbd": "未定",
 		"bye": "不戦勝",
-		"unknownplayer": "不明なプレイヤー"
+		"unknownplayer": "不明なプレイヤー",
+		"online": "🟢 Online",
+		"ingame": "🎮 In Game",
+		"offline": "⚫ Offline"
 	},
 	"error": {
 		"missingfield": "すべての項目を入力してください",
@@ -272,7 +288,10 @@
 		"startmatch": "クリックして試合を開始",
 		"nobracketdata": "トーナメント表データがありません",
 		"bracketpending": "トーナメント表は試合が生成され次第ここに表示されます",
-		"bracketcreation": "トーナメント表を作成中です。しばらくお待ちください。"
+		"bracketcreation": "トーナメント表を作成中です。しばらくお待ちください。",
+		"emptyfl": "No friends yet. Send a friend request to get started!",
+		"nopendingfr": "No pending friend requests.",
+		"noblocked": "No blocked users."
 	},
 	"debug": {
 		"lastmove": "最後の移動",

@@ -54,7 +54,11 @@
 		"joining": "Joining...",
 		"backtodetails": "Back to Details",
 		"playgame": "게임 시작",
-		"startgame": "게임 시작"
+		"startgame": "게임 시작",
+		"friends": "Friends",
+		"requests": "Requests",
+		"blocked": "Blocked",
+		"remove": "Remove"
 	},
 	"placeholder": {
 		"username": "Enter your username",
@@ -71,7 +75,8 @@
 		"tournamentdesc": "Enter tournament description (optional)",
 		"displayname": "Enter your display name",
 		"alias": "Enter a unique alias",
-		"avatarurl": "Enter avatar URL (optional"
+		"avatarurl": "Enter avatar URL (optional)",
+		"otherusername": "Enter a username"
 	},
 	"label": {
 		"usrnm": "Username",
@@ -144,7 +149,15 @@
 		"ai": "AI",
 		"paused": "일시정지",
 		"winner": "승자",
-		"aidebug": "AI 디버그 정보"
+		"aidebug": "AI 디버그 정보",
+		"friends": "Friends",
+		"addfriend": "Add Friend",
+		"accept": "Accept",
+		"reject": "Reject",
+		"unblock": "Unblock",
+		"sending": "Sending...",
+		"sendrequest": "Send request",
+		"blocked": "Blocked"
 	},
 	"info": {
 		"usrnm": "Username:",
@@ -218,7 +231,10 @@
 		"roundrobin": "Round Robin",
 		"tbd": "TBD",
 		"bye": "Bye",
-		"unknownplayer": "Unknown Player"
+		"unknownplayer": "Unknown Player",
+		"online": "🟢 Online",
+		"ingame": "🎮 In Game",
+		"offline": "⚫ Offline"
 	},
 	"error": {
 		"missingfield": "Please fill in all fields",
@@ -272,7 +288,10 @@
 		"startmatch": "Click to start a match",
 		"nobracketdata": "No bracket data available",
 		"bracketpending": "Tournament bracket will appear here once matches are generated",
-		"bracketcreation": "Please wait while the tournament bracket is being created"
+		"bracketcreation": "Please wait while the tournament bracket is being created",
+		"emptyfl": "No friends yet. Send a friend request to get started!",
+		"nopendingfr": "No pending friend requests.",
+		"noblocked": "No blocked users."
 	},
 	"debug": {
 		"lastmove": "마지막 이동",
