@@ -150,12 +150,12 @@
     <!-- Header -->
     <div class="mb-8">
       <div class="flex justify-between items-center">
-        <h1 class="text-3xl font-bold text-gray-900">Tournaments</h1>
+        <h1 class="text-3xl font-bold text-gray-900">{$_('label.tournaments')}</h1>
         <button 
           on:click={onBack}
           class="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
         >
-          Back to Game
+          {$_('button.backtogame')}
         </button>
       </div>
     </div>
@@ -217,7 +217,7 @@
                 on:click={showList}
                 class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
               >
-                Back to Tournament List
+                {$_('button.backtolist')}
               </button>
             </div>
           </div>
@@ -240,7 +240,7 @@
                 on:click={showList}
                 class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
               >
-                Back to Tournament List
+                {$_('button.backtolist')}
               </button>
             </div>
           </div>

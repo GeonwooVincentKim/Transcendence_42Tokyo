@@ -99,8 +99,8 @@
   <!-- Tournaments List -->
   {#if tournaments.length === 0}
     <div class="bg-white rounded-lg shadow p-8 text-center">
-      <div class="text-gray-500 text-lg mb-4">No tournaments found</div>
-      <p class="text-gray-400">Be the first to create a tournament!</p>
+      <div class="text-gray-500 text-lg mb-4">{$_('msg.notournaments')}</div>
+      <p class="text-gray-400">{$_('msg.firsttournament')}</p>
     </div>
   {:else}
     <div class="space-y-4">
