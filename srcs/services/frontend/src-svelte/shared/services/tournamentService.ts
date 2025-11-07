@@ -116,17 +116,22 @@ interface ApiResponse<T> {
 }
 
 class TournamentService {
-  private baseUrl: string;
-
-  constructor() {
-    this.baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+  // Get API base URL dynamically (must be called each time to avoid build-time evaluation)
+  private getApiBaseUrl(): string {
+    if (typeof window === 'undefined') return '';
+    // Check if VITE_API_URL is set
+    const envUrl = import.meta.env.VITE_API_URL;
+    if (envUrl && envUrl.length > 0) return envUrl;
+    // Dynamically construct URL from browser location
+    return window.location.protocol + '//' + window.location.hostname + ':8000';
   }
 
   private async request<T>(
     endpoint: string,
     options: RequestInit = {}
   ): Promise<T> {
-    const url = `${this.baseUrl}${endpoint}`;
+    // Get base URL at request time to ensure runtime evaluation
+    const url = `${this.getApiBaseUrl()}${endpoint}`;
     
     const defaultOptions: RequestInit = {
       headers: {

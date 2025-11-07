@@ -119,7 +119,8 @@ class TournamentService {
   private baseUrl: string;
 
   constructor() {
-    this.baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+    // Use window.location.hostname to dynamically connect to the correct backend server
+    this.baseUrl = import.meta.env.VITE_API_URL || `http://${window.location.hostname}:8000`;
   }
 
   private async request<T>(
