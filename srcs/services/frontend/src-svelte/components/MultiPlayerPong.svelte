@@ -27,6 +27,8 @@
   let keys = new Set<string>();
   let gameEndMessage = '';
   let showGameEndMessage = false;
+  let errorMessage = '';
+  let showErrorMessage = false;
 
   const setConnected = (status: boolean) => {
     connected = status;
@@ -110,6 +112,8 @@
       } else {
         console.error('❌ Invalid roomId format:', roomId);
         console.log('Expected formats: "123" (simple number) or "tournament-{id}-match-{matchId}"');
+        errorMessage = `Invalid Room ID format: "${roomId}". Please use a number (e.g., "123") or tournament format (e.g., "tournament-1-match-2")`;
+        showErrorMessage = true;
         return;
       }
     }
@@ -388,6 +392,19 @@
       </div>
     </div>
   </div>
+
+  {#if showErrorMessage}
+    <div class="mb-4 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
+      <div class="font-bold">❌ Error</div>
+      <div>{errorMessage}</div>
+      <button 
+        on:click={() => { showErrorMessage = false; window.history.back(); }}
+        class="mt-2 px-3 py-1 bg-red-600 text-white rounded hover:bg-red-700"
+      >
+        Back to Main Menu
+      </button>
+    </div>
+  {/if}
 
   <div class="relative">
     <canvas

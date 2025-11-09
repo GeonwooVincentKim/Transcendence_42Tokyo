@@ -16,6 +16,11 @@
   let isCreatingChannel = false;
   let isLoading = false;
   let error = '';
+  
+  // Password modal for protected channels
+  let showPasswordModal = false;
+  let joiningChannelId = '';
+  let joinPassword = '';
 
   onMount(() => {
     initializeSocket();
@@ -29,7 +34,8 @@
   });
 
   function initializeSocket() {
-    socket = io('http://localhost:8000', {
+    const socketUrl = window.location.protocol + '//' + window.location.hostname + ':8000';
+    socket = io(socketUrl, {
       auth: {
         token: AuthService.getToken()
       }
@@ -79,17 +85,39 @@
   async function loadChannels() {
     try {
       isLoading = true;
-      const response = await fetch('/api/chat/channels', {
+      
+      // Load user's channels (channels they've joined)
+      const userChannelsResponse = await fetch('/api/chat/channels', {
         headers: {
           'Authorization': `Bearer ${AuthService.getToken()}`
         }
       });
       
-      if (response.ok) {
-        const data = await response.json();
-        channels = data.channels || [];
+      // Load all available channels (public + protected for discovery)
+      const allChannelsResponse = await fetch('/api/chat/channels/all', {
+        headers: {
+          'Authorization': `Bearer ${AuthService.getToken()}`
+        }
+      });
+      
+      if (userChannelsResponse.ok && allChannelsResponse.ok) {
+        const userData = await userChannelsResponse.json();
+        const allData = await allChannelsResponse.json();
+        
+        const userChannels = userData.channels || [];
+        const allChannels = allData.channels || [];
+        
+        // Merge and deduplicate channels by id
+        const channelMap = new Map();
+        [...userChannels, ...allChannels].forEach(channel => {
+          channelMap.set(channel.id, channel);
+        });
+        
+        channels = Array.from(channelMap.values());
+        console.log('Loaded channels:', channels.length, 'channels');
       }
     } catch (err) {
+      console.error('Failed to load channels:', err);
       error = 'Failed to load channels';
     } finally {
       isLoading = false;
@@ -131,7 +159,7 @@
     }
   }
 
-  async function joinChannel(channelId: string) {
+  async function joinChannel(channelId: string, password?: string) {
     try {
       const response = await fetch(`/api/chat/channels/${channelId}/join`, {
         method: 'POST',
@@ -139,12 +167,14 @@
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${AuthService.getToken()}`
         },
-        body: JSON.stringify({})
+        body: JSON.stringify({ password })
       });
       
       if (response.ok) {
+        showPasswordModal = false;
+        joinPassword = '';
         loadChannels();
-        loadChannelMessages(channelId);
+        await loadChannelMessages(channelId);
       } else {
         const errorData = await response.json();
         error = errorData.error || 'Failed to join channel';
@@ -152,6 +182,62 @@
     } catch (err) {
       error = 'Failed to join channel';
     }
+  }
+  
+  async function handleChannelClick(channel: any) {
+    console.log('🔍 Channel clicked:', channel);
+    console.log('🔍 Channel type:', channel.type);
+    
+    if (channel.type === 'public') {
+      // Public channel - can view messages directly
+      console.log('✅ Opening public channel directly');
+      await loadChannelMessages(channel.id);
+    } else if (channel.type === 'protected') {
+      // Protected channel - check if member by trying to load messages
+      console.log('🔒 Protected channel - checking membership...');
+      const canAccess = await tryLoadChannelMessages(channel.id);
+      
+      if (canAccess) {
+        console.log('✅ Already a member, opening channel');
+        // Messages already loaded by tryLoadChannelMessages
+      } else {
+        console.log('🔒 Not a member - showing password modal');
+        joiningChannelId = channel.id;
+        showPasswordModal = true;
+        error = '';
+      }
+    } else {
+      console.log('❌ Cannot access this channel');
+      error = 'Cannot access this channel';
+    }
+  }
+  
+  async function tryLoadChannelMessages(channelId: string): Promise<boolean> {
+    try {
+      const response = await fetch(`/api/chat/channels/${channelId}/messages`, {
+        headers: {
+          'Authorization': `Bearer ${AuthService.getToken()}`
+        }
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        messages = data.messages || [];
+        currentChannel = channels.find(c => c.id === channelId);
+        return true;
+      }
+      return false;
+    } catch {
+      return false;
+    }
+  }
+  
+  async function joinWithPassword() {
+    if (!joinPassword.trim()) {
+      error = 'Please enter a password';
+      return;
+    }
+    await joinChannel(joiningChannelId, joinPassword);
   }
 
   async function loadChannelMessages(channelId: string) {
@@ -251,6 +337,39 @@
     </div>
   {/if}
 
+  <!-- Password Modal for Protected Channels -->
+  {#if showPasswordModal}
+    <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+      <div class="bg-white rounded-lg p-6 max-w-md w-full">
+        <h3 class="text-xl font-bold mb-4">🔒 Protected Channel</h3>
+        <p class="text-gray-600 mb-4">This channel requires a password to join.</p>
+        
+        <input 
+          type="password" 
+          bind:value={joinPassword}
+          placeholder="Enter channel password"
+          class="w-full px-3 py-2 border rounded mb-4"
+          on:keypress={(e) => e.key === 'Enter' && joinWithPassword()}
+        />
+        
+        <div class="flex space-x-2">
+          <button 
+            on:click={joinWithPassword}
+            class="flex-1 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+          >
+            Join Channel
+          </button>
+          <button 
+            on:click={() => { showPasswordModal = false; joinPassword = ''; error = ''; }}
+            class="flex-1 px-4 py-2 bg-gray-600 text-white rounded hover:bg-gray-700"
+          >
+            Cancel
+          </button>
+        </div>
+      </div>
+    </div>
+  {/if}
+
   <div class="flex h-96">
     <!-- Channels Sidebar -->
     <div class="w-1/3 bg-gray-100 rounded-l-lg p-4">
@@ -294,9 +413,14 @@
         {#each channels as channel}
           <div 
             class="p-2 rounded cursor-pointer {currentChannel?.id === channel.id ? 'bg-blue-200' : 'bg-white hover:bg-gray-50'}"
-            on:click={() => loadChannelMessages(channel.id)}
+            on:click={() => handleChannelClick(channel)}
           >
-            <div class="font-semibold">#{channel.name}</div>
+            <div class="font-semibold flex items-center">
+              {#if channel.type === 'protected'}
+                <span class="mr-2">🔒</span>
+              {/if}
+              #{channel.name}
+            </div>
             <div class="text-sm text-gray-500">
               {channel.type} • {channel.memberCount || 0} members
             </div>

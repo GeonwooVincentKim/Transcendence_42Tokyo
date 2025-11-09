@@ -87,7 +87,8 @@
   // Initialize Socket.IO connection
   function initializeSocket() {
     try {
-      socket = io('http://localhost:8000', {
+      const socketUrl = window.location.protocol + '//' + window.location.hostname + ':8000';
+      socket = io(socketUrl, {
         transports: ['websocket', 'polling']
       });
 

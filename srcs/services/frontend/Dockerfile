@@ -20,11 +20,6 @@ COPY . .
 # Build the Svelte application
 RUN npm run build:svelte
 
-# Fix CSP in the built HTML file (cross-platform compatible)
-RUN if [ -f /app/dist-svelte/index-svelte.html ]; then \
-        sed -i 's/connect-src '\''self'\'' ws:\/\/localhost:8000;/connect-src '\''self'\'' ws:\/\/localhost:8000 http:\/\/localhost:8000;/g' /app/dist-svelte/index-svelte.html || true; \
-    fi
-
 # Production stage
 FROM nginx:1.25-alpine AS production
 

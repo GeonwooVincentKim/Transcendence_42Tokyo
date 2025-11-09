@@ -102,6 +102,17 @@ export class ChatService {
   }
 
   /**
+   * Check if user is a member of a channel
+   */
+  static async checkChannelMembership(userId: string, channelId: string): Promise<boolean> {
+    const result = await DatabaseService.query(
+      'SELECT id FROM channel_members WHERE channel_id = ? AND user_id = ?',
+      [channelId, userId]
+    );
+    return result.length > 0;
+  }
+
+  /**
    * Join a channel
    */
   static async joinChannel(userId: string, channelId: string, password?: string): Promise<void> {
@@ -198,6 +209,32 @@ export class ChatService {
        FROM chat_channels c
        LEFT JOIN channel_members cm ON c.id = cm.channel_id
        WHERE c.type = 'public'
+       GROUP BY c.id, c.name, c.description, c.type, c.owner_id, c.created_at
+       ORDER BY c.created_at DESC`
+    );
+
+    return result.map((row: any) => ({
+      id: row.id.toString(),
+      name: row.name,
+      description: row.description,
+      type: row.type,
+      ownerId: row.owner_id.toString(),
+      memberCount: parseInt(row.member_count),
+      createdAt: row.created_at
+    }));
+  }
+
+  /**
+   * Get all channels (public + protected, for discovery)
+   */
+  static async getAllChannels(): Promise<Channel[]> {
+    const result = await DatabaseService.query(
+      `SELECT 
+        c.id, c.name, c.description, c.type, c.owner_id, c.created_at,
+        COUNT(cm.id) as member_count
+       FROM chat_channels c
+       LEFT JOIN channel_members cm ON c.id = cm.channel_id
+       WHERE c.type IN ('public', 'protected')
        GROUP BY c.id, c.name, c.description, c.type, c.owner_id, c.created_at
        ORDER BY c.created_at DESC`
     );

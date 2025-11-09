@@ -57,7 +57,7 @@ export const DeleteAccountModal: React.FC<DeleteAccountModalProps> = ({
       if (!token) {
         throw new Error('Authentication token not found');
       }
-      const response = await fetch('http://localhost:8000/api/auth/account', {
+      const response = await fetch(`http://${window.location.hostname}:8000/api/auth/account`, {
         method: 'DELETE',
         headers: {
           'Content-Type': 'application/json',

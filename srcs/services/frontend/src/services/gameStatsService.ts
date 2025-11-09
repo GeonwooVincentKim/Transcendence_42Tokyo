@@ -7,7 +7,8 @@
 
 import { AuthService } from './authService';
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+// Use window.location.hostname to dynamically connect to the correct backend server
+const API_BASE_URL = import.meta.env.VITE_API_URL || `http://${window.location.hostname}:8000`;
 
 /**
  * Game result interface

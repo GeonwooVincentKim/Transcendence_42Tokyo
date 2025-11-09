@@ -36,11 +36,14 @@ class SocketIOService {
   private playerIdMapping: Map<string, string> = new Map(); // tempUserId -> realUserId
 
   constructor(httpServer: HTTPServer) {
+    // Allow all origins for multi-PC access (development and production)
     this.io = new SocketIOServer(httpServer, {
       cors: {
-        origin: process.env.NODE_ENV === 'production'
-          ? ['http://localhost:3000', 'http://localhost:80', 'http://frontend:80']
-          : ['http://localhost:3000', 'http://localhost:3002', 'http://localhost:5173', 'http://127.0.0.1:3000', 'http://127.0.0.1:3002', 'http://127.0.0.1:5173'],
+        origin: (origin, callback) => {
+          // Allow any origin for multi-PC access
+          console.log(`Socket.IO CORS: Allowing origin="${origin}"`);
+          callback(null, true);
+        },
         methods: ['GET', 'POST'],
         credentials: true
       },
