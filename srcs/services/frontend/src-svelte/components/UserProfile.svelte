@@ -14,6 +14,7 @@
   import FriendsList from './FriendsList.svelte';
   import ChatInterface from './ChatInterface.svelte';
   import TwoFactorAuth from './TwoFactorAuth.svelte';
+  import MatchHistory from './MatchHistory.svelte';
 
   export let user: User | null = null;
   export let onLogout: () => void;
@@ -23,7 +24,7 @@
   let statistics: UserStatistics | null = null;
   let loading = true;
   let error: string | null = null;
-  let currentView: 'profile' | 'friends' | 'chat' | '2fa' = 'profile';
+  let currentView: 'profile' | 'friends' | 'chat' | '2fa' | 'matchHistory' = 'profile';
 
   /**
    * Fetch user statistics on component mount
@@ -88,12 +89,18 @@
 {#if user}
   <div class="max-w-6xl mx-auto bg-white rounded-lg shadow-md p-6">
     <!-- Navigation Tabs -->
-    <div class="flex space-x-1 mb-6 border-b">
+    <div class="flex space-x-1 mb-6 border-b overflow-x-auto">
       <button 
         on:click={() => currentView = 'profile'}
         class="px-4 py-2 rounded-t {currentView === 'profile' ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-700'}"
       >
         Profile
+      </button>
+      <button 
+        on:click={() => currentView = 'matchHistory'}
+        class="px-4 py-2 rounded-t {currentView === 'matchHistory' ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-700'}"
+      >
+        Match History
       </button>
       <button 
         on:click={() => currentView = 'friends'}
@@ -244,6 +251,11 @@
           {$_('button.deleteacct')}
         </button>
       </div>
+    {/if}
+
+    <!-- Match History View -->
+    {#if currentView === 'matchHistory'}
+      <MatchHistory onBack={() => currentView = 'profile'} />
     {/if}
 
     <!-- Friends View -->

@@ -36,11 +36,28 @@ class SocketIOService {
   private playerIdMapping: Map<string, string> = new Map(); // tempUserId -> realUserId
 
   constructor(httpServer: HTTPServer) {
+    // Allow CORS from environment variable or default origins
+    const allowedOrigins = process.env.CORS_ORIGIN 
+      ? process.env.CORS_ORIGIN.split(',')
+      : process.env.NODE_ENV === 'production'
+        ? ['http://localhost:3000', 'http://localhost:80', 'http://frontend:80']
+        : ['http://localhost:3000', 'http://localhost:3002', 'http://localhost:5173', 'http://127.0.0.1:3000', 'http://127.0.0.1:3002', 'http://127.0.0.1:5173'];
+    
+    // In development or when CORS_ALLOW_ALL is set, allow all origins
+    // This is essential for IP-based access (e.g., 192.168.x.x)
+    const corsOrigin = (process.env.NODE_ENV === 'development' || process.env.CORS_ALLOW_ALL === 'true')
+      ? true // Allow all origins in development or when explicitly enabled
+      : allowedOrigins; // Use specific origins in production
+    
+    console.log('🔍 Socket.IO CORS configuration:', {
+      NODE_ENV: process.env.NODE_ENV,
+      CORS_ALLOW_ALL: process.env.CORS_ALLOW_ALL,
+      corsOrigin: corsOrigin === true ? 'ALL ORIGINS' : corsOrigin
+    });
+    
     this.io = new SocketIOServer(httpServer, {
       cors: {
-        origin: process.env.NODE_ENV === 'production'
-          ? ['http://localhost:3000', 'http://localhost:80', 'http://frontend:80']
-          : ['http://localhost:3000', 'http://localhost:3002', 'http://localhost:5173', 'http://127.0.0.1:3000', 'http://127.0.0.1:3002', 'http://127.0.0.1:5173'],
+        origin: corsOrigin,
         methods: ['GET', 'POST'],
         credentials: true
       },
@@ -59,14 +76,32 @@ class SocketIOService {
       console.log(`Socket.IO connection established: ${socket.id}`);
 
       // Handle joining game room
-      socket.on('join_game_room', (data: { roomId?: string, tournamentId: number, matchId: number, userId: string, token?: string }) => {
-        console.log('🔍 Backend received join_game_room:', { ...data, token: data.token ? 'provided' : 'not provided' });
+      socket.on('join_game_room', (data: { roomId?: string, tournamentId: number, matchId: number, userId: string, token?: string, playerSide?: 'left' | 'right' }) => {
+        console.log('\n' + '🟢'.repeat(40));
+        console.log('🎯 BACKEND RECEIVED join_game_room EVENT');
+        console.log('🟢'.repeat(40));
+        console.log('DATA RECEIVED:');
+        console.log('   roomId:', data.roomId);
+        console.log('   tournamentId:', data.tournamentId);
+        console.log('   matchId:', data.matchId);
+        console.log('   userId:', data.userId);
+        console.log('   token:', data.token ? 'PROVIDED' : 'NOT PROVIDED');
+        console.log('   playerSide:', data.playerSide);
+        console.log('   playerSide type:', typeof data.playerSide);
+        console.log('   playerSide === undefined:', data.playerSide === undefined);
+        console.log('   playerSide === null:', data.playerSide === null);
+        console.log('   playerSide === "left":', data.playerSide === 'left');
+        console.log('   playerSide === "right":', data.playerSide === 'right');
+        console.log('   socketId:', socket.id);
+        console.log('🔍 Full data object:');
+        console.log(JSON.stringify(data, null, 2));
+        console.log('🟢'.repeat(40) + '\n');
         
         // If token is provided, try to extract real user ID
         if (data.token) {
           this.extractUserIdFromToken(data.token).then(realUserId => {
             if (realUserId) {
-              console.log('🔍 Extracted real user ID from token:', realUserId);
+              console.log('🔍 Extracted real user ID from token:', realUserId, '(original userId:', data.userId, ')');
               socket.userId = realUserId; // Store real user ID in socket
               
               // Store mapping between temp userId and real userId
@@ -74,32 +109,32 @@ class SocketIOService {
               console.log('🔍 Stored player ID mapping:', data.userId, '->', realUserId);
               
               if (data.roomId) {
-                this.joinGameRoomById(socket, data.roomId, realUserId);
+                this.joinGameRoomById(socket, data.roomId, realUserId, data.playerSide);
               } else {
-                this.joinGameRoom(socket, data.tournamentId, data.matchId, realUserId);
+                this.joinGameRoom(socket, data.tournamentId, data.matchId, realUserId, data.playerSide);
               }
             } else {
-              console.log('⚠️ Failed to extract user ID from token, using provided userId');
+              console.log('⚠️ Failed to extract user ID from token, using provided userId:', data.userId);
               if (data.roomId) {
-                this.joinGameRoomById(socket, data.roomId, data.userId);
+                this.joinGameRoomById(socket, data.roomId, data.userId, data.playerSide);
               } else {
-                this.joinGameRoom(socket, data.tournamentId, data.matchId, data.userId);
+                this.joinGameRoom(socket, data.tournamentId, data.matchId, data.userId, data.playerSide);
               }
             }
           }).catch(error => {
             console.error('❌ Error extracting user ID from token:', error);
             if (data.roomId) {
-              this.joinGameRoomById(socket, data.roomId, data.userId);
+              this.joinGameRoomById(socket, data.roomId, data.userId, data.playerSide);
             } else {
-              this.joinGameRoom(socket, data.tournamentId, data.matchId, data.userId);
+              this.joinGameRoom(socket, data.tournamentId, data.matchId, data.userId, data.playerSide);
             }
           });
         } else {
-          console.log('⚠️ No token provided, using provided userId');
+          console.log('⚠️ No token provided, using provided userId:', data.userId);
           if (data.roomId) {
-            this.joinGameRoomById(socket, data.roomId, data.userId);
+            this.joinGameRoomById(socket, data.roomId, data.userId, data.playerSide);
           } else {
-            this.joinGameRoom(socket, data.tournamentId, data.matchId, data.userId);
+            this.joinGameRoom(socket, data.tournamentId, data.matchId, data.userId, data.playerSide);
           }
         }
       });
@@ -242,8 +277,14 @@ class SocketIOService {
   /**
    * Join a game room by roomId
    */
-  private joinGameRoomById(socket: any, roomId: string, userId: string) {
-    console.log(`🔍 Joining room by ID: ${roomId}`);
+  private joinGameRoomById(socket: any, roomId: string, userId: string, requestedSide?: 'left' | 'right') {
+    console.log('='.repeat(80));
+    console.log(`🎯 joinGameRoomById CALLED`);
+    console.log(`   roomId: ${roomId}`);
+    console.log(`   userId: ${userId}`);
+    console.log(`   requestedSide: ${requestedSide} (type: ${typeof requestedSide})`);
+    console.log(`   socketId: ${socket.id}`);
+    console.log('='.repeat(80));
     
     let tournamentId: number;
     let matchId: number;
@@ -287,9 +328,99 @@ class SocketIOService {
       this.gameRooms.set(roomId, room);
     }
 
+    // Check if this userId is already in the room (reconnection)
+    const existingPlayer = room.players.get(userId);
+    if (existingPlayer) {
+      console.log(`🔄 Player ${userId} reconnecting, updating socket (existing socket: ${existingPlayer.socket?.id}, new socket: ${socket.id})`);
+      console.log(`🔍 Existing player data:`, existingPlayer);
+      
+      // IMPORTANT: Preserve the existing player's side!
+      const preservedSide = existingPlayer.side || requestedSide || 'left';
+      console.log(`🔍 Preserving player side: ${preservedSide} (existing: ${existingPlayer.side}, requested: ${requestedSide})`);
+      
+      // Update socket for existing player
+      existingPlayer.socket = socket;
+      // Make sure we keep the side!
+      existingPlayer.side = preservedSide;
+      
+      socket.join(roomId);
+      
+      // Ensure player IDs are set in game state
+      if (!room.gameState.player1Id) {
+        room.gameState.player1Id = userId;
+      } else if (!room.gameState.player2Id && room.gameState.player1Id !== userId) {
+        room.gameState.player2Id = userId;
+      }
+      
+      // Notify about reconnection
+      this.broadcastToRoom(roomId, 'player_reconnected', {
+        userId,
+        roomState: room.gameState,
+        message: `Player ${userId} reconnected`
+      });
+      
+      // Check game readiness after reconnection
+      this.checkGameReadiness(roomId);
+      return; // Don't add as new player
+    }
+    
+    // Check if room is full (2 players already)
+    if (room.players.size >= 2) {
+      const existingPlayerIds = Array.from(room.players.keys());
+      console.log(`⚠️ Room ${roomId} is full! Current players: ${existingPlayerIds.join(', ')}, trying to join: ${userId}`);
+      
+      // Notify the player that room is full
+      socket.emit('room_full', {
+        roomId,
+        message: 'Room is full. Maximum 2 players allowed.',
+        currentPlayers: existingPlayerIds
+      });
+      return;
+    }
+    
     // Determine player side (left or right)
-    const playerCount = room.players.size;
-    const playerSide = playerCount === 0 ? 'left' : 'right';
+    // If client requested a specific side and it's available, use it
+    // Otherwise, assign based on order (first player = left, second = right)
+    let playerSide: 'left' | 'right';
+    
+    console.log('🔍 DETERMINING PLAYER SIDE:');
+    console.log(`   requestedSide: ${requestedSide} (type: ${typeof requestedSide})`);
+    console.log(`   requestedSide === undefined: ${requestedSide === undefined}`);
+    console.log(`   requestedSide === null: ${requestedSide === null}`);
+    console.log(`   requestedSide === 'left': ${requestedSide === 'left'}`);
+    console.log(`   requestedSide === 'right': ${requestedSide === 'right'}`);
+    console.log(`   playerCount in room: ${room.players.size}`);
+    
+    if (requestedSide) {
+      // Check if requested side is already taken
+      const currentPlayers = Array.from(room.players.values());
+      console.log(`🔍 Current players in room:`, currentPlayers.map((p: any) => ({ userId: p.userId, side: p.side })));
+      
+      const sideAlreadyTaken = currentPlayers.some(
+        (player: any) => player.side === requestedSide
+      );
+      
+      console.log(`   Is ${requestedSide} already taken? ${sideAlreadyTaken}`);
+      
+      if (sideAlreadyTaken) {
+        // Requested side is taken, assign the other side
+        playerSide = requestedSide === 'left' ? 'right' : 'left';
+        console.log(`⚠️ Player ${userId} requested ${requestedSide} but it's taken, assigning ${playerSide}`);
+      } else {
+        // Requested side is available
+        playerSide = requestedSide;
+        console.log(`✅ Player ${userId} assigned requested side: ${playerSide}`);
+      }
+    } else {
+      // No side requested, assign based on order
+      const playerCount = room.players.size;
+      playerSide = playerCount === 0 ? 'left' : 'right';
+      console.log(`❌ NO SIDE REQUESTED! Player ${userId} assigned side by order: ${playerSide} (playerCount: ${playerCount})`);
+      console.log(`   This should not happen if frontend is sending playerSide correctly!`);
+    }
+    
+    console.log(`🎯 FINAL DECISION: Player ${userId} will be on ${playerSide} side`);
+    console.log('='.repeat(80));
     
     // Create player object with user information
     const playerInfo = {
@@ -304,18 +435,25 @@ class SocketIOService {
     this.playerRooms.set(userId, roomId);
     socket.join(roomId);
 
+    // Set player IDs in game state BEFORE logging
+    if (!room.gameState.player1Id) {
+      room.gameState.player1Id = userId;
+      console.log(`✅ Set player1Id to ${userId}`);
+    } else if (!room.gameState.player2Id && room.gameState.player1Id !== userId) {
+      room.gameState.player2Id = userId;
+      console.log(`✅ Set player2Id to ${userId}`);
+    } else if (room.gameState.player1Id === userId) {
+      console.log(`⚠️ Player ${userId} is already player1, skipping`);
+    } else if (room.gameState.player2Id === userId) {
+      console.log(`⚠️ Player ${userId} is already player2, skipping`);
+    }
+
     console.log(`Player ${userId} joined room ${roomId} as ${playerSide}`, {
       player1Id: room.gameState.player1Id,
       player2Id: room.gameState.player2Id,
-      totalPlayers: room.players.size
+      totalPlayers: room.players.size,
+      allPlayerIds: Array.from(room.players.keys())
     });
-
-    // Set player IDs in game state
-    if (!room.gameState.player1Id) {
-      room.gameState.player1Id = userId;
-    } else if (!room.gameState.player2Id && room.gameState.player1Id !== userId) {
-      room.gameState.player2Id = userId;
-    }
 
     // Notify all players
     this.broadcastToRoom(roomId, 'player_joined', {
@@ -331,7 +469,7 @@ class SocketIOService {
   /**
    * Join a game room
    */
-  private joinGameRoom(socket: any, tournamentId: number, matchId: number, userId: string) {
+  private joinGameRoom(socket: any, tournamentId: number, matchId: number, userId: string, requestedSide?: 'left' | 'right') {
     const roomId = `tournament-${tournamentId}-match-${matchId}`;
     
     // Get or create game room
@@ -351,8 +489,77 @@ class SocketIOService {
       this.gameRooms.set(roomId, room);
     }
 
+    // Check if this userId is already in the room (reconnection)
+    const existingPlayer = room.players.get(userId);
+    if (existingPlayer) {
+      console.log(`🔄 Player ${userId} reconnecting, updating socket`);
+      console.log(`🔍 Existing player data:`, existingPlayer);
+      
+      // IMPORTANT: Preserve the existing player's side!
+      const preservedSide = existingPlayer.side || requestedSide || 'left';
+      console.log(`🔍 Preserving player side: ${preservedSide} (existing: ${existingPlayer.side}, requested: ${requestedSide})`);
+      
+      // Update socket for existing player
+      if (typeof existingPlayer === 'object' && existingPlayer.socket) {
+        existingPlayer.socket = socket;
+        // Make sure we keep the side!
+        existingPlayer.side = preservedSide;
+      } else {
+        // Convert old format to new format
+        room.players.set(userId, {
+          socket: socket,
+          userId: userId,
+          side: preservedSide,
+          ready: existingPlayer.ready || false
+        });
+      }
+      socket.join(roomId);
+      // Notify about reconnection
+      this.broadcastToRoom(roomId, 'player_reconnected', {
+        userId,
+        roomState: room.gameState,
+        message: `Player ${userId} reconnected`
+      });
+      return; // Don't add as new player
+    }
+    
+    // Determine player side (left or right)
+    // If client requested a specific side and it's available, use it
+    // Otherwise, assign based on order (first player = left, second = right)
+    let playerSide: 'left' | 'right';
+    
+    if (requestedSide) {
+      // Check if requested side is already taken
+      const sideAlreadyTaken = Array.from(room.players.values()).some(
+        (player: any) => player.side === requestedSide
+      );
+      
+      if (sideAlreadyTaken) {
+        // Requested side is taken, assign the other side
+        playerSide = requestedSide === 'left' ? 'right' : 'left';
+        console.log(`⚠️ Player ${userId} requested ${requestedSide} but it's taken, assigning ${playerSide}`);
+      } else {
+        // Requested side is available
+        playerSide = requestedSide;
+        console.log(`✅ Player ${userId} assigned requested side: ${playerSide}`);
+      }
+    } else {
+      // No side requested, assign based on order
+      const playerCount = room.players.size;
+      playerSide = playerCount === 0 ? 'left' : 'right';
+      console.log(`📍 Player ${userId} assigned side by order: ${playerSide}`);
+    }
+    
+    // Create player object with user information
+    const playerInfo = {
+      socket: socket,
+      userId: userId,
+      side: playerSide,
+      ready: false
+    };
+    
     // Add player to room
-    room.players.set(userId, socket);
+    room.players.set(userId, playerInfo);
     this.playerRooms.set(userId, roomId);
 
     // Join Socket.IO room for efficient broadcasting
@@ -475,28 +682,52 @@ class SocketIOService {
    */
   private checkGameReadiness(roomId: string) {
     const room = this.gameRooms.get(roomId);
-    if (!room) return;
+    if (!room) {
+      console.log(`❌ Room ${roomId} not found in checkGameReadiness`);
+      return;
+    }
 
     const { player1Id, player2Id, player1Ready, player2Ready, status } = room.gameState;
+    const playersArray = Array.from(room.players.entries());
+    
+    console.log(`🔍 checkGameReadiness for room ${roomId}:`, {
+      playersSize: room.players.size,
+      player1Id,
+      player2Id,
+      player1Ready,
+      player2Ready,
+      status,
+      allPlayerIds: playersArray.map(p => p[0])
+    });
+
+    // Ensure player IDs are set from the players map
+    if (playersArray.length >= 1 && !room.gameState.player1Id) {
+      room.gameState.player1Id = playersArray[0][0];
+      console.log(`✅ Set player1Id to ${room.gameState.player1Id}`);
+    }
+    if (playersArray.length >= 2 && !room.gameState.player2Id) {
+      room.gameState.player2Id = playersArray[1][0];
+      console.log(`✅ Set player2Id to ${room.gameState.player2Id}`);
+    }
 
     // Check if both players are present and game hasn't started yet
     // Auto-start game when both players join (no need for manual ready)
     if (room.players.size >= 2 && status !== 'ready' && status !== 'playing') {
-      // Set player IDs from the players map
-      const playersArray = Array.from(room.players.entries());
+      // Set player IDs from the players map (ensure they're set)
       if (playersArray.length >= 2) {
         room.gameState.player1Id = playersArray[0][0]; // First player's userId
         room.gameState.player2Id = playersArray[1][0]; // Second player's userId
+        console.log(`✅ Updated player IDs: player1Id=${room.gameState.player1Id}, player2Id=${room.gameState.player2Id}`);
       }
       
       room.gameState.status = 'ready';
       room.gameState.player1Ready = true;
       room.gameState.player2Ready = true;
       
-      console.log(`Starting game in room ${roomId}`);
+      console.log(`🎮 Starting game in room ${roomId} with players: ${room.gameState.player1Id} vs ${room.gameState.player2Id}`);
       
       // Notify all players to start game
-      console.log(`Broadcasting game_start to room ${roomId} with ${room.players.size} players`);
+      console.log(`📢 Broadcasting game_start to room ${roomId} with ${room.players.size} players`);
       this.broadcastToRoom(roomId, 'game_start', {
         roomState: room.gameState,
         message: 'Both players joined! Starting game...'
@@ -971,19 +1202,59 @@ class SocketIOService {
         }
       }
 
-      // Determine winner ID based on game result
+      // Determine winner ID based on game result and actual player sides
+      // Get the room to find which player is on which side
+      const room = this.gameRooms.get(roomId);
+      if (!room) {
+        console.log('⚠️ Room not found when determining winner');
+        return;
+      }
+
+      // Find which player is on which side
+      const players = Array.from(room.players.values());
+      const leftPlayer = players.find((p: any) => p.side === 'left');
+      const rightPlayer = players.find((p: any) => p.side === 'right');
+      
+      console.log(`🔍 Players in room:`, {
+        leftPlayer: leftPlayer ? { userId: leftPlayer.userId, side: leftPlayer.side } : 'none',
+        rightPlayer: rightPlayer ? { userId: rightPlayer.userId, side: rightPlayer.side } : 'none'
+      });
+
       let winnerId: number;
       let player1Score: number;
       let player2Score: number;
 
-      if (winner === 'left') {
-        winnerId = match.player1_id!;
+      // Determine winner based on which side won
+      if (winner === 'left' && leftPlayer) {
+        // Left side won - need to find which tournament participant this is
+        const leftUserId = leftPlayer.userId;
+        // Check if leftUserId matches player1 or player2 in the match
+        if (match.player1_id && String(match.player1_id) === String(leftUserId)) {
+          winnerId = match.player1_id;
+        } else if (match.player2_id && String(match.player2_id) === String(leftUserId)) {
+          winnerId = match.player2_id;
+        } else {
+          console.error(`❌ Could not match left player ${leftUserId} to tournament participant`);
+          return;
+        }
         player1Score = gameData.leftScore;
         player2Score = gameData.rightScore;
+      } else if (winner === 'right' && rightPlayer) {
+        // Right side won - need to find which tournament participant this is
+        const rightUserId = rightPlayer.userId;
+        if (match.player1_id && String(match.player1_id) === String(rightUserId)) {
+          winnerId = match.player1_id;
+        } else if (match.player2_id && String(match.player2_id) === String(rightUserId)) {
+          winnerId = match.player2_id;
+        } else {
+          console.error(`❌ Could not match right player ${rightUserId} to tournament participant`);
+          return;
+        }
+        player1Score = gameData.rightScore;
+        player2Score = gameData.leftScore;
       } else {
-        winnerId = match.player2_id!;
-        player1Score = gameData.leftScore;
-        player2Score = gameData.rightScore;
+        console.error(`❌ Could not determine winner: winner=${winner}, leftPlayer=${!!leftPlayer}, rightPlayer=${!!rightPlayer}`);
+        return;
       }
 
       console.log(`🏆 Match result: Winner ID ${winnerId}, Scores: ${player1Score} - ${player2Score}`);
@@ -1040,16 +1311,51 @@ class SocketIOService {
       // Token format: "header.payload.signature"
       const parts = token.split('.');
       if (parts.length !== 3) {
-        console.log('⚠️ Invalid JWT token format');
+        console.log('⚠️ Invalid JWT token format: expected 3 parts, got', parts.length);
         return null;
       }
       
-      const payload = Buffer.from(parts[1], 'base64').toString('utf-8');
-      const decoded = JSON.parse(payload);
+      // JWT uses base64url encoding (not standard base64)
+      // Convert base64url to base64 by replacing characters
+      let base64Payload = parts[1].replace(/-/g, '+').replace(/_/g, '/');
       
-      if (decoded && decoded.userId) {
-        console.log('✅ Extracted userId from token:', decoded.userId);
-        return decoded.userId.toString();
+      // Add padding if needed
+      while (base64Payload.length % 4) {
+        base64Payload += '=';
+      }
+      
+      try {
+        const payload = Buffer.from(base64Payload, 'base64').toString('utf-8');
+        const decoded = JSON.parse(payload);
+        
+        console.log('🔍 Decoded JWT payload:', decoded);
+        
+        // Try userId first, then id (different JWT implementations use different field names)
+        if (decoded && decoded.userId) {
+          console.log('✅ Extracted userId from token (userId field):', decoded.userId);
+          return decoded.userId.toString();
+        } else if (decoded && decoded.id) {
+          console.log('✅ Extracted userId from token (id field):', decoded.id);
+          return decoded.id.toString();
+        } else {
+          console.log('⚠️ JWT payload does not contain userId or id. Available fields:', Object.keys(decoded || {}));
+        }
+      } catch (decodeError) {
+        console.error('❌ Error decoding JWT payload:', decodeError);
+        // Try standard base64 as fallback
+        try {
+          const payload = Buffer.from(parts[1], 'base64').toString('utf-8');
+          const decoded = JSON.parse(payload);
+          if (decoded && decoded.userId) {
+            console.log('✅ Extracted userId from token (fallback, userId field):', decoded.userId);
+            return decoded.userId.toString();
+          } else if (decoded && decoded.id) {
+            console.log('✅ Extracted userId from token (fallback, id field):', decoded.id);
+            return decoded.id.toString();
+          }
+        } catch (fallbackError) {
+          console.error('❌ Fallback decode also failed:', fallbackError);
+        }
       }
       
       return null;
@@ -1079,8 +1385,9 @@ class SocketIOService {
         return;
       }
 
-      // Import UserService dynamically to avoid circular dependency
+      // Import services dynamically to avoid circular dependency
       const { UserService } = await import('./userService.js');
+      const { DatabaseService } = await import('./databaseService.js');
       
       // Determine winner and loser based on game result
       const leftPlayer = players.find(p => p.side === 'left');
@@ -1096,12 +1403,14 @@ class SocketIOService {
       const leftPlayerWon = winner === 'left';
       const rightPlayerWon = winner === 'right';
       
+      // Get real user IDs from mapping
+      const realLeftUserId = this.playerIdMapping.get(leftPlayer.userId) || leftPlayer.userId;
+      const realRightUserId = this.playerIdMapping.get(rightPlayer.userId) || rightPlayer.userId;
+      
+      console.log(`🔍 Player ID mappings: Left ${leftPlayer.userId} -> ${realLeftUserId}, Right ${rightPlayer.userId} -> ${realRightUserId}`);
+      
       // Update left player statistics
-      if (leftPlayer.userId) {
-        // Try to get real user ID from mapping
-        const realLeftUserId = this.playerIdMapping.get(leftPlayer.userId) || leftPlayer.userId;
-        console.log(`🔍 Left player ID mapping: ${leftPlayer.userId} -> ${realLeftUserId}`);
-        
+      if (leftPlayer.userId && !leftPlayer.userId.startsWith('guest_')) {
         await UserService.updateUserStatistics(
           realLeftUserId,
           gameData.leftScore,
@@ -1109,15 +1418,11 @@ class SocketIOService {
         );
         console.log(`📊 Updated stats for left player ${realLeftUserId}: Score ${gameData.leftScore}, Won: ${leftPlayerWon}`);
       } else {
-        console.log('⚠️ Left player has no userId, skipping statistics update');
+        console.log('⚠️ Left player is guest, skipping statistics update');
       }
 
       // Update right player statistics
-      if (rightPlayer.userId) {
-        // Try to get real user ID from mapping
-        const realRightUserId = this.playerIdMapping.get(rightPlayer.userId) || rightPlayer.userId;
-        console.log(`🔍 Right player ID mapping: ${rightPlayer.userId} -> ${realRightUserId}`);
-        
+      if (rightPlayer.userId && !rightPlayer.userId.startsWith('guest_')) {
         await UserService.updateUserStatistics(
           realRightUserId,
           gameData.rightScore,
@@ -1125,10 +1430,95 @@ class SocketIOService {
         );
         console.log(`📊 Updated stats for right player ${realRightUserId}: Score ${gameData.rightScore}, Won: ${rightPlayerWon}`);
       } else {
-        console.log('⚠️ Right player has no userId, skipping statistics update');
+        console.log('⚠️ Right player is guest, skipping statistics update');
       }
 
-      console.log('✅ Regular multiplayer statistics updated successfully!');
+      // Save match history for both players (only if they are real users, not guests)
+      console.log('📝 Saving match history...');
+      
+      // Save match history for left player
+      if (leftPlayer.userId && !leftPlayer.userId.startsWith('guest_')) {
+        try {
+          const leftUserIdInt = parseInt(realLeftUserId);
+          const rightUserIdInt = rightPlayer.userId.startsWith('guest_') ? null : parseInt(realRightUserId);
+          
+          // Get opponent username
+          let opponentName = rightPlayer.userId;
+          if (!rightPlayer.userId.startsWith('guest_') && rightUserIdInt) {
+            try {
+              const opponentUser = await DatabaseService.query(
+                'SELECT username FROM users WHERE id = $1',
+                [rightUserIdInt]
+              );
+              if (opponentUser && opponentUser.length > 0) {
+                opponentName = opponentUser[0].username;
+              }
+            } catch (err) {
+              console.error('Error fetching opponent username:', err);
+            }
+          }
+          
+          await DatabaseService.run(
+            `INSERT INTO match_history (user_id, opponent_id, opponent_name, user_score, opponent_score, result, game_mode, played_at)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, CURRENT_TIMESTAMP)`,
+            [
+              leftUserIdInt,
+              rightUserIdInt,
+              opponentName,
+              gameData.leftScore,
+              gameData.rightScore,
+              leftPlayerWon ? 'win' : 'loss',
+              'multiplayer'
+            ]
+          );
+          console.log(`✅ Saved match history for left player ${realLeftUserId} vs ${opponentName}`);
+        } catch (error) {
+          console.error(`❌ Error saving match history for left player:`, error);
+        }
+      }
+      
+      // Save match history for right player
+      if (rightPlayer.userId && !rightPlayer.userId.startsWith('guest_')) {
+        try {
+          const rightUserIdInt = parseInt(realRightUserId);
+          const leftUserIdInt = leftPlayer.userId.startsWith('guest_') ? null : parseInt(realLeftUserId);
+          
+          // Get opponent username
+          let opponentName = leftPlayer.userId;
+          if (!leftPlayer.userId.startsWith('guest_') && leftUserIdInt) {
+            try {
+              const opponentUser = await DatabaseService.query(
+                'SELECT username FROM users WHERE id = $1',
+                [leftUserIdInt]
+              );
+              if (opponentUser && opponentUser.length > 0) {
+                opponentName = opponentUser[0].username;
+              }
+            } catch (err) {
+              console.error('Error fetching opponent username:', err);
+            }
+          }
+          
+          await DatabaseService.run(
+            `INSERT INTO match_history (user_id, opponent_id, opponent_name, user_score, opponent_score, result, game_mode, played_at)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, CURRENT_TIMESTAMP)`,
+            [
+              rightUserIdInt,
+              leftUserIdInt,
+              opponentName,
+              gameData.rightScore,
+              gameData.leftScore,
+              rightPlayerWon ? 'win' : 'loss',
+              'multiplayer'
+            ]
+          );
+          console.log(`✅ Saved match history for right player ${realRightUserId} vs ${opponentName}`);
+        } catch (error) {
+          console.error(`❌ Error saving match history for right player:`, error);
+        }
+      }
+
+      console.log('✅ Regular multiplayer statistics and match history updated successfully!');
     } catch (error) {
       console.error('❌ Error updating regular multiplayer statistics:', error);
     }
@@ -1376,18 +1766,31 @@ class SocketIOService {
     const paddleHeight = 80;
     const canvasHeight = 400;
 
-    // Determine which paddle to move based on userId
-    if (room.gameState.player1Id === userId) {
-      // Player 1 controls left paddle
-      gameData.leftPaddle.y += direction * paddleSpeed;
-      gameData.leftPaddle.y = Math.max(0, Math.min(canvasHeight - paddleHeight, gameData.leftPaddle.y));
-    } else if (room.gameState.player2Id === userId) {
-      // Player 2 controls right paddle
-      gameData.rightPaddle.y += direction * paddleSpeed;
-      gameData.rightPaddle.y = Math.max(0, Math.min(canvasHeight - paddleHeight, gameData.rightPaddle.y));
+    // Find the player's assigned side from the room's player data
+    const playerInfo = room.players.get(userId);
+    if (!playerInfo) {
+      console.error(`❌ Player ${userId} not found in room ${roomId}`);
+      return;
     }
 
-    console.log(`Paddle movement: User ${userId}, direction ${direction}, leftPaddle: ${gameData.leftPaddle.y}, rightPaddle: ${gameData.rightPaddle.y}`);
+    const playerSide = playerInfo.side;
+    console.log(`🎮 Paddle movement: User ${userId} (side: ${playerSide}), direction ${direction}`);
+
+    // Determine which paddle to move based on player's assigned SIDE (not player1/player2)
+    if (playerSide === 'left') {
+      // Player controls left paddle
+      gameData.leftPaddle.y += direction * paddleSpeed;
+      gameData.leftPaddle.y = Math.max(0, Math.min(canvasHeight - paddleHeight, gameData.leftPaddle.y));
+      console.log(`   Left paddle moved to: ${gameData.leftPaddle.y}`);
+    } else if (playerSide === 'right') {
+      // Player controls right paddle
+      gameData.rightPaddle.y += direction * paddleSpeed;
+      gameData.rightPaddle.y = Math.max(0, Math.min(canvasHeight - paddleHeight, gameData.rightPaddle.y));
+      console.log(`   Right paddle moved to: ${gameData.rightPaddle.y}`);
+    } else {
+      console.error(`❌ Invalid player side: ${playerSide} for user ${userId}`);
+      return;
+    }
 
     // Broadcast updated game state to all players
     this.broadcastToRoom(roomId, 'game_state_update', {

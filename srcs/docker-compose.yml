@@ -1,6 +1,9 @@
 services:
   frontend:
-    build: ./services/frontend
+    build:
+      context: ./services/frontend
+      # No build args needed - API URL is determined at runtime from window.location
+      # This allows the app to work on any IP address without rebuilding
     ports:
       - "3000:80"
     environment:
@@ -15,9 +18,12 @@ services:
     ports:
       - "8000:8000"
     environment:
-      - NODE_ENV=production
+      - NODE_ENV=development
       - JWT_SECRET=changeme-super-secret-key
       - DB_PATH=/app/data/pong.db
+      - CORS_ALLOW_ALL=true
+      # CORS is set to allow all origins in development mode
+      # No need to specify IP addresses - works with any IP automatically
     volumes:
       - pong_data:/app/data
     restart: unless-stopped

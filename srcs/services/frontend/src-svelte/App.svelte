@@ -29,7 +29,8 @@
   let authMode: 'login' | 'register' = 'login';
   let view: 'game' | 'profile' | 'deleteAccount' | 'forgotPassword' | 'forgotUsername' | 'settings' | 'ranking' | 'tournament' = 'game';
   let showSettings = false;
-  let selectedLanguage = 'en';
+  // Load language from localStorage or default to Japanese
+  let selectedLanguage = localStorage.getItem('locale') || 'jp';
   let socket: any = null;
 
   // Check authentication status on component mount
@@ -87,7 +88,18 @@
   // Initialize Socket.IO connection
   function initializeSocket() {
     try {
-      socket = io('http://localhost:8000', {
+      // Dynamically determine URL at runtime (no rebuild needed when IP changes)
+      // Always derive from current hostname, ignore VITE_API_URL
+      const protocol = window.location.protocol;
+      const hostname = window.location.hostname;
+      let socketUrl: string;
+      if (hostname === 'localhost' || hostname === '127.0.0.1') {
+        socketUrl = 'http://localhost:8000';
+      } else {
+        socketUrl = `${protocol}//${hostname}:8000`;
+      }
+      console.log('🔍 App.svelte Socket.IO URL:', socketUrl);
+      socket = io(socketUrl, {
         transports: ['websocket', 'polling']
       });
 
@@ -155,9 +167,14 @@
 
   const startMultiplayerGame = () => {
     if (roomId.trim() === '') {
-      alert('Please enter a Room ID');
+      alert('ルームIDを入力してください');
       return;
     }
+    console.log('🎮 Starting multiplayer game:', {
+      roomId,
+      playerSide,
+      user: user?.username
+    });
     showRoomInput = false;
   };
 
@@ -261,7 +278,7 @@
                 class="p-6 bg-green-600 rounded-lg hover:bg-green-700 transition-colors"
               >
                 <h3 class="text-xl font-bold mb-2">{$_('button.mponline')}</h3>
-                <p class="text-gray-300">Play with friends online</p>
+                <p class="text-gray-300">{$_('label.multiplayer')}</p>
               </button>
               
               <button 
@@ -326,14 +343,14 @@
                   
                   <div>
                     <label class="block text-sm font-medium text-gray-700 mb-2">
-                      Player Side
+                      {$_('msg.chooseplayerside')}
                     </label>
                     <select
                       bind:value={playerSide}
                       class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     >
-                      <option value="left">{$_('option.leftplayer')}</option>
-                      <option value="right">{$_('option.rightplayer')}</option>
+                      <option value="left">{$_('option.left')}</option>
+                      <option value="right">{$_('option.right')}</option>
                     </select>
                   </div>
                   
@@ -392,12 +409,44 @@
           <!-- Tournament -->
           <Tournament 
             onBack={() => setView('game')}
-            onStartMatch={(tournamentId, matchId, newRoomId) => {
-              console.log('🎮 App.svelte onStartMatch called:', { tournamentId, matchId, newRoomId });
+            onStartMatch={(tournamentId, matchId, newRoomId, match) => {
+              console.log('🎮 App.svelte onStartMatch called:', { tournamentId, matchId, newRoomId, match });
               gameMode = 'multiplayer';
-              roomId = newRoomId;  // ✅ 파라미터 이름을 newRoomId로 변경
-              playerSide = 'left';
-              console.log('🎮 App.svelte roomId set to:', roomId);
+              roomId = newRoomId;
+              
+              // Determine player side based on match participants
+              // If current user is player1, they are on the left side
+              // If current user is player2, they are on the right side
+              if (match && user) {
+                // Get participant IDs from match
+                const player1Id = match.player1_id;
+                const player2Id = match.player2_id;
+                
+                // Find which participant corresponds to current user
+                console.log('🔍 Determining player side:', {
+                  userId: user.id,
+                  player1Id: player1Id,
+                  player2Id: player2Id
+                });
+                
+                // For tournament matches, player1 is always left, player2 is always right
+                if (player1Id && player1Id === user.id) {
+                  playerSide = 'left';
+                  console.log('✅ User is player1, assigned to LEFT side');
+                } else if (player2Id && player2Id === user.id) {
+                  playerSide = 'right';
+                  console.log('✅ User is player2, assigned to RIGHT side');
+                } else {
+                  // Default to left if we can't determine
+                  playerSide = 'left';
+                  console.log('⚠️ Could not determine player side, defaulting to LEFT');
+                }
+              } else {
+                playerSide = 'left';
+                console.log('⚠️ No match or user data, defaulting to LEFT');
+              }
+              
+              console.log('🎮 App.svelte roomId set to:', roomId, 'playerSide:', playerSide);
               setView('game');
             }}
           />
@@ -466,6 +515,7 @@
             <button 
               on:click={() => {
                 locale.set(selectedLanguage);
+                localStorage.setItem('locale', selectedLanguage);
                 setShowSettings(false);
               }}
               class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"

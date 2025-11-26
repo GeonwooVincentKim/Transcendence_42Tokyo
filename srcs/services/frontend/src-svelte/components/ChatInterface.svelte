@@ -16,6 +16,8 @@
   let isCreatingChannel = false;
   let isLoading = false;
   let error = '';
+  let joinPasswordPrompt: { channelId: string; channelName: string } | null = null;
+  let joinPassword = '';
 
   onMount(() => {
     initializeSocket();
@@ -28,8 +30,22 @@
     }
   });
 
+  // Get API base URL dynamically
+  function getApiBaseUrl(): string {
+    const protocol = window.location.protocol;
+    const hostname = window.location.hostname;
+    
+    if (hostname === 'localhost' || hostname === '127.0.0.1') {
+      return 'http://localhost:8000';
+    }
+    
+    return `${protocol}//${hostname}:8000`;
+  }
+
   function initializeSocket() {
-    socket = io('http://localhost:8000', {
+    const socketUrl = getApiBaseUrl();
+    
+    socket = io(socketUrl, {
       auth: {
         token: AuthService.getToken()
       }
@@ -44,14 +60,14 @@
     });
 
     socket.on('channel_created', (data: { channel: any }) => {
-      console.log('New channel created:', data.channel);
+      console.log('🔔 Socket: channel_created event received:', data.channel);
       // Check if channel already exists to avoid duplicates
       const exists = channels.find(c => c.id === data.channel.id);
       if (!exists) {
         channels = [...channels, data.channel];
-        console.log('Added new channel to list. Total channels:', channels.length);
+        console.log('✅ Added new channel to list. Total channels:', channels.length);
       } else {
-        console.log('Channel already exists, not adding duplicate');
+        console.log('⚠️ Channel already exists in list, not adding duplicate');
       }
     });
 
@@ -79,7 +95,10 @@
   async function loadChannels() {
     try {
       isLoading = true;
-      const response = await fetch('/api/chat/channels', {
+      const apiUrl = getApiBaseUrl();
+      console.log('📡 Loading channels from:', `${apiUrl}/api/chat/channels`);
+      
+      const response = await fetch(`${apiUrl}/api/chat/channels`, {
         headers: {
           'Authorization': `Bearer ${AuthService.getToken()}`
         }
@@ -88,8 +107,12 @@
       if (response.ok) {
         const data = await response.json();
         channels = data.channels || [];
+        console.log('✅ Loaded channels:', channels.length);
+      } else {
+        console.error('❌ Failed to load channels:', response.status, response.statusText);
       }
     } catch (err) {
+      console.error('❌ Error loading channels:', err);
       error = 'Failed to load channels';
     } finally {
       isLoading = false;
@@ -101,7 +124,10 @@
     
     try {
       isLoading = true;
-      const response = await fetch('/api/chat/channels', {
+      const apiUrl = getApiBaseUrl();
+      console.log('📡 Creating channel:', newChannelName);
+      
+      const response = await fetch(`${apiUrl}/api/chat/channels`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -116,63 +142,122 @@
       
       if (response.ok) {
         const data = await response.json();
-        channels = [...channels, data.channel];
+        console.log('✅ Channel created:', data.channel);
+        // Don't add manually here, let socket.io event handle it to avoid duplicates
+        // The channel_created event will add it to the list
         newChannelName = '';
         newChannelPassword = '';
         isCreatingChannel = false;
       } else {
         const errorData = await response.json();
         error = errorData.error || 'Failed to create channel';
+        console.error('❌ Failed to create channel:', errorData);
       }
     } catch (err) {
       error = 'Failed to create channel';
+      console.error('❌ Error creating channel:', err);
     } finally {
       isLoading = false;
     }
   }
 
-  async function joinChannel(channelId: string) {
+  async function joinChannel(channelId: string, password?: string) {
     try {
-      const response = await fetch(`/api/chat/channels/${channelId}/join`, {
+      const apiUrl = getApiBaseUrl();
+      console.log('📡 Joining channel:', channelId, password ? '(with password)' : '(public)');
+      
+      const response = await fetch(`${apiUrl}/api/chat/channels/${channelId}/join`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${AuthService.getToken()}`
         },
-        body: JSON.stringify({})
+        body: JSON.stringify({ password: password || undefined })
       });
       
       if (response.ok) {
+        console.log('✅ Successfully joined channel');
+        joinPasswordPrompt = null;
+        joinPassword = '';
         loadChannels();
         loadChannelMessages(channelId);
       } else {
         const errorData = await response.json();
         error = errorData.error || 'Failed to join channel';
+        console.error('❌ Failed to join channel:', errorData);
       }
     } catch (err) {
       error = 'Failed to join channel';
+      console.error('❌ Error joining channel:', err);
+    }
+  }
+  
+  function promptForPassword(channel: any) {
+    console.log('🔑 Prompting for password for channel:', channel);
+    joinPasswordPrompt = { channelId: channel.id, channelName: channel.name };
+    joinPassword = '';
+    error = ''; // Clear any previous errors
+  }
+  
+  function cancelPasswordPrompt() {
+    joinPasswordPrompt = null;
+    joinPassword = '';
+  }
+  
+  function submitJoinPassword() {
+    console.log('🔑 Submitting password for channel:', joinPasswordPrompt?.channelId);
+    if (joinPasswordPrompt) {
+      if (!joinPassword) {
+        error = 'Please enter a password';
+        return;
+      }
+      joinChannel(joinPasswordPrompt.channelId, joinPassword);
     }
   }
 
   async function loadChannelMessages(channelId: string) {
     try {
-      const response = await fetch(`/api/chat/channels/${channelId}/messages`, {
+      const apiUrl = getApiBaseUrl();
+      console.log('📡 Loading messages for channel:', channelId);
+      
+      const response = await fetch(`${apiUrl}/api/chat/channels/${channelId}/messages`, {
         headers: {
           'Authorization': `Bearer ${AuthService.getToken()}`
         }
       });
       
+      console.log('📡 Messages response status:', response.status);
+      
       if (response.ok) {
         const data = await response.json();
         messages = data.messages || [];
         currentChannel = channels.find(c => c.id === channelId);
+        console.log('✅ Loaded messages:', messages.length);
       } else if (response.status === 403) {
-        // User is not a member, try to auto-join for public channels
-        error = 'Not a member of this channel. Trying to join...';
-        await joinChannel(channelId);
+        // User is not a member, check channel type
+        const channel = channels.find(c => c.id === channelId);
+        console.log('🔒 Not a member of channel:', channel);
+        
+        if (channel && channel.type === 'protected') {
+          // Prompt for password
+          console.log('🔑 Protected channel, prompting for password');
+          promptForPassword(channel);
+        } else if (channel && channel.type === 'public') {
+          // Try to auto-join for public channels
+          console.log('📢 Public channel, auto-joining...');
+          error = 'Not a member of this channel. Trying to join...';
+          await joinChannel(channelId);
+        } else {
+          error = 'Not a member of this channel';
+        }
+      } else {
+        const errorData = await response.json();
+        error = errorData.error || 'Failed to load messages';
+        console.error('❌ Failed to load messages:', errorData);
       }
     } catch (err) {
       error = 'Failed to load messages';
+      console.error('❌ Error loading messages:', err);
     }
   }
 
@@ -196,7 +281,8 @@
     messages = [...messages, tempMessage];
     
     try {
-      const response = await fetch(`/api/chat/channels/${currentChannel.id}/messages`, {
+      const apiUrl = getApiBaseUrl();
+      const response = await fetch(`${apiUrl}/api/chat/channels/${currentChannel.id}/messages`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -248,6 +334,43 @@
   {#if error}
     <div class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
       {error}
+    </div>
+  {/if}
+
+  <!-- Password Prompt Modal -->
+  {#if joinPasswordPrompt}
+    <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" on:click={cancelPasswordPrompt}>
+      <div class="bg-white rounded-lg p-6 max-w-md w-full mx-4" on:click|stopPropagation>
+        <h3 class="text-xl font-bold text-gray-800 mb-4">🔒 Protected Channel</h3>
+        <p class="text-gray-600 mb-4">
+          Enter password to join <strong class="text-blue-600">#{joinPasswordPrompt.channelName}</strong>
+        </p>
+        <input
+          type="password"
+          bind:value={joinPassword}
+          placeholder="Channel password"
+          class="w-full px-3 py-2 border border-gray-300 rounded-lg mb-4 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          on:keypress={(e) => e.key === 'Enter' && submitJoinPassword()}
+          autofocus
+        />
+        {#if error}
+          <div class="text-red-600 text-sm mb-3">{error}</div>
+        {/if}
+        <div class="flex space-x-3">
+          <button
+            on:click={submitJoinPassword}
+            class="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            Join Channel
+          </button>
+          <button
+            on:click={cancelPasswordPrompt}
+            class="flex-1 px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-500"
+          >
+            Cancel
+          </button>
+        </div>
+      </div>
     </div>
   {/if}
 

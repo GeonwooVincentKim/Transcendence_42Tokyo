@@ -88,6 +88,28 @@ status:
 	@echo "Service status:"
 	cd srcs && docker-compose ps
 
+# ⚠️ NOTE: IP address update commands are no longer needed!
+# The application now automatically detects IP addresses at runtime.
+# Wi-Fi reconnection does not require any configuration changes.
+
+# Update IP address and restart services (DEPRECATED - No longer needed)
+update-ip:
+	@echo "⚠️  This command is no longer needed!"
+	@echo "The application automatically detects IP addresses at runtime."
+	@echo "If you still want to update .env file manually, run:"
+	@echo "  cd srcs && ./update-ip.sh"
+
+# Restart all services
+restart:
+	@echo "Restarting services..."
+	cd srcs && docker-compose down && docker-compose up -d --build
+
+# Update IP and restart in one command (DEPRECATED - No longer needed)
+update-and-restart:
+	@echo "⚠️  This command is no longer needed!"
+	@echo "The application automatically detects IP addresses at runtime."
+	@echo "Just restart services if needed: make restart"
+
 # Windows PowerShell specific commands
 ifdef COMSPEC
 test-windows:

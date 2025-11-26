@@ -42,7 +42,7 @@ class SocketIOService {
   /**
    * Connect to Socket.IO server
    */
-  connect(tournamentId: number, matchId: number, userId: string, roomId?: string): Promise<void> {
+  connect(tournamentId: number, matchId: number, userId: string, roomId?: string, playerSide?: 'left' | 'right'): Promise<void> {
     return new Promise((resolve, reject) => {
       try {
         this.tournamentId = tournamentId;
@@ -50,7 +50,17 @@ class SocketIOService {
         this.userId = userId;
 
         // Socket.IO server runs on the backend port (8000)
-        const socketUrl = 'http://localhost:8000';
+        // Dynamically determine URL at runtime (no rebuild needed when IP changes)
+        // Always derive from current hostname, ignore VITE_API_URL
+        const protocol = window.location.protocol;
+        const hostname = window.location.hostname;
+        let socketUrl: string;
+        if (hostname === 'localhost' || hostname === '127.0.0.1') {
+          socketUrl = 'http://localhost:8000';
+        } else {
+          socketUrl = `${protocol}//${hostname}:8000`;
+        }
+        console.log('🔍 Socket.IO URL:', socketUrl);
         console.log('Connecting to Socket.IO server:', socketUrl);
 
         this.socket = io(socketUrl, {
@@ -67,18 +77,47 @@ class SocketIOService {
           const finalRoomId = roomId || `tournament-${tournamentId}-match-${matchId}`;
           console.log('🔍 SocketIOService joining room:', finalRoomId);
           console.log('🔍 SocketIOService tournamentId:', tournamentId, 'matchId:', matchId);
+          console.log('🔍 SocketIOService playerSide:', playerSide);
           
           // Get JWT token from localStorage
           const token = localStorage.getItem('token');
           console.log('🔍 SocketIOService token:', token ? 'provided' : 'not provided');
+          console.log('🔍 SocketIOService userId:', userId);
+          console.log('🔍 SocketIOService roomId:', finalRoomId);
           
-          this.socket?.emit('join_game_room', {
+          // Decode token to check userId (for debugging)
+          if (token) {
+            try {
+              const parts = token.split('.');
+              if (parts.length === 3) {
+                const payload = JSON.parse(atob(parts[1].replace(/-/g, '+').replace(/_/g, '/')));
+                console.log('🔍 SocketIOService token payload:', payload);
+                console.log('🔍 SocketIOService token userId:', payload.id || payload.userId);
+              }
+            } catch (e) {
+              console.log('🔍 SocketIOService failed to decode token:', e);
+            }
+          }
+          
+          const joinData = {
             roomId: finalRoomId,
             tournamentId,
             matchId,
             userId,
-            token
-          });
+            token,
+            playerSide
+          };
+          
+          console.log('🎯 SENDING join_game_room with data:');
+          console.log('   roomId:', joinData.roomId);
+          console.log('   tournamentId:', joinData.tournamentId);
+          console.log('   matchId:', joinData.matchId);
+          console.log('   userId:', joinData.userId);
+          console.log('   token:', joinData.token ? 'provided' : 'not provided');
+          console.log('   playerSide:', joinData.playerSide, '(type:', typeof joinData.playerSide + ')');
+          console.log('   Full object:', JSON.stringify(joinData, null, 2));
+          
+          this.socket?.emit('join_game_room', joinData);
 
           // Start ping interval
           this.startPingInterval();

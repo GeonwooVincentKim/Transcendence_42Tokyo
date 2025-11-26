@@ -85,9 +85,35 @@ srcs/
    ```
 
 3. **Access the application**
-   - Frontend: http://localhost:3000 (or port 80)
+   - Frontend: http://localhost:3000
    - Backend API: http://localhost:8000
-   - Health Check: http://localhost:8000/
+   - Health Check: http://localhost:8000/health
+
+### Remote Access (Other PCs on Same Network)
+
+**🎉 Automatic IP Detection**: The application automatically detects the IP address at runtime.  
+**No rebuild needed when Wi-Fi reconnects!**
+
+1. **Find server IP address**
+   ```bash
+   # macOS/Linux
+   ifconfig en0 | grep "inet " | awk '{print $2}'
+   
+   # Windows
+   ipconfig
+   ```
+
+2. **Access from other PC**
+   ```
+   http://<server-IP>:3000
+   ```
+   
+   Example: `http://172.20.10.11:3000`
+
+3. **That's it!** No configuration needed.  
+   If the IP address changes, just reload the browser.
+
+For more details, see [REMOTE_ACCESS.md](../REMOTE_ACCESS.md).
 
 ### Local Development
 

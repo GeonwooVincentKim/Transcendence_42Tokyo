@@ -210,6 +210,8 @@
 		"leftupper": "LEFT",
 		"rightupper": "RIGHT",
 		"ready": "ready",
+		"left": "Left",
+		"right": "Right",
 		"playing": "playing",
 		"paused": "paused",
 		"finished": "finished",
@@ -272,7 +274,26 @@
 		"startmatch": "Click to start a match",
 		"nobracketdata": "No bracket data available",
 		"bracketpending": "Tournament bracket will appear here once matches are generated",
-		"bracketcreation": "Please wait while the tournament bracket is being created"
+		"bracketcreation": "Please wait while the tournament bracket is being created",
+		"nomatchesyet": "No matches played yet",
+		"choosemode": "Choose Game Mode",
+		"chooseplayerside": "Choose Player Side",
+		"waiting": "Waiting...",
+		"ready": "Ready"
+	},
+	"matchhistory": {
+		"title": "Match History",
+		"gamestats": "Game Statistics",
+		"opponent": "Opponent",
+		"score": "Score",
+		"result": "Result",
+		"duration": "Duration",
+		"gamemode": "Game Mode",
+		"win": "Win",
+		"loss": "Loss",
+		"draw": "Draw",
+		"tournament": "Tournament",
+		"multiplayer": "Multiplayer"
 	},
 	"debug": {
 		"lastmove": "Last Move",

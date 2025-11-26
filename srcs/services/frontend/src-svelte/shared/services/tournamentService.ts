@@ -4,6 +4,25 @@
  * Frontend service for tournament API communication
  */
 
+/**
+ * Get API base URL dynamically at runtime
+ * Uses environment variable if set, otherwise derives from current hostname
+ */
+function getApiBaseUrl(): string {
+  // Always derive from current hostname at runtime
+  // This allows the app to work on any IP address without rebuilding
+  const protocol = window.location.protocol;
+  const hostname = window.location.hostname;
+  
+  // If running on localhost, use localhost for backend
+  if (hostname === 'localhost' || hostname === '127.0.0.1') {
+    return 'http://localhost:8000';
+  }
+  
+  // Otherwise, use the same hostname with port 8000
+  return `${protocol}//${hostname}:8000`;
+}
+
 // Types
 export type TournamentStatus = 'registration' | 'active' | 'completed' | 'cancelled';
 export type TournamentType = 'single_elimination' | 'double_elimination' | 'round_robin';
@@ -116,33 +135,35 @@ interface ApiResponse<T> {
 }
 
 class TournamentService {
-  private baseUrl: string;
-
-  constructor() {
-    this.baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000';
-  }
-
   private async request<T>(
     endpoint: string,
     options: RequestInit = {}
   ): Promise<T> {
-    const url = `${this.baseUrl}${endpoint}`;
+    // Get API URL dynamically at runtime (not in constructor)
+    const baseUrl = getApiBaseUrl();
+    const url = `${baseUrl}${endpoint}`;
     
-    const defaultOptions: RequestInit = {
-      headers: {
-        ...options.headers,
-      },
+    const defaultHeaders: HeadersInit = {
+      ...options.headers,
     };
 
     // Only set Content-Type for requests with a body
     if (options.body) {
-      defaultOptions.headers = {
-        'Content-Type': 'application/json',
-        ...defaultOptions.headers,
-      };
+      defaultHeaders['Content-Type'] = 'application/json';
+    }
+    
+    // Add Authorization header if token exists
+    const token = localStorage.getItem('token');
+    if (token) {
+      defaultHeaders['Authorization'] = `Bearer ${token}`;
     }
 
-    const response = await fetch(url, { ...defaultOptions, ...options });
+    const defaultOptions: RequestInit = {
+      ...options,
+      headers: defaultHeaders,
+    };
+
+    const response = await fetch(url, defaultOptions);
     
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));

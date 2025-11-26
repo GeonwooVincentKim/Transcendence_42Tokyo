@@ -399,7 +399,10 @@
                       </span>
                     </div>
                   {/if}
-                  <span class="text-sm truncate">{getPlayerDisplayName(node.player1)}</span>
+                  <div class="flex flex-col">
+                    <span class="text-sm truncate">{getPlayerDisplayName(node.player1)}</span>
+                    <span class="text-xs text-blue-600 font-medium">Left</span>
+                  </div>
                 </div>
 
                 <!-- VS separator -->
@@ -422,7 +425,10 @@
                       </span>
                     </div>
                   {/if}
-                  <span class="text-sm truncate">{getPlayerDisplayName(node.player2)}</span>
+                  <div class="flex flex-col">
+                    <span class="text-sm truncate">{getPlayerDisplayName(node.player2)}</span>
+                    <span class="text-xs text-red-600 font-medium">Right</span>
+                  </div>
                 </div>
               </div>
 

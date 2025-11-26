@@ -1,125 +1,148 @@
-# Frontend - Pong Game
+# 🎯 Svelte Migration Guide
 
-React + TypeScript + TailwindCSS frontend for the Pong game project.
+## 📋 Overview
 
-## Prerequisites
+This directory contains both the **React** and **Svelte** versions of the frontend application running in parallel during the migration phase.
 
-- Node.js 18+
-- npm or yarn
+## 🗂️ Directory Structure
 
-## Quick Start
+```
+frontend/
+├── src/                    # Original React code (PORT 3000)
+├── src-svelte/             # New Svelte code (PORT 3001)
+│   ├── components/         # Svelte components
+│   ├── lib/                # Svelte-specific logic
+│   └── shared/             # Shared code between React & Svelte
+│       ├── services/       # API services (auth, socket, stats, tournament)
+│       ├── types/          # TypeScript types
+│       └── locales/        # i18n translation files
+├── vite.config.ts          # React Vite config
+├── vite.config.svelte.ts   # Svelte Vite config
+├── index.html              # React entry point
+└── index-svelte.html       # Svelte entry point
+```
 
-### Installation
+## 🚀 Running Both Versions
+
+### React Version (Original)
 ```bash
-cd srcs/services/frontend
+npm run dev          # Runs on http://localhost:3000
+npm run build        # Builds to dist/
+```
+
+### Svelte Version (New)
+```bash
+npm run dev:svelte   # Runs on http://localhost:3001
+npm run build:svelte # Builds to dist-svelte/
+```
+
+## 📦 Installation
+
+```bash
+# Install all dependencies (React + Svelte)
 npm install
 ```
 
-### Development
-```bash
-npm run dev
-```
-The application will be available at http://localhost:3000
+## 🎯 Migration Status
 
-### Build for Production
-```bash
-npm run build
-```
+### ✅ Completed
+- [x] Svelte project structure
+- [x] Shared services layer (authService, socketIOService, etc.)
+- [x] TypeScript configuration
+- [x] Vite build configuration
+- [x] Basic Svelte App component
 
-### Preview Production Build
-```bash
-npm run preview
-```
+### 🚧 In Progress
+- [ ] LoginForm component
+- [ ] RegisterForm component
+- [ ] Game components (PongGame, AIPong, MultiPlayerPong)
+- [ ] Tournament components
+- [ ] User profile components
 
-## Available Scripts
+### ⏳ Pending
+- [ ] Full i18n integration
+- [ ] All components migrated
+- [ ] E2E tests for Svelte version
+- [ ] Docker configuration update
 
-- `npm run dev` - Start development server with hot reload
-- `npm run build` - Build the application for production
-- `npm run preview` - Preview the production build locally
-- `npm run lint` - Run ESLint to check code quality
+## 🔧 Key Differences: React vs Svelte
 
-## Project Structure
-
-```
-srcs/services/frontend/
-├── public/              # Static assets
-├── src/
-│   ├── components/      # React components
-│   ├── pages/          # Page components
-│   ├── hooks/          # Custom React hooks
-│   ├── utils/          # Utility functions
-│   ├── types/          # TypeScript type definitions
-│   ├── styles/         # CSS and Tailwind styles
-│   ├── App.tsx         # Main App component
-│   └── main.tsx        # Application entry point
-├── package.json
-├── tsconfig.json
-├── tailwind.config.js
-├── vite.config.ts
-└── README.md
+### State Management
+**React:**
+```typescript
+const [count, setCount] = useState(0);
 ```
 
-## Technologies Used
+**Svelte:**
+```typescript
+let count = 0; // Automatically reactive!
+```
 
-- **React 19** - UI library
-- **TypeScript** - Type safety
-- **Vite** - Build tool and dev server
-- **TailwindCSS** - Utility-first CSS framework
-- **ESLint** - Code linting
+### Effects
+**React:**
+```typescript
+useEffect(() => {
+  // side effects
+}, [deps]);
+```
 
-## Development
-
-### Adding New Components
-Create new components in `src/components/` directory:
-```tsx
-// src/components/Example.tsx
-import React from 'react';
-
-interface ExampleProps {
-  title: string;
+**Svelte:**
+```typescript
+$: {
+  // Reactive statement - runs when dependencies change
 }
-
-export const Example: React.FC<ExampleProps> = ({ title }) => {
-  return (
-    <div className="p-4 bg-blue-500 text-white rounded">
-      {title}
-    </div>
-  );
-};
 ```
 
-### Adding New Pages
-Create new pages in `src/pages/` directory and update routing in `App.tsx`.
-
-### Styling
-Use TailwindCSS classes for styling. Custom CSS can be added in `src/styles/`.
-
-## Environment Variables
-
-Create a `.env` file in the frontend directory for environment-specific variables:
-```
-VITE_API_URL=http://localhost:8000
-VITE_APP_TITLE=Pong Game
+### Lifecycle
+**React:**
+```typescript
+useEffect(() => {
+  // on mount
+  return () => {
+    // on unmount
+  };
+}, []);
 ```
 
-## Contributing
+**Svelte:**
+```typescript
+import { onMount, onDestroy } from 'svelte';
 
-1. Follow TypeScript best practices
-2. Use TailwindCSS for styling
-3. Write meaningful component and function names
-4. Add proper TypeScript interfaces for props
-5. Run `npm run lint` before committing
+onMount(() => {
+  // on mount
+});
 
-## Troubleshooting
+onDestroy(() => {
+  // on unmount
+});
+```
 
-### Common Issues
+## 🧪 Testing
 
-1. **Port already in use**: Change the port in `vite.config.ts` or kill the process using the port
-2. **TypeScript errors**: Run `npm run build` to see all TypeScript errors
-3. **TailwindCSS not working**: Ensure `tailwind.config.js` is properly configured
+### React Tests
+```bash
+npm test
+```
 
-### Getting Help
+### Svelte Tests
+```bash
+# To be configured
+```
 
-- Check the browser console for errors
-- Verify all dependencies are installed with `npm install`
-- Ensure Node.js version is 18+ with `node -v`
+## 📝 Notes
+
+1. **Port Separation**: React (3000) and Svelte (3001) run on different ports
+2. **Shared Services**: Both versions use the same backend services
+3. **Gradual Migration**: Components are migrated one by one
+4. **Rollback Safe**: Original React code is preserved
+
+## 🎓 Learning Resources
+
+- [Svelte Tutorial](https://svelte.dev/tutorial)
+- [Svelte Examples](https://svelte.dev/examples)
+- [SvelteKit Docs](https://kit.svelte.dev/docs)
+
+## ⚠️ Important
+
+This is a migration branch. The React version remains fully functional until all features are successfully migrated to Svelte.
+

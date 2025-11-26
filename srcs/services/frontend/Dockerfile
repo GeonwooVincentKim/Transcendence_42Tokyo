@@ -4,6 +4,9 @@ FROM node:20-alpine AS builder
 # Set working directory
 WORKDIR /app
 
+# No build args needed - API URL is determined at runtime from window.location
+# This allows the app to work on any IP address without rebuilding
+
 # Copy package files
 COPY package*.json ./
 
@@ -18,12 +21,10 @@ RUN npm cache clean --force && \
 COPY . .
 
 # Build the Svelte application
-RUN npm run build:svelte
+RUN npm run build
 
-# Fix CSP in the built HTML file (cross-platform compatible)
-RUN if [ -f /app/dist-svelte/index-svelte.html ]; then \
-        sed -i 's/connect-src '\''self'\'' ws:\/\/localhost:8000;/connect-src '\''self'\'' ws:\/\/localhost:8000 http:\/\/localhost:8000;/g' /app/dist-svelte/index-svelte.html || true; \
-    fi
+# CSP is now configured in index-svelte.html to allow dynamic IP addresses
+# No need to modify it during build
 
 # Production stage
 FROM nginx:1.25-alpine AS production

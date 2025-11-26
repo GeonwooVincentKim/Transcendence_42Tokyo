@@ -31,7 +31,20 @@
 
   function initializeSocket() {
     try {
-      socket = io('http://localhost:8000', {
+      // Dynamically determine URL at runtime (no rebuild needed when IP changes)
+      let socketUrl: string;
+      if (import.meta.env.VITE_API_URL) {
+        socketUrl = import.meta.env.VITE_API_URL;
+      } else {
+        const protocol = window.location.protocol;
+        const hostname = window.location.hostname;
+        if (hostname === 'localhost' || hostname === '127.0.0.1') {
+          socketUrl = 'http://localhost:8000';
+        } else {
+          socketUrl = `${protocol}//${hostname}:8000`;
+        }
+      }
+      socket = io(socketUrl, {
         transports: ['websocket', 'polling']
       });
 

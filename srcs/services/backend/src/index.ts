@@ -40,12 +40,22 @@ const server = Fastify({
 
 /**
  * Register CORS plugin for frontend integration
- * Allows requests from any origin in development
+ * Allows requests from environment-specified origins or defaults
  */
-server.register(cors, {
-  origin: process.env.NODE_ENV === 'production'
+const allowedOrigins = process.env.CORS_ORIGIN 
+  ? process.env.CORS_ORIGIN.split(',')
+  : process.env.NODE_ENV === 'production'
     ? ['http://localhost:3000', 'http://localhost:80', 'http://frontend:80']
-    : ['http://localhost:3000', 'http://localhost:3001', 'http://localhost:3002', 'http://localhost:5173', 'http://127.0.0.1:3000', 'http://127.0.0.1:3001', 'http://127.0.0.1:3002', 'http://127.0.0.1:5173'],
+    : ['http://localhost:3000', 'http://localhost:3001', 'http://localhost:3002', 'http://localhost:5173', 'http://127.0.0.1:3000', 'http://127.0.0.1:3001', 'http://127.0.0.1:3002', 'http://127.0.0.1:5173'];
+
+// In development or when CORS_ALLOW_ALL is set, allow all origins
+// This is essential for IP-based access (e.g., 192.168.x.x)
+const corsOrigin = (process.env.NODE_ENV === 'development' || process.env.CORS_ALLOW_ALL === 'true')
+  ? true // Allow all origins in development or when explicitly enabled
+  : allowedOrigins; // Use specific origins in production
+
+server.register(cors, {
+  origin: corsOrigin,
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
@@ -82,6 +92,25 @@ server.get('/', async (request, reply) => {
         error: error instanceof Error ? error.message : 'Unknown database error'
       }
     });
+  }
+});
+
+/**
+ * Alternative health check endpoint
+ */
+server.get('/health', async (request, reply) => {
+  try {
+    // Try to query the database to check connection
+    await DatabaseService.query('SELECT 1', []);
+    return {
+      status: 'ok',
+      database: 'connected'
+    };
+  } catch (error) {
+    return {
+      status: 'error',
+      database: 'disconnected'
+    };
   }
 });
 

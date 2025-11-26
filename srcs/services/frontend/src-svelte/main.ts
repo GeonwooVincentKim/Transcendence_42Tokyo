@@ -3,12 +3,43 @@ import App from './App.svelte'
 import { register, init, getLocaleFromNavigator } from 'svelte-i18n'
 
 // Initialize i18n with explicit locale
-const initialLocale = getLocaleFromNavigator() || 'en'
+// Check localStorage first, then use 'jp' as default (since this is a Japanese project)
+const storedLocale = localStorage.getItem('locale');
+const initialLocale = storedLocale || 'jp'
 
 // Register translation files with async imports
-register('en', () => import('./shared/locales/locales/en/translations.json').then(m => m.default))
-register('ko', () => import('./shared/locales/locales/ko/translations.json').then(m => m.default))
-register('jp', () => import('./shared/locales/locales/jp/translations.json').then(m => m.default))
+// Use fetch to load translations from public folder at runtime
+register('en', async () => {
+  try {
+    const response = await fetch('/locales/en/translations.json');
+    if (!response.ok) throw new Error('Failed to load translations');
+    return await response.json();
+  } catch (error) {
+    console.error('Failed to load English translations:', error);
+    // Return empty object as fallback
+    return {};
+  }
+})
+register('ko', async () => {
+  try {
+    const response = await fetch('/locales/ko/translations.json');
+    if (!response.ok) throw new Error('Failed to load translations');
+    return await response.json();
+  } catch (error) {
+    console.error('Failed to load Korean translations:', error);
+    return {};
+  }
+})
+register('jp', async () => {
+  try {
+    const response = await fetch('/locales/jp/translations.json');
+    if (!response.ok) throw new Error('Failed to load translations');
+    return await response.json();
+  } catch (error) {
+    console.error('Failed to load Japanese translations:', error);
+    return {};
+  }
+})
 
 // Initialize i18n and wait for it to be ready
 init({

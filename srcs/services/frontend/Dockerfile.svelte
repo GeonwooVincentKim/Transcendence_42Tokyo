@@ -18,7 +18,7 @@ COPY tsconfig.svelte.json ./
 COPY index-svelte.html ./
 
 # Build Svelte application
-RUN npm run build:svelte
+RUN npm run build
 
 # Production stage
 FROM nginx:1.25-alpine AS production

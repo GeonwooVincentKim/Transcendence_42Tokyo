@@ -7,7 +7,39 @@
 
 import { LoginRequest, RegisterRequest, AuthResponse, User, ErrorResponse } from '../types/auth';
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || '';
+/**
+ * Get API base URL dynamically at runtime
+ * Uses environment variable if set, otherwise derives from current hostname
+ */
+function getApiBaseUrl(): string {
+  // Always derive from current hostname at runtime
+  // This allows the app to work on any IP address without rebuilding
+  // Ignore VITE_API_URL to ensure it works from any IP address
+  const protocol = window.location.protocol;
+  const hostname = window.location.hostname;
+  
+  console.log('🔍 API URL determination:', {
+    protocol,
+    hostname,
+    fullUrl: window.location.href,
+    viteApiUrl: import.meta.env.VITE_API_URL || 'not set'
+  });
+  
+  // If running on localhost, use localhost for backend
+  if (hostname === 'localhost' || hostname === '127.0.0.1') {
+    const apiUrl = 'http://localhost:8000';
+    console.log('🔍 Using localhost API URL:', apiUrl);
+    return apiUrl;
+  }
+  
+  // Otherwise, use the same hostname with port 8000
+  const apiUrl = `${protocol}//${hostname}:8000`;
+  console.log('🔍 Using derived API URL:', apiUrl);
+  return apiUrl;
+}
+
+// Don't cache API_BASE_URL - get it dynamically each time
+// This ensures it uses the current window.location, not the location when the module was loaded
 
 /**
  * Authentication Service Class
@@ -20,7 +52,7 @@ export class AuthService {
    * @returns Promise<AuthResponse> - User data and JWT token
    */
   static async register(userData: RegisterRequest): Promise<AuthResponse> {
-    const response = await fetch(`${API_BASE_URL}/api/auth/register`, {
+    const response = await fetch(`${getApiBaseUrl()}/api/auth/register`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -42,7 +74,7 @@ export class AuthService {
    * @returns Promise<AuthResponse> - User data and JWT token
    */
   static async login(credentials: LoginRequest): Promise<AuthResponse> {
-    const response = await fetch(`${API_BASE_URL}/api/auth/login`, {
+    const response = await fetch(`${getApiBaseUrl()}/api/auth/login`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -64,7 +96,7 @@ export class AuthService {
    * @returns Promise<User> - User profile data
    */
   static async getProfile(token: string): Promise<User> {
-    const response = await fetch(`${API_BASE_URL}/api/auth/profile`, {
+    const response = await fetch(`${getApiBaseUrl()}/api/auth/profile`, {
       method: 'GET',
       headers: {
         'Authorization': `Bearer ${token}`,
@@ -87,7 +119,7 @@ export class AuthService {
    * @returns Promise<AuthResponse> - New user data and JWT token
    */
   static async refreshToken(token: string): Promise<AuthResponse> {
-    const response = await fetch(`${API_BASE_URL}/api/auth/refresh`, {
+    const response = await fetch(`${getApiBaseUrl()}/api/auth/refresh`, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${token}`,
@@ -108,7 +140,7 @@ export class AuthService {
    * @returns Promise<User[]> - Array of all users
    */
   static async getAllUsers(): Promise<User[]> {
-    const response = await fetch(`${API_BASE_URL}/api/auth/users`, {
+    const response = await fetch(`${getApiBaseUrl()}/api/auth/users`, {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',
@@ -161,7 +193,7 @@ export class AuthService {
     try {
       const token = this.getToken();
       if (token) {
-        await fetch(`${API_BASE_URL}/api/auth/logout`, {
+        await fetch(`${getApiBaseUrl()}/api/auth/logout`, {
           method: 'POST',
           headers: {
             'Authorization': `Bearer ${token}`,
@@ -227,7 +259,7 @@ export class AuthService {
    * @returns Promise<string> - Username if found
    */
   static async findUsernameByEmail(email: string): Promise<string> {
-    const response = await fetch(`${API_BASE_URL}/api/auth/forgot-username`, {
+    const response = await fetch(`${getApiBaseUrl()}/api/auth/forgot-username`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -250,7 +282,7 @@ export class AuthService {
    * @returns Promise<{ resetToken: string; expiresIn: string }> - Reset token and expiration
    */
   static async requestPasswordReset(email: string): Promise<{ resetToken: string; expiresIn: string }> {
-    const response = await fetch(`${API_BASE_URL}/api/auth/forgot-password`, {
+    const response = await fetch(`${getApiBaseUrl()}/api/auth/forgot-password`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -273,7 +305,7 @@ export class AuthService {
    * @returns Promise<User> - Updated user data
    */
   static async resetPassword(resetToken: string, newPassword: string): Promise<User> {
-    const response = await fetch(`${API_BASE_URL}/api/auth/reset-password`, {
+    const response = await fetch(`${getApiBaseUrl()}/api/auth/reset-password`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -296,7 +328,7 @@ export class AuthService {
    * @returns Promise<boolean> - True if account was deleted successfully
    */
   static async deleteAccount(token: string): Promise<boolean> {
-    const response = await fetch(`${API_BASE_URL}/api/auth/account`, {
+    const response = await fetch(`${getApiBaseUrl()}/api/auth/account`, {
       method: 'DELETE',
       headers: {
         'Authorization': `Bearer ${token}`,
@@ -334,7 +366,7 @@ export class AuthService {
    * @returns Promise<any> - User statistics object
    */
   static async getUserStatistics(userId: string): Promise<any> {
-    const response = await fetch(`${API_BASE_URL}/api/auth/user/${userId}/statistics`, {
+    const response = await fetch(`${getApiBaseUrl()}/api/auth/user/${userId}/statistics`, {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',

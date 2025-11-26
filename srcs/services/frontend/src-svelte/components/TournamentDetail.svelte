@@ -12,7 +12,7 @@
   export let tournament: Tournament;
   export let isAuthenticated: boolean;
   export let currentUser: any;
-  export let onStartMatch: ((tournamentId: number, matchId: number, roomId: string) => void) | undefined = undefined;
+  export let onStartMatch: ((tournamentId: number, matchId: number, roomId: string, match: TournamentMatch) => void) | undefined = undefined;
 
   const dispatch = createEventDispatcher();
 
@@ -102,6 +102,7 @@
     console.log('🔍 tournament object:', tournament);
     console.log('🔍 tournament.id:', tournament?.id, 'Type:', typeof tournament?.id);
     console.log('🔍 match.id:', match?.id, 'Type:', typeof match?.id);
+    console.log('🔍 match details:', match);
     
     if (onStartMatch) {
       const roomId = `tournament-${tournament.id}-match-${match.id}`;
@@ -111,7 +112,7 @@
         roomId: roomId,
         match: match
       });
-      onStartMatch(tournament.id, match.id, roomId);
+      onStartMatch(tournament.id, match.id, roomId, match);
     } else {
       console.warn('⚠️ onStartMatch callback not provided');
     }

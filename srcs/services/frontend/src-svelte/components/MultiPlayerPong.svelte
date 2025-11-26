@@ -6,6 +6,7 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
   import SocketIOService from '../shared/services/socketIOService';
+  import { MatchHistoryService } from '../shared/services/matchHistoryService';
   import { _ } from 'svelte-i18n';
 
   export let roomId: string;
@@ -114,8 +115,26 @@
       }
     }
     
-    // Get actual user ID from authentication context
-    const userId = user?.id || `guest_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    // Get user ID from authentication or use persistent guest ID
+    let userId: string;
+    
+    if (user?.id) {
+      // Use authenticated user ID
+      userId = user.id.toString();
+      console.log('🔍 Using authenticated user ID:', userId);
+    } else {
+      // Use persistent guest ID from localStorage
+      const guestIdKey = 'pong_guest_id';
+      let guestId = localStorage.getItem(guestIdKey);
+      if (!guestId) {
+        guestId = `guest_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        localStorage.setItem(guestIdKey, guestId);
+        console.log('🔍 Created new guest ID:', guestId);
+      } else {
+        console.log('🔍 Using existing guest ID:', guestId);
+      }
+      userId = guestId;
+    }
     
     console.log('Connecting to Socket.IO server for room:', roomId);
     console.log('🔍 Parsed tournamentId:', tournamentId, 'matchId:', matchId);
@@ -183,7 +202,7 @@
         }
       },
       onGameEnd: (data) => {
-        console.log('Game ended:', data);
+        console.log('🏁 Game ended:', data);
         
         // Extract game result from the data structure
         const gameResult = data.gameResult || data;
@@ -199,9 +218,12 @@
           rightScore: rightScore
         }));
         
+        // Determine if user won
+        const userWon = winner === playerSide;
+        
         // Show game end message based on player's perspective
         if (winner) {
-          if (winner === playerSide) {
+          if (userWon) {
             gameEndMessage = '🎉 Victory! You Won! 🎉';
           } else {
             gameEndMessage = '😞 Defeat! You Lost! 😞';
@@ -211,6 +233,42 @@
         }
         
         showGameEndMessage = true;
+        
+        // Save match to localStorage
+        try {
+          const userScore = playerSide === 'left' ? leftScore : rightScore;
+          const opponentScore = playerSide === 'left' ? rightScore : leftScore;
+          
+          // Try to get opponent name from game data or use generic name
+          let opponentName = 'Opponent';
+          if (data.player1Id && data.player2Id && user) {
+            // Determine opponent ID
+            const opponentId = playerSide === 'left' ? data.player2Id : data.player1Id;
+            opponentName = `Player ${opponentId}`;
+          }
+          
+          // Calculate approximate game duration (you can improve this by tracking actual time)
+          const gameDuration = Math.max(leftScore, rightScore) * 30; // rough estimate: 30 seconds per point
+          
+          MatchHistoryService.saveMatch({
+            opponentName,
+            userScore,
+            opponentScore,
+            result: userWon ? 'win' : 'loss',
+            gameMode: roomId.includes('tournament') ? 'tournament' : 'multiplayer',
+            duration: gameDuration,
+            playerSide
+          });
+          
+          console.log('✅ Match saved to localStorage:', {
+            opponentName,
+            userScore,
+            opponentScore,
+            result: userWon ? 'win' : 'loss'
+          });
+        } catch (error) {
+          console.error('❌ Error saving match to localStorage:', error);
+        }
         
         // Auto return to main menu after 5 seconds
         setTimeout(() => {
@@ -258,10 +316,13 @@
       tournamentId: parseInt(tournamentId),
       matchId: parseInt(matchId),
       userId,
-      roomId
+      roomId,
+      playerSide,
+      playerSideType: typeof playerSide
     });
+    console.log('⚠️ IMPORTANT: playerSide being sent to server:', playerSide);
     
-    socketService.connect(parseInt(tournamentId), parseInt(matchId), userId, roomId)
+    socketService.connect(parseInt(tournamentId), parseInt(matchId), userId, roomId, playerSide)
       .then(() => {
         console.log('Socket.IO connected successfully');
         setConnected(true);

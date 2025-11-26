@@ -15,7 +15,7 @@
 
   // Props
   export let onBack: () => void;
-  export let onStartMatch: ((tournamentId: number, matchId: number, roomId: string) => void) | undefined = undefined;
+  export let onStartMatch: ((tournamentId: number, matchId: number, roomId: string, match: any) => void) | undefined = undefined;
 
   // State
   let view: 'list' | 'create' | 'detail' | 'join' = 'list';

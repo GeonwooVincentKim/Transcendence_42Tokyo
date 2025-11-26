@@ -7,7 +7,24 @@
 
 import { AuthService } from './authService';
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || '';
+/**
+ * Get API base URL dynamically at runtime
+ * Uses environment variable if set, otherwise derives from current hostname
+ */
+function getApiBaseUrl(): string {
+  // Always derive from current hostname at runtime
+  // This allows the app to work on any IP address without rebuilding
+  const protocol = window.location.protocol;
+  const hostname = window.location.hostname;
+  
+  // If running on localhost, use localhost for backend
+  if (hostname === 'localhost' || hostname === '127.0.0.1') {
+    return 'http://localhost:8000';
+  }
+  
+  // Otherwise, use the same hostname with port 8000
+  return `${protocol}//${hostname}:8000`;
+}
 
 /**
  * Game result interface
@@ -51,7 +68,7 @@ export class GameStatsService {
       throw new Error('Authentication required');
     }
 
-    const response = await fetch(`${API_BASE_URL}/api/game/results`, {
+    const response = await fetch(`${getApiBaseUrl()}/api/game/results`, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${token}`,
@@ -115,7 +132,7 @@ export class GameStatsService {
       throw new Error('Valid JWT token required');
     }
 
-    const response = await fetch(`${API_BASE_URL}/api/game/statistics`, {
+    const response = await fetch(`${getApiBaseUrl()}/api/game/statistics`, {
       method: 'GET',
       headers: {
         'Authorization': `Bearer ${token}`,
@@ -138,7 +155,7 @@ export class GameStatsService {
    * @returns Promise<UserStatistics[]> - Array of top players
    */
   static async getLeaderboard(limit: number = 10): Promise<UserStatistics[]> {
-    const response = await fetch(`${API_BASE_URL}/api/game/leaderboard?limit=${limit}`, {
+    const response = await fetch(`${getApiBaseUrl()}/api/game/leaderboard?limit=${limit}`, {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',
@@ -166,7 +183,7 @@ export class GameStatsService {
       throw new Error('Authentication required');
     }
 
-    const response = await fetch(`${API_BASE_URL}/api/game/sessions`, {
+    const response = await fetch(`${getApiBaseUrl()}/api/game/sessions`, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${token}`,
@@ -195,7 +212,7 @@ export class GameStatsService {
       throw new Error('Authentication required');
     }
 
-    const response = await fetch(`${API_BASE_URL}/api/game/sessions/${sessionId}/end`, {
+    const response = await fetch(`${getApiBaseUrl()}/api/game/sessions/${sessionId}/end`, {
       method: 'PUT',
       headers: {
         'Authorization': `Bearer ${token}`,
