@@ -221,7 +221,7 @@
           }
         }
       },
-      onGameEnd: (data) => {
+      onGameEnd: async (data) => {
         console.log('🏁 Game ended:', data);
         
         // Extract game result from the data structure
@@ -253,6 +253,15 @@
         }
         
         showGameEndMessage = true;
+        
+        // Note: Statistics are updated by backend (updateRegularMultiplayerStatistics or updateUserStatistics)
+        // for both regular multiplayer and tournament games, so we don't need to call GameStatsService here
+        const isTournament = roomId.includes('tournament');
+        if (isTournament) {
+          console.log('📊 Tournament match - statistics will be updated by backend');
+        } else {
+          console.log('📊 Regular multiplayer match - statistics will be updated by backend');
+        }
         
         // Save match to localStorage
         try {

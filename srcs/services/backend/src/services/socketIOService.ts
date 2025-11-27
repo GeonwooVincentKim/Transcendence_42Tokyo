@@ -1157,16 +1157,30 @@ class SocketIOService {
         matchId = parseInt(parts[1]);
         console.log(`🔍 Parsed tournamentId: ${tournamentId}, matchId: ${matchId}`);
       } else {
-        console.log('ℹ️ Not a tournament game, skipping match result save');
-        return;
+        // Check if roomId is a simple number (for regular multiplayer)
+        const simpleRoomMatch = roomId.match(/^\d+$/);
+        if (simpleRoomMatch) {
+          console.log('🎮 Regular multiplayer game detected (simple roomId), updating user statistics directly');
+          await this.updateRegularMultiplayerStatistics(roomId, gameData, winner);
+          return;
+        } else {
+          console.log('ℹ️ Not a tournament game and not a simple number, skipping match result save');
+          return;
+        }
       }
       
       if (isNaN(tournamentId) || isNaN(matchId)) {
         console.log('⚠️ Invalid tournament or match ID in room:', roomId);
         console.log(`⚠️ tournamentId: ${tournamentId}, matchId: ${matchId}`);
         console.log('⚠️ This usually means the frontend is not setting the roomId correctly');
-        console.log('⚠️ Expected format: tournament-{id}-match-{matchId}');
+        console.log('⚠️ Expected format: tournament-{id}-match-{matchId} or simple number');
         console.log('⚠️ Actual roomId:', roomId);
+        // Try to handle as regular multiplayer game
+        const simpleRoomMatch = roomId.match(/^\d+$/);
+        if (simpleRoomMatch) {
+          console.log('🎮 Attempting to handle as regular multiplayer game');
+          await this.updateRegularMultiplayerStatistics(roomId, gameData, winner);
+        }
         return;
       }
 
@@ -1224,11 +1238,31 @@ class SocketIOService {
       let player1Score: number;
       let player2Score: number;
 
+      // Determine which player is on which side and set scores accordingly
+      const leftUserId = leftPlayer?.userId;
+      const rightUserId = rightPlayer?.userId;
+      
+      // Check if player1 is on left or right side
+      const player1IsLeft = leftUserId && match.player1_id && String(match.player1_id) === String(leftUserId);
+      const player1IsRight = rightUserId && match.player1_id && String(match.player1_id) === String(rightUserId);
+      
+      // Set scores based on which side each player is on
+      if (player1IsLeft) {
+        player1Score = gameData.leftScore;
+        player2Score = gameData.rightScore;
+      } else if (player1IsRight) {
+        player1Score = gameData.rightScore;
+        player2Score = gameData.leftScore;
+      } else {
+        console.error(`❌ Could not determine which side player1 is on`);
+        console.error(`   leftUserId: ${leftUserId}, rightUserId: ${rightUserId}`);
+        console.error(`   match.player1_id: ${match.player1_id}, match.player2_id: ${match.player2_id}`);
+        return;
+      }
+
       // Determine winner based on which side won
       if (winner === 'left' && leftPlayer) {
         // Left side won - need to find which tournament participant this is
-        const leftUserId = leftPlayer.userId;
-        // Check if leftUserId matches player1 or player2 in the match
         if (match.player1_id && String(match.player1_id) === String(leftUserId)) {
           winnerId = match.player1_id;
         } else if (match.player2_id && String(match.player2_id) === String(leftUserId)) {
@@ -1237,11 +1271,8 @@ class SocketIOService {
           console.error(`❌ Could not match left player ${leftUserId} to tournament participant`);
           return;
         }
-        player1Score = gameData.leftScore;
-        player2Score = gameData.rightScore;
       } else if (winner === 'right' && rightPlayer) {
         // Right side won - need to find which tournament participant this is
-        const rightUserId = rightPlayer.userId;
         if (match.player1_id && String(match.player1_id) === String(rightUserId)) {
           winnerId = match.player1_id;
         } else if (match.player2_id && String(match.player2_id) === String(rightUserId)) {
@@ -1250,8 +1281,6 @@ class SocketIOService {
           console.error(`❌ Could not match right player ${rightUserId} to tournament participant`);
           return;
         }
-        player1Score = gameData.rightScore;
-        player2Score = gameData.leftScore;
       } else {
         console.error(`❌ Could not determine winner: winner=${winner}, leftPlayer=${!!leftPlayer}, rightPlayer=${!!rightPlayer}`);
         return;
@@ -1410,41 +1439,59 @@ class SocketIOService {
       console.log(`🔍 Player ID mappings: Left ${leftPlayer.userId} -> ${realLeftUserId}, Right ${rightPlayer.userId} -> ${realRightUserId}`);
       
       // Update left player statistics
-      if (leftPlayer.userId && !leftPlayer.userId.startsWith('guest_')) {
-        await UserService.updateUserStatistics(
-          realLeftUserId,
-          gameData.leftScore,
-          leftPlayerWon
-        );
-        console.log(`📊 Updated stats for left player ${realLeftUserId}: Score ${gameData.leftScore}, Won: ${leftPlayerWon}`);
+      // Check both the original userId and the real userId to determine if it's a guest
+      const isLeftGuest = (leftPlayer.userId && leftPlayer.userId.startsWith('guest_')) || 
+                          (realLeftUserId && realLeftUserId.startsWith('guest_'));
+      if (!isLeftGuest && realLeftUserId) {
+        try {
+          await UserService.updateUserStatistics(
+            realLeftUserId.toString(),
+            gameData.leftScore,
+            leftPlayerWon
+          );
+          console.log(`✅ Updated stats for left player ${realLeftUserId}: Score ${gameData.leftScore}, Won: ${leftPlayerWon}`);
+        } catch (error) {
+          console.error(`❌ Error updating stats for left player ${realLeftUserId}:`, error);
+        }
       } else {
-        console.log('⚠️ Left player is guest, skipping statistics update');
+        console.log(`⚠️ Left player is guest (userId: ${leftPlayer.userId}, realUserId: ${realLeftUserId}), skipping statistics update`);
       }
 
       // Update right player statistics
-      if (rightPlayer.userId && !rightPlayer.userId.startsWith('guest_')) {
-        await UserService.updateUserStatistics(
-          realRightUserId,
-          gameData.rightScore,
-          rightPlayerWon
-        );
-        console.log(`📊 Updated stats for right player ${realRightUserId}: Score ${gameData.rightScore}, Won: ${rightPlayerWon}`);
+      // Check both the original userId and the real userId to determine if it's a guest
+      const isRightGuest = (rightPlayer.userId && rightPlayer.userId.startsWith('guest_')) || 
+                           (realRightUserId && realRightUserId.startsWith('guest_'));
+      if (!isRightGuest && realRightUserId) {
+        try {
+          await UserService.updateUserStatistics(
+            realRightUserId.toString(),
+            gameData.rightScore,
+            rightPlayerWon
+          );
+          console.log(`✅ Updated stats for right player ${realRightUserId}: Score ${gameData.rightScore}, Won: ${rightPlayerWon}`);
+        } catch (error) {
+          console.error(`❌ Error updating stats for right player ${realRightUserId}:`, error);
+        }
       } else {
-        console.log('⚠️ Right player is guest, skipping statistics update');
+        console.log(`⚠️ Right player is guest (userId: ${rightPlayer.userId}, realUserId: ${realRightUserId}), skipping statistics update`);
       }
 
       // Save match history for both players (only if they are real users, not guests)
       console.log('📝 Saving match history...');
       
       // Save match history for left player
-      if (leftPlayer.userId && !leftPlayer.userId.startsWith('guest_')) {
+      const isLeftGuestForHistory = (leftPlayer.userId && leftPlayer.userId.startsWith('guest_')) || 
+                                     (realLeftUserId && realLeftUserId.startsWith('guest_'));
+      if (!isLeftGuestForHistory && realLeftUserId) {
         try {
-          const leftUserIdInt = parseInt(realLeftUserId);
-          const rightUserIdInt = rightPlayer.userId.startsWith('guest_') ? null : parseInt(realRightUserId);
+          const leftUserIdInt = parseInt(realLeftUserId.toString());
+          const isRightGuestForHistory = (rightPlayer.userId && rightPlayer.userId.startsWith('guest_')) || 
+                                         (realRightUserId && realRightUserId.startsWith('guest_'));
+          const rightUserIdInt = isRightGuestForHistory ? null : parseInt(realRightUserId.toString());
           
           // Get opponent username
-          let opponentName = rightPlayer.userId;
-          if (!rightPlayer.userId.startsWith('guest_') && rightUserIdInt) {
+          let opponentName = rightPlayer.userId || 'Opponent';
+          if (!isRightGuestForHistory && rightUserIdInt) {
             try {
               const opponentUser = await DatabaseService.query(
                 'SELECT username FROM users WHERE id = $1',
@@ -1478,14 +1525,18 @@ class SocketIOService {
       }
       
       // Save match history for right player
-      if (rightPlayer.userId && !rightPlayer.userId.startsWith('guest_')) {
+      const isRightGuestForHistory = (rightPlayer.userId && rightPlayer.userId.startsWith('guest_')) || 
+                                      (realRightUserId && realRightUserId.startsWith('guest_'));
+      if (!isRightGuestForHistory && realRightUserId) {
         try {
-          const rightUserIdInt = parseInt(realRightUserId);
-          const leftUserIdInt = leftPlayer.userId.startsWith('guest_') ? null : parseInt(realLeftUserId);
+          const rightUserIdInt = parseInt(realRightUserId.toString());
+          const isLeftGuestForHistory2 = (leftPlayer.userId && leftPlayer.userId.startsWith('guest_')) || 
+                                         (realLeftUserId && realLeftUserId.startsWith('guest_'));
+          const leftUserIdInt = isLeftGuestForHistory2 ? null : parseInt(realLeftUserId.toString());
           
           // Get opponent username
-          let opponentName = leftPlayer.userId;
-          if (!leftPlayer.userId.startsWith('guest_') && leftUserIdInt) {
+          let opponentName = leftPlayer.userId || 'Opponent';
+          if (!isLeftGuestForHistory2 && leftUserIdInt) {
             try {
               const opponentUser = await DatabaseService.query(
                 'SELECT username FROM users WHERE id = $1',

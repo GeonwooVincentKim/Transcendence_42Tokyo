@@ -21,25 +21,21 @@
     loadMatchHistory();
   });
 
-  function loadMatchHistory() {
+  async function loadMatchHistory() {
     try {
       loading = true;
       error = null;
       
-      console.log('📂 Loading match history from localStorage...');
+      console.log('📂 Loading match history from backend...');
       
-      // Load matches from localStorage
-      matches = MatchHistoryService.getMatches();
+      // Load matches from backend API
+      matches = await MatchHistoryService.getMatches();
       console.log('✅ Loaded matches:', matches.length);
       console.log('📋 Match data:', matches);
       
       // Calculate stats from matches
-      stats = MatchHistoryService.getStats();
+      stats = MatchHistoryService.getStats(matches);
       console.log('✅ Calculated stats:', stats);
-      
-      // Debug: Check localStorage directly
-      const stored = localStorage.getItem('match_history');
-      console.log('🔍 Raw localStorage data:', stored);
       
     } catch (err) {
       error = err instanceof Error ? err.message : 'Failed to load match history';
