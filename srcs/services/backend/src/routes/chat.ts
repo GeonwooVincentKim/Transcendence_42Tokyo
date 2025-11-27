@@ -52,6 +52,8 @@ export async function chatRoutes(server: FastifyInstance) {
       return reply.status(201).send({ channel });
     } catch (error: any) {
       server.log.error('Failed to create channel:', error);
+      server.log.error('Error message:', error.message);
+      server.log.error('Error stack:', error.stack);
       return reply.status(400).send({ error: error.message || 'Failed to create channel' });
     }
   });
@@ -88,6 +90,20 @@ export async function chatRoutes(server: FastifyInstance) {
     } catch (error) {
       server.log.error('Failed to get public channels:', error);
       return reply.status(500).send({ error: 'Failed to get public channels' });
+    }
+  });
+
+  /**
+   * Get all available channels (public + protected, for discovery)
+   */
+  server.get('/api/chat/channels/all', async (request: FastifyRequest, reply: FastifyReply) => {
+    try {
+      const channels = await ChatService.getAllChannels();
+      
+      return reply.status(200).send({ channels });
+    } catch (error) {
+      server.log.error('Failed to get all channels:', error);
+      return reply.status(500).send({ error: 'Failed to get all channels' });
     }
   });
 
@@ -186,8 +202,8 @@ export async function chatRoutes(server: FastifyInstance) {
         if (error.message === 'Not a member of this channel') {
           try {
             // Get channel info to check if it's public
-            const channels = await ChatService.getPublicChannels();
-            const channel = channels.find(c => c.id === channelId);
+            const allChannels = await ChatService.getAllChannels();
+            const channel = allChannels.find(c => c.id === channelId);
             
             if (channel && channel.type === 'public') {
               // Auto-join public channel
@@ -215,7 +231,7 @@ export async function chatRoutes(server: FastifyInstance) {
               
               return reply.status(201).send({ message: msg });
             } else {
-              return reply.status(403).send({ error: 'Not a member of this channel' });
+              return reply.status(403).send({ error: 'Not a member of this channel. Protected channels require password to join.' });
             }
           } catch (joinError: any) {
             server.log.error('Failed to auto-join channel:', joinError);
@@ -240,8 +256,34 @@ export async function chatRoutes(server: FastifyInstance) {
   }>, reply: FastifyReply) => {
     try {
       await request.jwtVerify();
+      const userId = (request.user as any).userId || (request.user as any).id;
+      
+      if (!userId) {
+        return reply.status(401).send({ error: 'Invalid token: user ID not found' });
+      }
+      
       const { channelId } = request.params;
       const limit = request.query.limit ? parseInt(request.query.limit) : 50;
+
+      // Check if user is a member of the channel
+      const isMember = await ChatService.checkChannelMembership(userId, channelId);
+      
+      if (!isMember) {
+        // Check if it's a public channel (auto-join)
+        const allChannels = await ChatService.getAllChannels();
+        const channel = allChannels.find(c => c.id === channelId);
+        
+        if (channel && channel.type === 'public') {
+          // Auto-join public channel
+          try {
+            await ChatService.joinChannel(userId, channelId);
+          } catch (joinError) {
+            // Ignore if already member
+          }
+        } else {
+          return reply.status(403).send({ error: 'Not a member of this channel' });
+        }
+      }
 
       const messages = await ChatService.getChannelMessages(channelId, limit);
       
