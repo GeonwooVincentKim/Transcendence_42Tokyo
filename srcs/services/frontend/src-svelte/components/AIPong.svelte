@@ -38,8 +38,7 @@
     distance: 0,
     forceMovement: false
   };
-
-  let gameStartTime = Date.now();
+  let gameStartTime: number | null = null;
 
   /**
    * Handle game end
@@ -53,7 +52,7 @@
       
       // Save to match history
       const userWon = winner === 'left';
-      const gameDuration = Math.floor((Date.now() - gameStartTime) / 1000);
+      const gameDuration = gameStartTime ? Math.floor((Date.now() - gameStartTime) / 1000) : Math.max(leftScore, rightScore) * 30;
       
       MatchHistoryService.saveMatch({
         opponentName: 'AI',
@@ -240,7 +239,9 @@
   <div class="mt-4 flex space-x-4">
     <button
       on:click={() => {
-        gameStartTime = Date.now();
+        if (gameState?.status === 'ready') {
+          gameStartTime = Date.now();
+        }
         controls?.startGame();
       }}
       disabled={gameState?.status === 'playing'}

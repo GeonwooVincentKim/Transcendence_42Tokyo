@@ -74,11 +74,19 @@
     });
 
     socket.on('channel_updated', (data: { channel: any }) => {
-      console.log('Channel updated:', data.channel);
-      // Update existing channel in the list
-      channels = channels.map(ch => 
-        ch.id === data.channel.id ? data.channel : ch
-      );
+      console.log('🔔 Channel updated:', data.channel);
+      // Update existing channel in the list with new member count
+      channels = channels.map(ch => {
+        if (ch.id === data.channel.id) {
+          console.log('✅ Updating channel member count:', ch.id, 'from', ch.memberCount, 'to', data.channel.memberCount);
+          return { ...ch, ...data.channel };
+        }
+        return ch;
+      });
+      // Also update currentChannel if it's the one being updated
+      if (currentChannel && currentChannel.id === data.channel.id) {
+        currentChannel = { ...currentChannel, ...data.channel };
+      }
     });
 
     socket.on('channel_message', (data: { channelId: string, message: any, timestamp: string }) => {
@@ -146,8 +154,8 @@
       if (response.ok) {
         const data = await response.json();
         console.log('✅ Channel created:', data.channel);
-        // Don't add manually here, let socket.io event handle it to avoid duplicates
-        // The channel_created event will add it to the list
+        // Reload channels to get updated member count
+        await loadChannels();
         newChannelName = '';
         newChannelPassword = '';
         isCreatingChannel = false;

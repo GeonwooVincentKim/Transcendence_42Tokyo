@@ -86,12 +86,20 @@ export class ChatService {
       [channel.id, ownerId, 'admin']
     );
 
+    // Get member count
+    const memberCountResult = await DatabaseService.query(
+      'SELECT COUNT(*) as count FROM channel_members WHERE channel_id = ?',
+      [channel.id]
+    );
+    const memberCount = memberCountResult[0]?.count || 1;
+
     const channelData = {
       id: channel.id.toString(),
       name: channel.name,
       description: channel.description,
       type: channel.type,
       ownerId: channel.owner_id.toString(),
+      memberCount: parseInt(memberCount),
       createdAt: channel.created_at
     };
 

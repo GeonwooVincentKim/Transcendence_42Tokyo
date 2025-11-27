@@ -126,6 +126,24 @@ export async function chatRoutes(server: FastifyInstance) {
 
       await ChatService.joinChannel(userId, channelId, password);
       
+      // Get updated channel info with member count
+      const allChannels = await ChatService.getAllChannels();
+      const updatedChannel = allChannels.find(c => c.id === channelId);
+      
+      // Broadcast channel update
+      try {
+        const socketIOService = (global as any).socketIOService;
+        if (socketIOService && socketIOService.getIO) {
+          const io = socketIOService.getIO();
+          if (updatedChannel) {
+            io.emit('channel_updated', { channel: updatedChannel });
+            console.log('Broadcasted channel update after join:', updatedChannel);
+          }
+        }
+      } catch (error) {
+        console.error('Failed to broadcast channel update:', error);
+      }
+      
       return reply.status(200).send({ success: true, message: 'Joined channel successfully' });
     } catch (error: any) {
       server.log.error('Failed to join channel:', error);
@@ -149,7 +167,25 @@ export async function chatRoutes(server: FastifyInstance) {
       const { channelId } = request.params;
 
       await ChatService.leaveChannel(userId, channelId);
+
+      // Get updated channel info with member count
+      const allChannels = await ChatService.getAllChannels();
+      const updatedChannel = allChannels.find(c => c.id === channelId);
       
+      // Broadcast channel update
+      try {
+        const socketIOService = (global as any).socketIOService;
+        if (socketIOService && socketIOService.getIO) {
+          const io = socketIOService.getIO();
+          if (updatedChannel) {
+            io.emit('channel_updated', { channel: updatedChannel });
+            console.log('Broadcasted channel update after leave:', updatedChannel);
+          }
+        }
+      } catch (error) {
+        console.error('Failed to broadcast channel update:', error);
+      }
+
       return reply.status(200).send({ success: true, message: 'Left channel successfully' });
     } catch (error: any) {
       server.log.error('Failed to leave channel:', error);
