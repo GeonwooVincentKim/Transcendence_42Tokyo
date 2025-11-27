@@ -42,10 +42,10 @@ build:
 	cd srcs && docker-compose build
 	@echo "Build completed!"
 
-# Start development environment
+# Start development environment (without tester)
 dev:
 	@echo "Starting development environment..."
-	cd srcs && docker-compose up --build
+	cd srcs && docker-compose up --build --scale tester=0
 
 # Start production environment
 prod:
