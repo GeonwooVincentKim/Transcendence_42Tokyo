@@ -36,24 +36,43 @@ const GAME_CONFIG = {
 } as const;
 
 /**
+ * Convert game speed setting to actual speed values
+ */
+function getSpeedValues(gameSpeed: 'slow' | 'normal' | 'fast' = 'normal') {
+  switch (gameSpeed) {
+    case 'slow':
+      return { ballSpeed: 3, paddleSpeed: 5 };
+    case 'fast':
+      return { ballSpeed: 7, paddleSpeed: 12 };
+    case 'normal':
+    default:
+      return { ballSpeed: 5, paddleSpeed: 8 };
+  }
+}
+
+/**
  * The core Pong game engine for Svelte
  */
 export const usePongEngine = (
   canvasElement: HTMLCanvasElement | null = null,
   width: number = GAME_CONFIG.WIDTH, 
   height: number = GAME_CONFIG.HEIGHT,
-  onGameEnd?: (winner: 'left' | 'right', leftScore: number, rightScore: number) => void
+  onGameEnd?: (winner: 'left' | 'right', leftScore: number, rightScore: number) => void,
+  gameSpeed: 'slow' | 'normal' | 'fast' = 'normal'
 ) => {
   let canvasRef: HTMLCanvasElement | null = canvasElement;
   let status: 'ready' | 'playing' | 'paused' | 'finished' = 'ready';
   
-  // Use default game settings
+  // Get speed values based on gameSpeed setting
+  const speedValues = getSpeedValues(gameSpeed);
+  
+  // Use default game settings with speed values
   const defaultSettings = {
     paddleHeight: 80,
     paddleWidth: 15,
     ballSize: 10,
-    ballSpeed: 5,
-    paddleSpeed: 8,
+    ballSpeed: speedValues.ballSpeed,
+    paddleSpeed: speedValues.paddleSpeed,
   };
 
   // Game state using Svelte store for reactivity

@@ -6,6 +6,7 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
   import { GameStatsService } from '../shared/services/gameStatsService';
+  import { MatchHistoryService } from '../shared/services/matchHistoryService';
   import { usePongEngine } from '../hooks/usePongEngine';
   import { useHumanController } from '../hooks/useHumanController';
   import { _ } from 'svelte-i18n';
@@ -13,6 +14,7 @@
   export let width: number = 800;
   export let height: number = 400;
   export let onGameEnd: ((winner: 'left' | 'right', leftScore: number, rightScore: number) => void) | undefined = undefined;
+  export let gameSpeed: 'slow' | 'normal' | 'fast' = 'normal';
 
   let canvasRef: HTMLCanvasElement;
   let gameStateStore: any;
@@ -28,6 +30,22 @@
       await GameStatsService.saveGameResultSimple(winner, leftScore, rightScore, 'single', 'left');
       console.log('Game result saved successfully');
       
+      // Save to match history
+      const userWon = winner === 'left';
+      const gameDuration = Math.floor((Date.now() - gameStartTime) / 1000);
+      
+      MatchHistoryService.saveMatch({
+        opponentName: 'Player 2',
+        userScore: leftScore,
+        opponentScore: rightScore,
+        result: userWon ? 'win' : 'loss',
+        gameMode: 'single',
+        duration: gameDuration || Math.max(leftScore, rightScore) * 30, // fallback estimate
+        playerSide: 'left'
+      });
+      
+      console.log('✅ Match saved to match history');
+      
       // Call the onGameEnd callback if provided
       if (onGameEnd) {
         onGameEnd(winner, leftScore, rightScore);
@@ -39,13 +57,14 @@
 
   let leftController: any;
   let rightController: any;
+  let gameStartTime = Date.now();
 
   onMount(() => {
     // Wait for canvasRef to be properly bound
     const initGame = () => {
       if (canvasRef) {
         // Initialize the core game engine with canvas
-        const engine = usePongEngine(canvasRef, width, height, handleGameEnd);
+        const engine = usePongEngine(canvasRef, width, height, handleGameEnd, gameSpeed);
         gameStateStore = engine.gameState;
         controls = engine.controls;
         
@@ -126,6 +145,7 @@
   <div class="mt-4 flex space-x-4">
     <button
       on:click={() => {
+        gameStartTime = Date.now();
         console.log('Start clicked, controls:', controls, 'gameState:', gameState);
         controls?.startGame();
       }}

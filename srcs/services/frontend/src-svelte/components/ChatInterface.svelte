@@ -1,5 +1,7 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
+  import { get } from 'svelte/store';
+  import { _, t } from 'svelte-i18n';
   import { AuthService } from '../shared/services/authService';
   import io from 'socket.io-client';
 
@@ -96,9 +98,10 @@
     try {
       isLoading = true;
       const apiUrl = getApiBaseUrl();
-      console.log('📡 Loading channels from:', `${apiUrl}/api/chat/channels`);
+      console.log('📡 Loading all channels (public + protected) from:', `${apiUrl}/api/chat/channels/all`);
       
-      const response = await fetch(`${apiUrl}/api/chat/channels`, {
+      // Use /api/chat/channels/all to get all public and protected channels
+      const response = await fetch(`${apiUrl}/api/chat/channels/all`, {
         headers: {
           'Authorization': `Bearer ${AuthService.getToken()}`
         }
@@ -107,13 +110,13 @@
       if (response.ok) {
         const data = await response.json();
         channels = data.channels || [];
-        console.log('✅ Loaded channels:', channels.length);
+        console.log('✅ Loaded channels (public + protected):', channels.length);
       } else {
         console.error('❌ Failed to load channels:', response.status, response.statusText);
       }
     } catch (err) {
       console.error('❌ Error loading channels:', err);
-      error = 'Failed to load channels';
+      error = get(t)('error.loadchannelsfailed');
     } finally {
       isLoading = false;
     }
@@ -154,7 +157,7 @@
         console.error('❌ Failed to create channel:', errorData);
       }
     } catch (err) {
-      error = 'Failed to create channel';
+      error = get(t)('error.createchannelfailed');
       console.error('❌ Error creating channel:', err);
     } finally {
       isLoading = false;
@@ -187,7 +190,7 @@
         console.error('❌ Failed to join channel:', errorData);
       }
     } catch (err) {
-      error = 'Failed to join channel';
+      error = get(t)('error.joinchannelfailed');
       console.error('❌ Error joining channel:', err);
     }
   }
@@ -208,7 +211,7 @@
     console.log('🔑 Submitting password for channel:', joinPasswordPrompt?.channelId);
     if (joinPasswordPrompt) {
       if (!joinPassword) {
-        error = 'Please enter a password';
+        error = get(t)('error.passwordrequired');
         return;
       }
       joinChannel(joinPasswordPrompt.channelId, joinPassword);
@@ -219,6 +222,16 @@
     try {
       const apiUrl = getApiBaseUrl();
       console.log('📡 Loading messages for channel:', channelId);
+      
+      // Clear password prompt when switching channels
+      const previousChannel = currentChannel;
+      const channel = channels.find(c => c.id === channelId);
+      
+      // If switching to a different channel, clear password prompt
+      if (previousChannel && previousChannel.id !== channelId) {
+        joinPasswordPrompt = null;
+        joinPassword = '';
+      }
       
       const response = await fetch(`${apiUrl}/api/chat/channels/${channelId}/messages`, {
         headers: {
@@ -231,11 +244,13 @@
       if (response.ok) {
         const data = await response.json();
         messages = data.messages || [];
-        currentChannel = channels.find(c => c.id === channelId);
+        currentChannel = channel;
+        // Clear password prompt on successful load
+        joinPasswordPrompt = null;
+        joinPassword = '';
         console.log('✅ Loaded messages:', messages.length);
       } else if (response.status === 403) {
         // User is not a member, check channel type
-        const channel = channels.find(c => c.id === channelId);
         console.log('🔒 Not a member of channel:', channel);
         
         if (channel && channel.type === 'protected') {
@@ -245,18 +260,18 @@
         } else if (channel && channel.type === 'public') {
           // Try to auto-join for public channels
           console.log('📢 Public channel, auto-joining...');
-          error = 'Not a member of this channel. Trying to join...';
+          error = get(t)('msg.tryingtojoin');
           await joinChannel(channelId);
         } else {
-          error = 'Not a member of this channel';
+          error = get(t)('error.notmember');
         }
       } else {
         const errorData = await response.json();
-        error = errorData.error || 'Failed to load messages';
+        error = errorData.error || get(t)('error.loadmessagesfailed');
         console.error('❌ Failed to load messages:', errorData);
       }
     } catch (err) {
-      error = 'Failed to load messages';
+      error = get(t)('error.loadmessagesfailed');
       console.error('❌ Error loading messages:', err);
     }
   }
@@ -306,7 +321,7 @@
     } catch (err) {
       // Remove temp message on error
       messages = messages.filter(m => m.id !== tempMessage.id);
-      error = 'Failed to send message';
+      error = get(t)('error.sendmessagefailed');
       // Restore message to input on error
       newMessage = messageText;
     }
@@ -341,14 +356,14 @@
   {#if joinPasswordPrompt}
     <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" on:click={cancelPasswordPrompt}>
       <div class="bg-white rounded-lg p-6 max-w-md w-full mx-4" on:click|stopPropagation>
-        <h3 class="text-xl font-bold text-gray-800 mb-4">🔒 Protected Channel</h3>
+        <h3 class="text-xl font-bold text-gray-800 mb-4">🔒 {$_('label.protectedchannel')}</h3>
         <p class="text-gray-600 mb-4">
-          Enter password to join <strong class="text-blue-600">#{joinPasswordPrompt.channelName}</strong>
+          {$_('label.enterpassword')} <strong class="text-blue-600">#{joinPasswordPrompt.channelName}</strong>
         </p>
         <input
           type="password"
           bind:value={joinPassword}
-          placeholder="Channel password"
+          placeholder={$_('placeholder.channelpassword')}
           class="w-full px-3 py-2 border border-gray-300 rounded-lg mb-4 focus:outline-none focus:ring-2 focus:ring-blue-500"
           on:keypress={(e) => e.key === 'Enter' && submitJoinPassword()}
           autofocus
@@ -361,13 +376,13 @@
             on:click={submitJoinPassword}
             class="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
           >
-            Join Channel
+            {$_('button.joinchannel')}
           </button>
           <button
             on:click={cancelPasswordPrompt}
             class="flex-1 px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-500"
           >
-            Cancel
+            {$_('button.cancel')}
           </button>
         </div>
       </div>
@@ -378,12 +393,12 @@
     <!-- Channels Sidebar -->
     <div class="w-1/3 bg-gray-100 rounded-l-lg p-4">
       <div class="flex justify-between items-center mb-4">
-        <h3 class="text-lg font-semibold">Channels</h3>
+        <h3 class="text-lg font-semibold">{$_('label.channels')}</h3>
         <button 
           on:click={() => isCreatingChannel = !isCreatingChannel}
           class="px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700"
         >
-          {isCreatingChannel ? 'Cancel' : 'Create'}
+          {isCreatingChannel ? $_('button.cancel') : $_('button.create')}
         </button>
       </div>
 
@@ -393,13 +408,13 @@
           <input 
             type="text" 
             bind:value={newChannelName}
-            placeholder="Channel name"
+            placeholder={$_('placeholder.channelname')}
             class="w-full px-3 py-2 border rounded mb-2"
           />
           <input 
             type="password" 
             bind:value={newChannelPassword}
-            placeholder="Password (optional)"
+            placeholder={$_('placeholder.channelpassword')}
             class="w-full px-3 py-2 border rounded mb-2"
           />
           <button 
@@ -407,7 +422,7 @@
             disabled={isLoading}
             class="w-full px-3 py-2 bg-green-600 text-white rounded hover:bg-green-700 disabled:opacity-50"
           >
-            {isLoading ? 'Creating...' : 'Create Channel'}
+            {isLoading ? $_('label.creating') : $_('button.createchannel')}
           </button>
         </div>
       {/if}
@@ -421,14 +436,14 @@
           >
             <div class="font-semibold">#{channel.name}</div>
             <div class="text-sm text-gray-500">
-              {channel.type} • {channel.memberCount || 0} members
+              {channel.type === 'public' ? $_('label.public') : channel.type === 'protected' ? $_('label.protected') : $_('label.private')} • {channel.memberCount || 0} {$_('label.members')}
             </div>
           </div>
         {/each}
         
         {#if channels.length === 0}
           <div class="text-center py-4 text-gray-500">
-            No channels yet.
+            {$_('msg.nochannels')}
           </div>
         {/if}
       </div>
@@ -440,7 +455,7 @@
         <!-- Channel Header -->
         <div class="p-4 border-b">
           <h3 class="text-lg font-semibold">#{currentChannel.name}</h3>
-          <p class="text-sm text-gray-500">{currentChannel.description || 'No description'}</p>
+          <p class="text-sm text-gray-500">{currentChannel.description || $_('label.nodescription')}</p>
         </div>
 
         <!-- Messages -->
@@ -455,7 +470,7 @@
                   <div class="flex items-center space-x-2">
                     <span class="font-semibold text-sm">{message.username}</span>
                     <span class="text-xs text-gray-500">
-                      {message.isPending ? 'Sending...' : new Date(message.created_at || message.createdAt).toLocaleTimeString()}
+                      {message.isPending ? $_('button.sending') : new Date(message.created_at || message.createdAt).toLocaleTimeString()}
                     </span>
                     {#if message.isPending}
                       <span class="text-xs text-blue-500">●</span>
@@ -468,7 +483,7 @@
             
             {#if messages.length === 0}
               <div class="text-center py-8 text-gray-500">
-                No messages yet. Start the conversation!
+                {$_('msg.nomessages')}
               </div>
             {/if}
           </div>
@@ -481,7 +496,7 @@
               type="text" 
               bind:value={newMessage}
               on:keypress={handleKeyPress}
-              placeholder="Type a message..."
+              placeholder={$_('placeholder.message')}
               class="flex-1 px-3 py-2 border rounded"
             />
             <button 
@@ -489,13 +504,13 @@
               disabled={!newMessage.trim()}
               class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
             >
-              Send
+              {$_('button.send')}
             </button>
           </div>
         </div>
       {:else}
         <div class="flex-1 flex items-center justify-center text-gray-500">
-          Select a channel to start chatting
+          {$_('msg.selectchannel')}
         </div>
       {/if}
     </div>

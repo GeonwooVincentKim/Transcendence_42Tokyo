@@ -7,6 +7,7 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
   import { GameStatsService } from '../shared/services/gameStatsService';
+  import { MatchHistoryService } from '../shared/services/matchHistoryService';
   import { usePongEngine } from '../hooks/usePongEngine';
   import { useHumanController } from '../hooks/useHumanController';
   import { useAIController, type AIDifficulty } from '../hooks/useAIController';
@@ -17,6 +18,7 @@
   let gameState: any;
   let controls: any;
   
+  export let gameSpeed: 'slow' | 'normal' | 'fast' = 'normal';
   let aiDifficulty: AIDifficulty = 'medium';
   let showDebugInfo = false;
   let aiDebugInfo = {
@@ -37,6 +39,8 @@
     forceMovement: false
   };
 
+  let gameStartTime = Date.now();
+
   /**
    * Handle game end
    */
@@ -46,6 +50,22 @@
       // Save game result (current user is left player vs AI)
       await GameStatsService.saveGameResultSimple(winner, leftScore, rightScore, 'ai', 'left');
       console.log('AI game result saved successfully');
+      
+      // Save to match history
+      const userWon = winner === 'left';
+      const gameDuration = Math.floor((Date.now() - gameStartTime) / 1000);
+      
+      MatchHistoryService.saveMatch({
+        opponentName: 'AI',
+        userScore: leftScore,
+        opponentScore: rightScore,
+        result: userWon ? 'win' : 'loss',
+        gameMode: 'ai',
+        duration: gameDuration || Math.max(leftScore, rightScore) * 30, // fallback estimate
+        playerSide: 'left'
+      });
+      
+      console.log('✅ Match saved to match history');
     } catch (error) {
       console.error('Failed to save AI game result:', error);
     }
@@ -59,7 +79,7 @@
     const initGame = () => {
       if (canvasRef) {
         // Initialize the core game engine with canvas
-        const engine = usePongEngine(canvasRef, 800, 400, handleGameEnd);
+        const engine = usePongEngine(canvasRef, 800, 400, handleGameEnd, gameSpeed);
         gameStateStore = engine.gameState;
         controls = engine.controls;
         
@@ -219,7 +239,10 @@
 
   <div class="mt-4 flex space-x-4">
     <button
-      on:click={() => controls?.startGame()}
+      on:click={() => {
+        gameStartTime = Date.now();
+        controls?.startGame();
+      }}
       disabled={gameState?.status === 'playing'}
       class="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
     >
