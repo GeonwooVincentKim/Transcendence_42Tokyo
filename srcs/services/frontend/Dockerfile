@@ -11,6 +11,8 @@ WORKDIR /app
 COPY package*.json ./
 
 # Clear npm cache and install dependencies with proper platform detection
+# Skip Cypress binary download in Docker (not needed for production build)
+ENV CYPRESS_INSTALL_BINARY=0
 RUN npm cache clean --force && \
     rm -rf node_modules && \
     npm install && \

@@ -1,5 +1,7 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
+  import { get } from 'svelte/store';
+  import { _, t } from 'svelte-i18n';
   import { AuthService } from '../shared/services/authService';
   import io from 'socket.io-client';
 
@@ -90,7 +92,7 @@
         friends = data.friends || [];
       }
     } catch (err) {
-      error = 'Failed to load friends';
+      error = get(t)('error.loadfriendsfailed');
     } finally {
       isLoading = false;
     }
@@ -152,7 +154,7 @@
         error = errorData.error || 'Failed to send friend request';
       }
     } catch (err) {
-      error = 'Failed to send friend request';
+      error = get(t)('error.addfriendfailed');
     } finally {
       isLoading = false;
     }
@@ -172,7 +174,7 @@
         loadPendingRequests();
       }
     } catch (err) {
-      error = 'Failed to accept request';
+      error = get(t)('error.acceptrequestfailed');
     }
   }
 
@@ -189,7 +191,7 @@
         loadPendingRequests();
       }
     } catch (err) {
-      error = 'Failed to reject request';
+      error = get(t)('error.rejectrequestfailed');
     }
   }
 
@@ -206,7 +208,7 @@
         loadFriends();
       }
     } catch (err) {
-      error = 'Failed to remove friend';
+      error = get(t)('error.removefriendfailed');
     }
   }
 
@@ -225,7 +227,7 @@
         loadBlockedUsers();
       }
     } catch (err) {
-      error = 'Failed to block user';
+      error = get(t)('error.blockuserfailed');
     }
   }
 
@@ -242,19 +244,19 @@
         loadBlockedUsers();
       }
     } catch (err) {
-      error = 'Failed to unblock user';
+      error = get(t)('error.unblockuserfailed');
     }
   }
 </script>
 
 <div class="max-w-4xl mx-auto p-6">
   <div class="flex justify-between items-center mb-6">
-    <h2 class="text-2xl font-bold">Friends</h2>
+    <h2 class="text-2xl font-bold">{$_('label.friends')}</h2>
     <button 
       on:click={onBack}
       class="px-4 py-2 bg-gray-600 rounded hover:bg-gray-700"
     >
-      Back to Profile
+      {$_('button.backtoprofile')}
     </button>
   </div>
 
@@ -270,19 +272,19 @@
       on:click={() => activeTab = 'friends'}
       class="px-4 py-2 rounded {activeTab === 'friends' ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-700'}"
     >
-      Friends ({friends.length})
+      {$_('label.friends')} ({friends.length})
     </button>
     <button 
       on:click={() => activeTab = 'requests'}
       class="px-4 py-2 rounded {activeTab === 'requests' ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-700'}"
     >
-      Requests ({pendingRequests.length})
+      {$_('label.friendrequests')} ({pendingRequests.length})
     </button>
     <button 
       on:click={() => activeTab = 'blocked'}
       class="px-4 py-2 rounded {activeTab === 'blocked' ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-700'}"
     >
-      Blocked ({blockedUsers.length})
+      {$_('label.blockedusers')} ({blockedUsers.length})
     </button>
   </div>
 
@@ -290,12 +292,12 @@
   {#if activeTab === 'friends'}
     <!-- Add Friend -->
     <div class="bg-gray-100 p-4 rounded mb-4">
-      <h3 class="text-lg font-semibold mb-2">Add Friend</h3>
+      <h3 class="text-lg font-semibold mb-2">{$_('label.addfriend')}</h3>
       <div class="flex space-x-2">
         <input 
           type="text" 
           bind:value={newFriendUsername}
-          placeholder="Enter username"
+          placeholder={$_('placeholder.enterusername')}
           class="flex-1 px-3 py-2 border rounded"
         />
         <button 
@@ -303,7 +305,7 @@
           disabled={isLoading}
           class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
         >
-          {isLoading ? 'Sending...' : 'Send Request'}
+          {isLoading ? $_('button.sending') : $_('button.sendrequest')}
         </button>
       </div>
     </div>
@@ -319,9 +321,9 @@
             <div>
               <div class="font-semibold">{friend.username}</div>
               <div class="text-sm text-gray-500">
-                {friend.onlineStatus === 'online' ? '🟢 Online' : 
-                 friend.onlineStatus === 'in_game' ? '🎮 In Game' : 
-                 '⚫ Offline'}
+                {friend.onlineStatus === 'online' ? '🟢 ' + $_('label.online') : 
+                 friend.onlineStatus === 'in_game' ? '🎮 ' + $_('label.ingame') : 
+                 '⚫ ' + $_('label.offline')}
               </div>
             </div>
           </div>
@@ -329,14 +331,14 @@
             on:click={() => removeFriend(friend.id)}
             class="px-3 py-1 bg-red-600 text-white rounded hover:bg-red-700"
           >
-            Remove
+            {$_('button.remove')}
           </button>
         </div>
       {/each}
       
       {#if friends.length === 0}
         <div class="text-center py-8 text-gray-500">
-          No friends yet. Send a friend request to get started!
+          {$_('label.nofriends')} {$_('label.nofriendsdesc')}
         </div>
       {/if}
     </div>
@@ -353,7 +355,7 @@
             </div>
             <div>
               <div class="font-semibold">{request.username}</div>
-              <div class="text-sm text-gray-500">Wants to be friends</div>
+              <div class="text-sm text-gray-500">{$_('msg.wantstobefriends')}</div>
             </div>
           </div>
           <div class="flex space-x-2">
@@ -361,13 +363,13 @@
               on:click={() => acceptRequest(request.id)}
               class="px-3 py-1 bg-green-600 text-white rounded hover:bg-green-700"
             >
-              Accept
+              {$_('button.accept')}
             </button>
             <button 
               on:click={() => rejectRequest(request.id)}
               class="px-3 py-1 bg-red-600 text-white rounded hover:bg-red-700"
             >
-              Reject
+              {$_('button.reject')}
             </button>
           </div>
         </div>
@@ -375,7 +377,7 @@
       
       {#if pendingRequests.length === 0}
         <div class="text-center py-8 text-gray-500">
-          No pending friend requests.
+          {$_('label.norequests')}
         </div>
       {/if}
     </div>
@@ -392,21 +394,21 @@
             </div>
             <div>
               <div class="font-semibold">{blocked.username}</div>
-              <div class="text-sm text-gray-500">Blocked</div>
+              <div class="text-sm text-gray-500">{$_('msg.blocked')}</div>
             </div>
           </div>
           <button 
             on:click={() => unblockUser(blocked.id)}
             class="px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700"
           >
-            Unblock
+            {$_('button.unblock')}
           </button>
         </div>
       {/each}
       
       {#if blockedUsers.length === 0}
         <div class="text-center py-8 text-gray-500">
-          No blocked users.
+          {$_('label.noblocked')}
         </div>
       {/if}
     </div>

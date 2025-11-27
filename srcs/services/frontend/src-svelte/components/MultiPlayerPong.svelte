@@ -12,13 +12,29 @@
   export let roomId: string;
   export let playerSide: 'left' | 'right';
   export let user: any = null; // Add user prop
+  export let gameSpeed: 'slow' | 'normal' | 'fast' = 'normal';
+
+  // Get speed values based on gameSpeed setting
+  function getSpeedValues(gameSpeed: 'slow' | 'normal' | 'fast') {
+    switch (gameSpeed) {
+      case 'slow':
+        return { ballSpeed: 3, paddleSpeed: 5 };
+      case 'fast':
+        return { ballSpeed: 7, paddleSpeed: 12 };
+      case 'normal':
+      default:
+        return { ballSpeed: 5, paddleSpeed: 8 };
+    }
+  }
+
+  const speedValues = getSpeedValues(gameSpeed);
 
   let canvasRef: HTMLCanvasElement;
   let socketService: SocketIOService | null = null;
   let gameState = {
     leftPaddle: { y: 200 },
     rightPaddle: { y: 200 },
-    ball: { x: 400, y: 200, dx: 5, dy: 3 },
+    ball: { x: 400, y: 200, dx: speedValues.ballSpeed, dy: speedValues.ballSpeed * 0.6 },
     leftScore: 0,
     rightScore: 0,
     status: 'ready' as 'ready' | 'playing' | 'paused' | 'finished',
@@ -190,7 +206,7 @@
         setGameState({
           leftPaddle: { y: 200 },
           rightPaddle: { y: 200 },
-          ball: { x: 400, y: 200, dx: 5, dy: 3 },
+          ball: { x: 400, y: 200, dx: speedValues.ballSpeed, dy: speedValues.ballSpeed * 0.6 },
           leftScore: 0,
           rightScore: 0,
           status: 'ready',

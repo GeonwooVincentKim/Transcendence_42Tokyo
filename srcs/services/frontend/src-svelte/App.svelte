@@ -31,6 +31,16 @@
   let showSettings = false;
   // Load language from localStorage or default to Japanese
   let selectedLanguage = localStorage.getItem('locale') || 'jp';
+  // Game settings
+  function getGameSpeed(): 'slow' | 'normal' | 'fast' {
+    const saved = localStorage.getItem('gameSpeed');
+    if (saved === 'slow' || saved === 'normal' || saved === 'fast') {
+      return saved;
+    }
+    return 'normal';
+  }
+  let gameSpeed: 'slow' | 'normal' | 'fast' = getGameSpeed();
+  let soundEffectsEnabled = localStorage.getItem('soundEffectsEnabled') !== 'false'; // default to true
   let socket: any = null;
 
   // Check authentication status on component mount
@@ -306,7 +316,13 @@
               </button>
               
               <button 
-                on:click={() => setShowSettings(true)}
+                on:click={() => {
+                  // Load current settings from localStorage when opening settings
+                  gameSpeed = getGameSpeed();
+                  soundEffectsEnabled = localStorage.getItem('soundEffectsEnabled') !== 'false';
+                  selectedLanguage = localStorage.getItem('locale') || 'jp';
+                  setShowSettings(true);
+                }}
                 class="p-6 bg-gray-600 rounded-lg hover:bg-gray-700 transition-colors"
               >
                 <h3 class="text-xl font-bold mb-2">{$_('button.settings')}</h3>
@@ -315,7 +331,7 @@
             </div>
           {:else if gameMode === 'single'}
             <!-- Single Player Game -->
-            <PongGame />
+            <PongGame gameSpeed={gameSpeed} />
             <button 
               on:click={handleReturnToMenu}
               class="mt-4 px-4 py-2 bg-gray-600 rounded hover:bg-gray-700"
@@ -372,7 +388,7 @@
               </div>
             {:else}
               <!-- Multiplayer Game -->
-              <MultiPlayerPong {roomId} {playerSide} {user} />
+              <MultiPlayerPong {roomId} {playerSide} {user} gameSpeed={gameSpeed} />
               <button 
                 on:click={handleReturnToMenu}
                 class="mt-4 px-4 py-2 bg-gray-600 rounded hover:bg-gray-700"
@@ -382,7 +398,7 @@
             {/if}
           {:else if gameMode === 'ai'}
             <!-- AI Game -->
-            <AIPong />
+            <AIPong gameSpeed={gameSpeed} />
             <button 
               on:click={handleReturnToMenu}
               class="mt-4 px-4 py-2 bg-gray-600 rounded hover:bg-gray-700"
@@ -464,7 +480,13 @@
           <div class="flex justify-between items-center mb-4">
             <h2 class="text-2xl font-bold text-gray-900">Game Settings</h2>
             <button 
-              on:click={() => setShowSettings(false)}
+              on:click={() => {
+                // Reset to saved values when closing
+                gameSpeed = getGameSpeed();
+                soundEffectsEnabled = localStorage.getItem('soundEffectsEnabled') !== 'false';
+                selectedLanguage = localStorage.getItem('locale') || 'jp';
+                setShowSettings(false);
+              }}
               class="text-gray-500 hover:text-gray-700 text-2xl"
             >
               ×
@@ -476,9 +498,12 @@
               <label class="block text-sm font-medium text-gray-700 mb-2">
                 Game Speed
               </label>
-              <select class="w-full px-3 py-2 border border-gray-300 rounded-lg">
+              <select 
+                bind:value={gameSpeed}
+                class="w-full px-3 py-2 border border-gray-300 rounded-lg"
+              >
                 <option value="slow">Slow</option>
-                <option value="normal" selected>Normal</option>
+                <option value="normal">Normal</option>
                 <option value="fast">Fast</option>
               </select>
             </div>
@@ -487,7 +512,14 @@
               <label class="block text-sm font-medium text-gray-700 mb-2">
                 Sound Effects
               </label>
-              <input type="checkbox" checked class="mr-2"> Enable sound effects
+              <label class="flex items-center">
+                <input 
+                  type="checkbox" 
+                  bind:checked={soundEffectsEnabled}
+                  class="mr-2"
+                /> 
+                Enable sound effects
+              </label>
             </div>
             
             <div>
@@ -507,15 +539,24 @@
           
           <div class="mt-6 flex justify-end space-x-3">
             <button 
-              on:click={() => setShowSettings(false)}
+              on:click={() => {
+                // Reset to saved values
+                gameSpeed = getGameSpeed();
+                soundEffectsEnabled = localStorage.getItem('soundEffectsEnabled') !== 'false';
+                selectedLanguage = localStorage.getItem('locale') || 'jp';
+                setShowSettings(false);
+              }}
               class="px-4 py-2 bg-gray-600 text-white rounded hover:bg-gray-700"
             >
               Cancel
             </button>
             <button 
               on:click={() => {
+                // Save all settings
                 locale.set(selectedLanguage);
                 localStorage.setItem('locale', selectedLanguage);
+                localStorage.setItem('gameSpeed', gameSpeed);
+                localStorage.setItem('soundEffectsEnabled', soundEffectsEnabled.toString());
                 setShowSettings(false);
               }}
               class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"

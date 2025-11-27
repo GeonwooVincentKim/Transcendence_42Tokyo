@@ -7,6 +7,8 @@ WORKDIR /app
 COPY package*.json ./
 
 # Install dependencies (much faster than React build)
+# Skip Cypress binary download in Docker (not needed for production build)
+ENV CYPRESS_INSTALL_BINARY=0
 RUN npm install
 
 # Copy Svelte source code and public assets
