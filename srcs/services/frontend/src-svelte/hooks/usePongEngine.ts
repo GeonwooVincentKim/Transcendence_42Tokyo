@@ -220,23 +220,47 @@ export const usePongEngine = (
   });
 
   /**
-   * Game loop
+   * Game loop with error handling to prevent crashes
    */
   const gameLoop = (currentTime: number) => {
-    const deltaTime = currentTime - lastTime;
-    lastTime = currentTime;
+    try {
+      const deltaTime = currentTime - lastTime;
+      lastTime = currentTime;
 
-    if (currentGameState && currentGameState.status === 'playing') {
-      update(deltaTime, currentGameState);
-      
-      if (canvasRef) {
-        const ctx = canvasRef.getContext('2d');
-        if (ctx) {
-          draw(ctx, currentGameState);
+      if (currentGameState && currentGameState.status === 'playing') {
+        try {
+          update(deltaTime, currentGameState);
+        } catch (error) {
+          console.error('Error in game update:', error);
+          // Pause game on error to prevent crash
+          if (currentGameState) {
+            const newState = { ...currentGameState, status: 'paused' as const };
+            gameState.set(newState);
+          }
+          return;
         }
-      }
+        
+        try {
+          if (canvasRef) {
+            const ctx = canvasRef.getContext('2d');
+            if (ctx) {
+              draw(ctx, currentGameState);
+            }
+          }
+        } catch (error) {
+          console.error('Error drawing game:', error);
+          // Continue game loop even if drawing fails
+        }
 
-      animationId = requestAnimationFrame(gameLoop);
+        animationId = requestAnimationFrame(gameLoop);
+      }
+    } catch (error) {
+      console.error('Critical error in game loop:', error);
+      // Stop game loop on critical error
+      if (currentGameState) {
+        const newState = { ...currentGameState, status: 'paused' as const };
+        gameState.set(newState);
+      }
     }
   };
 

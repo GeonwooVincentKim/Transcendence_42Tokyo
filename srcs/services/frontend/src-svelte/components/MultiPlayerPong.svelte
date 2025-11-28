@@ -191,21 +191,31 @@
         // Game state updates are very frequent (30 FPS), so we don't log them
         // Uncomment the line below for debugging if needed
         // console.log('Received game state update:', data);
-        if (data.gameState) {
-          setGameState(prev => ({ 
-            ...prev,
-            leftPaddle: data.gameState.leftPaddle,
-            rightPaddle: data.gameState.rightPaddle,
-            ball: data.gameState.ball,
-            leftScore: data.gameState.leftScore,
-            rightScore: data.gameState.rightScore
-            // Preserve status if it's already 'playing'
-            // This ensures that if the game is playing, status remains 'playing'
-          }));
-          // Redraw canvas with updated game state
-          if (canvasRef) {
-            drawGame(data.gameState);
+        try {
+          if (data && data.gameState) {
+            setGameState(prev => ({ 
+              ...prev,
+              leftPaddle: data.gameState.leftPaddle,
+              rightPaddle: data.gameState.rightPaddle,
+              ball: data.gameState.ball,
+              leftScore: data.gameState.leftScore,
+              rightScore: data.gameState.rightScore
+              // Preserve status if it's already 'playing'
+              // This ensures that if the game is playing, status remains 'playing'
+            }));
+            // Redraw canvas with updated game state
+            try {
+              if (canvasRef) {
+                drawGame(data.gameState);
+              }
+            } catch (drawError) {
+              console.error('Error drawing game state update:', drawError);
+              // Continue even if drawing fails
+            }
           }
+        } catch (error) {
+          console.error('Error processing game state update:', error);
+          // Don't crash on state update errors
         }
       },
       onGameStart: () => {

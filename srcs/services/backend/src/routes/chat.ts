@@ -185,7 +185,7 @@ export async function chatRoutes(server: FastifyInstance) {
       } catch (error) {
         console.error('Failed to broadcast channel update:', error);
       }
-
+      
       return reply.status(200).send({ success: true, message: 'Left channel successfully' });
     } catch (error: any) {
       server.log.error('Failed to leave channel:', error);
@@ -209,6 +209,15 @@ export async function chatRoutes(server: FastifyInstance) {
       }
       const { channelId } = request.params;
       const { message } = request.body;
+
+      // Server-side validation
+      if (!message || typeof message !== 'string' || message.trim().length === 0) {
+        return reply.status(400).send({ error: 'Message cannot be empty' });
+      }
+      
+      if (message.length > 1000) {
+        return reply.status(400).send({ error: 'Message is too long (maximum 1000 characters)' });
+      }
 
       // Check if user is a member of the channel, if not, auto-join for public channels
       try {
@@ -342,6 +351,15 @@ export async function chatRoutes(server: FastifyInstance) {
       const senderId = (request.user as any).id;
       const { userId: receiverId } = request.params;
       const { message } = request.body;
+
+      // Server-side validation
+      if (!message || typeof message !== 'string' || message.trim().length === 0) {
+        return reply.status(400).send({ error: 'Message cannot be empty' });
+      }
+      
+      if (message.length > 1000) {
+        return reply.status(400).send({ error: 'Message is too long (maximum 1000 characters)' });
+      }
 
       const msg = await ChatService.sendDirectMessage(senderId, receiverId, message);
       

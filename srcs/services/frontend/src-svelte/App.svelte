@@ -145,6 +145,25 @@
     // Initialize router
     router.init();
     
+    // Handle hash changes (for game mode navigation)
+    // This ensures browser back/forward buttons work with hash changes
+    const handleHashChange = () => {
+      if (view === 'game') {
+        const hash = window.location.hash;
+        if (hash === '#single') {
+          gameMode = 'single';
+        } else if (hash === '#multiplayer') {
+          gameMode = 'multiplayer';
+        } else if (hash === '#ai') {
+          gameMode = 'ai';
+        } else {
+          gameMode = 'menu';
+        }
+      }
+    };
+    
+    window.addEventListener('hashchange', handleHashChange);
+    
     // Set initial route based on current URL
     const currentPath = window.location.pathname;
     if (currentPath === '/' || currentPath === '/game' || currentPath === '') {
@@ -152,6 +171,8 @@
       if (currentPath !== '/game') {
         window.history.replaceState({}, '', '/game');
       }
+      // Set initial game mode from hash
+      handleHashChange();
     } else {
       router.navigate(currentPath);
     }
@@ -166,6 +187,7 @@
     // Cleanup function
     return () => {
       window.removeEventListener('returnToMain', handleReturnToMainEvent as EventListener);
+      window.removeEventListener('hashchange', handleHashChange);
     };
   });
 

@@ -1527,9 +1527,23 @@ class SocketIOService {
     
     // Game loop runs at 30 FPS (33ms intervals)
     const gameLoop = setInterval(() => {
-      // Debug logging disabled for cleaner console
-      // console.log(`Game loop tick for room ${roomId}`);
-      this.updateGamePhysics(roomId);
+      try {
+        // Debug logging disabled for cleaner console
+        // console.log(`Game loop tick for room ${roomId}`);
+        this.updateGamePhysics(roomId);
+      } catch (error) {
+        console.error(`Error in game loop for room ${roomId}:`, error);
+        // Pause game on error to prevent crash
+        const room = this.gameRooms.get(roomId);
+        if (room) {
+          room.gameState.status = 'paused';
+          // Notify players about the error
+          this.broadcastToRoom(roomId, 'game_pause', {
+            roomState: room.gameState,
+            message: 'Game paused due to an error'
+          });
+        }
+      }
     }, 33);
 
     this.gameLoops.set(roomId, gameLoop);
@@ -1549,22 +1563,24 @@ class SocketIOService {
 
   /**
    * Update game physics (ball movement, collisions, scoring)
+   * Includes error handling to prevent crashes
    */
   private async updateGamePhysics(roomId: string) {
-    const room = this.gameRooms.get(roomId);
-    if (!room || !room.gameState.gameData || room.gameState.status !== 'playing') {
-      // Don't log when paused to reduce console noise
-      if (room?.gameState?.status !== 'paused') {
-        console.log(`Game physics update skipped for room ${roomId}:`, {
-          roomExists: !!room,
-          hasGameData: !!room?.gameState?.gameData,
-          status: room?.gameState?.status
-        });
+    try {
+      const room = this.gameRooms.get(roomId);
+      if (!room || !room.gameState.gameData || room.gameState.status !== 'playing') {
+        // Don't log when paused to reduce console noise
+        if (room?.gameState?.status !== 'paused') {
+          console.log(`Game physics update skipped for room ${roomId}:`, {
+            roomExists: !!room,
+            hasGameData: !!room?.gameState?.gameData,
+            status: room?.gameState?.status
+          });
+        }
+        return;
       }
-      return;
-    }
 
-    const gameData = room.gameState.gameData;
+      const gameData = room.gameState.gameData;
     
     // Ensure ball exists and has required properties
     if (!gameData.ball || typeof gameData.ball.x !== 'number' || typeof gameData.ball.y !== 'number') {
@@ -1668,10 +1684,31 @@ class SocketIOService {
     //   players: room.players.size
     // });
     
-    this.broadcastToRoom(roomId, 'game_state_update', {
-      gameState: gameData,
-      fromPlayer: 'server'
-    });
+    try {
+      this.broadcastToRoom(roomId, 'game_state_update', {
+        gameState: gameData,
+        fromPlayer: 'server'
+      });
+    } catch (broadcastError) {
+      console.error(`Error broadcasting game state update for room ${roomId}:`, broadcastError);
+      // Continue game loop even if broadcast fails
+    }
+    } catch (error) {
+      console.error(`Critical error in updateGamePhysics for room ${roomId}:`, error);
+      // Pause game on critical error
+      const room = this.gameRooms.get(roomId);
+      if (room) {
+        room.gameState.status = 'paused';
+        try {
+          this.broadcastToRoom(roomId, 'game_pause', {
+            roomState: room.gameState,
+            message: 'Game paused due to an error'
+          });
+        } catch (broadcastError) {
+          console.error(`Error broadcasting pause message for room ${roomId}:`, broadcastError);
+        }
+      }
+    }
   }
 
   /**

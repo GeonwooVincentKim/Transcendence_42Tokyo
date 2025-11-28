@@ -259,9 +259,43 @@ export class ChatService {
   }
 
   /**
+   * Sanitize message content to prevent XSS attacks
+   * @param message - Raw message content
+   * @returns Sanitized message
+   */
+  private static sanitizeMessage(message: string): string {
+    if (!message || typeof message !== 'string') {
+      return '';
+    }
+    
+    // Remove or escape potentially dangerous HTML/script tags
+    // This is a basic sanitization - for production, consider using a library like DOMPurify
+    return message
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#x27;')
+      .replace(/\//g, '&#x2F;')
+      .trim()
+      .substring(0, 1000); // Limit message length to 1000 characters
+  }
+
+  /**
    * Send channel message
    */
   static async sendChannelMessage(userId: string, channelId: string, message: string): Promise<ChannelMessage> {
+    // Validate and sanitize message
+    if (!message || typeof message !== 'string' || message.trim().length === 0) {
+      throw new Error('Message cannot be empty');
+    }
+    
+    if (message.length > 1000) {
+      throw new Error('Message is too long (maximum 1000 characters)');
+    }
+
+    // Sanitize message to prevent XSS
+    const sanitizedMessage = this.sanitizeMessage(message);
+
     // Check if user is a member
     const memberResult = await DatabaseService.query(
       'SELECT id, muted_until FROM channel_members WHERE channel_id = ? AND user_id = ?',
@@ -279,10 +313,10 @@ export class ChatService {
       throw new Error('You are muted in this channel');
     }
 
-    // Insert message
+    // Insert message with sanitized content
     await DatabaseService.run(
       'INSERT INTO channel_messages (channel_id, user_id, message) VALUES (?, ?, ?)',
-      [channelId, userId, message]
+      [channelId, userId, sanitizedMessage]
     );
 
     // Get message with user info
@@ -344,6 +378,18 @@ export class ChatService {
    * Send direct message
    */
   static async sendDirectMessage(senderId: string, receiverId: string, message: string): Promise<DirectMessage> {
+    // Validate and sanitize message
+    if (!message || typeof message !== 'string' || message.trim().length === 0) {
+      throw new Error('Message cannot be empty');
+    }
+    
+    if (message.length > 1000) {
+      throw new Error('Message is too long (maximum 1000 characters)');
+    }
+
+    // Sanitize message to prevent XSS
+    const sanitizedMessage = this.sanitizeMessage(message);
+
     // Check if receiver is blocked
     const blocked = await DatabaseService.query(
       'SELECT id FROM blocked_users WHERE (user_id = ? AND blocked_user_id = ?) OR (user_id = ? AND blocked_user_id = ?)',
@@ -354,10 +400,10 @@ export class ChatService {
       throw new Error('Cannot send message to this user');
     }
 
-    // Insert message
+    // Insert message with sanitized content
     await DatabaseService.run(
       'INSERT INTO direct_messages (sender_id, receiver_id, message) VALUES (?, ?, ?)',
-      [senderId, receiverId, message]
+      [senderId, receiverId, sanitizedMessage]
     );
 
     // Get message with user info
