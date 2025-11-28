@@ -490,15 +490,15 @@
                       {/if}
                     </div>
                   {:else if canPlayMatch(node)}
-                    <div class="absolute -top-1 -right-1 w-3 h-3 rounded-full bg-blue-500"></div>
+                <div class="absolute -top-1 -right-1 w-3 h-3 rounded-full bg-blue-500"></div>
                     <div class="absolute bottom-2 left-1 right-1 mt-2">
-                      <button 
-                        on:click={() => handleMatchClick(node)}
-                        class="w-full px-2 py-1 bg-green-600 text-white text-xs rounded hover:bg-green-700 transition-colors"
-                      >
-                        Play
-                      </button>
-                    </div>
+                    <button 
+                      on:click={() => handleMatchClick(node)}
+                      class="w-full px-2 py-1 bg-green-600 text-white text-xs rounded hover:bg-green-700 transition-colors"
+                    >
+                      Play
+                    </button>
+                  </div>
                   {:else}
                     <div class="absolute -top-1 -right-1 w-3 h-3 rounded-full bg-yellow-500"></div>
                     <div class="absolute bottom-2 left-1 right-1 mt-2">

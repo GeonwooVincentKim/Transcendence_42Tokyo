@@ -10,7 +10,9 @@ build/
 *.tsbuildinfo
 
 # Environment variables
+# Note: .env.example should be committed to the repository
 *.env
+!.env.example
 .env.local
 .env.development.local
 .env.test.local

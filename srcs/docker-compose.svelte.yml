@@ -16,10 +16,12 @@ services:
     build: ./services/backend
     ports:
       - "8000:8000"
+    env_file:
+      - .env
+    # Environment variables are now loaded from .env file
+    # See .env.example for required variables
     environment:
       - NODE_ENV=production
-      - JWT_SECRET=changeme-super-secret-key
-      - DB_PATH=/app/data/pong.db
     volumes:
       - pong_data:/app/data
     restart: unless-stopped
