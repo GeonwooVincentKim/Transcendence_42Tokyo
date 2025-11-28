@@ -8,6 +8,10 @@ services:
       - ./services/frontend/src-svelte:/app/src-svelte # <-- Mounts Svelte code for hot-reloading
     ports:
       - "3002:80" # <-- Uses a different port
+    depends_on:
+      - backend
+    networks:
+      - pong-network
     stop_grace_period: 10s # <-- Set timeout for graceful shutdown
     # No environment variables needed - API URL is determined at runtime from window.location
     # This allows the app to work on any IP address without rebuilding

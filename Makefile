@@ -39,18 +39,42 @@ install-deps:
 # Build all services
 build:
 	@echo "Building all services..."
-	cd srcs && docker-compose build
+	@cd srcs && \
+	if command -v docker-compose > /dev/null 2>&1; then \
+		docker-compose build; \
+	elif docker compose version > /dev/null 2>&1; then \
+		docker compose build; \
+	else \
+		echo "Error: docker-compose or docker compose not found"; \
+		exit 1; \
+	fi
 	@echo "Build completed!"
 
 # Start development environment (without tester)
 dev:
 	@echo "Starting development environment..."
-	cd srcs && docker-compose up --build --scale tester=0
+	@cd srcs && \
+	if command -v docker-compose > /dev/null 2>&1; then \
+		docker-compose up --build --scale tester=0; \
+	elif docker compose version > /dev/null 2>&1; then \
+		docker compose up --build --scale tester=0; \
+	else \
+		echo "Error: docker-compose or docker compose not found"; \
+		exit 1; \
+	fi
 
 # Start production environment
 prod:
 	@echo "Starting production environment..."
-	cd srcs && docker-compose -f docker-compose.yml up --build -d
+	@cd srcs && \
+	if command -v docker-compose > /dev/null 2>&1; then \
+		docker-compose -f docker-compose.yml up --build -d; \
+	elif docker compose version > /dev/null 2>&1; then \
+		docker compose -f docker-compose.yml up --build -d; \
+	else \
+		echo "Error: docker-compose or docker compose not found"; \
+		exit 1; \
+	fi
 
 # Run all tests
 test:
@@ -75,18 +99,42 @@ test-e2e:
 # Clean up containers and volumes
 clean:
 	@echo "Cleaning up containers and volumes..."
-	cd srcs && docker-compose down -v --remove-orphans
+	@cd srcs && \
+	if command -v docker-compose > /dev/null 2>&1; then \
+		docker-compose down -v --remove-orphans; \
+	elif docker compose version > /dev/null 2>&1; then \
+		docker compose down -v --remove-orphans; \
+	else \
+		echo "Error: docker-compose or docker compose not found"; \
+		exit 1; \
+	fi
 	@echo "Cleanup completed!"
 
 # Show logs from all services
 logs:
 	@echo "Showing logs from all services..."
-	cd srcs && docker-compose logs -f
+	@cd srcs && \
+	if command -v docker-compose > /dev/null 2>&1; then \
+		docker-compose logs -f; \
+	elif docker compose version > /dev/null 2>&1; then \
+		docker compose logs -f; \
+	else \
+		echo "Error: docker-compose or docker compose not found"; \
+		exit 1; \
+	fi
 
 # Show status of all services
 status:
 	@echo "Service status:"
-	cd srcs && docker-compose ps
+	@cd srcs && \
+	if command -v docker-compose > /dev/null 2>&1; then \
+		docker-compose ps; \
+	elif docker compose version > /dev/null 2>&1; then \
+		docker compose ps; \
+	else \
+		echo "Error: docker-compose or docker compose not found"; \
+		exit 1; \
+	fi
 
 # ⚠️ NOTE: IP address update commands are no longer needed!
 # The application now automatically detects IP addresses at runtime.
@@ -102,7 +150,15 @@ update-ip:
 # Restart all services
 restart:
 	@echo "Restarting services..."
-	cd srcs && docker-compose down && docker-compose up -d --build
+	@cd srcs && \
+	if command -v docker-compose > /dev/null 2>&1; then \
+		docker-compose down && docker-compose up -d --build; \
+	elif docker compose version > /dev/null 2>&1; then \
+		docker compose down && docker compose up -d --build; \
+	else \
+		echo "Error: docker-compose or docker compose not found"; \
+		exit 1; \
+	fi
 
 # Update IP and restart in one command (DEPRECATED - No longer needed)
 update-and-restart:
