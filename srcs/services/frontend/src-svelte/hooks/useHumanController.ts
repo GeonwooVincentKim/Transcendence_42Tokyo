@@ -11,13 +11,18 @@ export const useHumanController = (
   side: 'left' | 'right'
 ) => {
   let keys = new Set<string>();
+  let animationId: number | null = null;
+  let isRunning = false;
 
   /**
    * Handle key down events
    */
   const handleKeyDown = (event: KeyboardEvent) => {
     keys.add(event.key.toLowerCase());
-    handleMovement();
+    // Start continuous movement loop if not already running
+    if (!isRunning) {
+      startMovementLoop();
+    }
   };
 
   /**
@@ -25,13 +30,16 @@ export const useHumanController = (
    */
   const handleKeyUp = (event: KeyboardEvent) => {
     keys.delete(event.key.toLowerCase());
-    handleMovement();
+    // Stop movement if no keys are pressed
+    if (keys.size === 0 && isRunning) {
+      stopMovementLoop();
+    }
   };
 
   /**
-   * Handle movement based on pressed keys
+   * Calculate movement direction based on pressed keys
    */
-  const handleMovement = () => {
+  const getMovementDirection = (): number => {
     let direction = 0;
 
     if (side === 'left') {
@@ -44,9 +52,42 @@ export const useHumanController = (
       if (keys.has('arrowdown')) direction = 1;
     }
 
-    if (direction !== 0) {
-      setPaddleMovement(side, direction);
+    return direction;
+  };
+
+  /**
+   * Continuous movement loop (similar to AI controller)
+   * Updates paddle position every frame while keys are pressed
+   */
+  const startMovementLoop = () => {
+    if (isRunning) return;
+    
+    isRunning = true;
+    const movementLoop = () => {
+      if (!isRunning) return;
+      
+      const direction = getMovementDirection();
+      if (direction !== 0) {
+        setPaddleMovement(side, direction);
+      }
+      
+      animationId = requestAnimationFrame(movementLoop);
+    };
+    
+    animationId = requestAnimationFrame(movementLoop);
+  };
+
+  /**
+   * Stop the movement loop
+   */
+  const stopMovementLoop = () => {
+    isRunning = false;
+    if (animationId) {
+      cancelAnimationFrame(animationId);
+      animationId = null;
     }
+    // Stop paddle movement
+    setPaddleMovement(side, 0);
   };
 
   /**
@@ -61,6 +102,7 @@ export const useHumanController = (
    * Cleanup the controller
    */
   const cleanup = () => {
+    stopMovementLoop();
     window.removeEventListener('keydown', handleKeyDown);
     window.removeEventListener('keyup', handleKeyUp);
   };

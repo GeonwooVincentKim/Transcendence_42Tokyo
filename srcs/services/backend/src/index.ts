@@ -204,7 +204,18 @@ const start = async () => {
     });
 
     // Register JWT plugin for authentication FIRST
-    const jwtSecret = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
+    // JWT_SECRET is required - must be set in environment variables
+    const jwtSecret = process.env.JWT_SECRET;
+    if (!jwtSecret) {
+      server.log.error('JWT_SECRET environment variable is required but not set');
+      throw new Error('JWT_SECRET environment variable is required. Please set it in your .env file.');
+    }
+    
+    // Validate JWT_SECRET strength (minimum 32 characters recommended)
+    if (jwtSecret.length < 32) {
+      server.log.warn('JWT_SECRET is too short. For production, use at least 32 characters.');
+    }
+    
     await server.register(jwt, { 
       secret: jwtSecret,
       sign: {

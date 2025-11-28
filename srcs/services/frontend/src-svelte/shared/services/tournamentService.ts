@@ -54,6 +54,11 @@ export interface TournamentParticipant {
   final_rank?: number | null;
   seed?: number | null;
   is_ready: boolean;
+  user?: {
+    id: number;
+    username: string;
+    email?: string;
+  } | null;
   stats?: {
     wins: number;
     losses: number;
@@ -82,6 +87,9 @@ export interface TournamentMatch {
   started_at?: string | null;
   finished_at?: string | null;
   match_data?: string | null;
+  player1?: TournamentParticipant;
+  player2?: TournamentParticipant;
+  winner?: TournamentParticipant;
 }
 
 export interface BracketNode {

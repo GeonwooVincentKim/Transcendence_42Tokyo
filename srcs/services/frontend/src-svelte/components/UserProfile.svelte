@@ -64,13 +64,15 @@
    * @returns string - Formatted date
    */
   const formatDate = (dateString: string): string => {
-    const date = new Date(dateString);
+    // Parse the date string as UTC and convert to local time
+    const date = new Date(dateString + (dateString.includes('Z') ? '' : 'Z'));
     return date.toLocaleDateString('en-US', {
       year: 'numeric',
       month: 'long',
       day: 'numeric',
       hour: '2-digit',
-      minute: '2-digit'
+      minute: '2-digit',
+      timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone
     });
   };
 
@@ -175,7 +177,18 @@
         <div class="text-center py-4">
           <p class="text-red-600">{error}</p>
           <button
-            on:click={() => window.location.reload()}
+            on:click={async () => {
+              loading = true;
+              error = null;
+              try {
+                const stats = await GameStatsService.getUserStatistics();
+                statistics = stats;
+              } catch (err) {
+                error = err instanceof Error ? err.message : $_('error.statsfailed');
+              } finally {
+                loading = false;
+              }
+            }}
             class="mt-2 text-blue-600 hover:text-blue-800"
           >
             {$_('button.retry')}

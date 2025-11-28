@@ -160,7 +160,6 @@
           disabled={loading}
         >
           <option value="single_elimination">{$_('option.singleelim')}</option>
-          <option value="double_elimination">{$_('option.doubleelim')}</option>
           <option value="round_robin">{$_('option.roundrobin')}</option>
         </select>
       </div>

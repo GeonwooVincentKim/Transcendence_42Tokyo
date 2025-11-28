@@ -14,6 +14,9 @@
   export let user: any = null; // Add user prop
   export let gameSpeed: 'slow' | 'normal' | 'fast' = 'normal';
 
+  // Internal playerSide that can be updated on reconnection
+  let currentPlayerSide: 'left' | 'right' = playerSide;
+
   // Get speed values based on gameSpeed setting
   function getSpeedValues(gameSpeed: 'slow' | 'normal' | 'fast') {
     switch (gameSpeed) {
@@ -46,6 +49,7 @@
   let showGameEndMessage = false;
   let errorMessage = '';
   let showErrorMessage = false;
+  let isSpectator = false; // Track if this player is a spectator
 
   const setConnected = (status: boolean) => {
     connected = status;
@@ -137,10 +141,12 @@
     
     // Get user ID from authentication or use persistent guest ID
     let userId: string;
+    let currentUserId: string; // Store userId for comparison in event handlers
     
     if (user?.id) {
       // Use authenticated user ID
       userId = user.id.toString();
+      currentUserId = userId;
       console.log('🔍 Using authenticated user ID:', userId);
     } else {
       // Use persistent guest ID from localStorage
@@ -154,6 +160,7 @@
         console.log('🔍 Using existing guest ID:', guestId);
       }
       userId = guestId;
+      currentUserId = userId;
     }
     
     console.log('Connecting to Socket.IO server for room:', roomId);
@@ -162,6 +169,9 @@
     console.log('🔍 User info:', user);
     
     socketService = new SocketIOService();
+
+    // Initialize currentPlayerSide from prop
+    currentPlayerSide = playerSide;
 
     // Set up event handlers
     socketService.setEventHandlers({
@@ -178,15 +188,20 @@
         setGameState(data);
       },
       onGameStateUpdate: (data) => {
-        console.log('Received game state update:', data);
+        // Game state updates are very frequent (30 FPS), so we don't log them
+        // Uncomment the line below for debugging if needed
+        // console.log('Received game state update:', data);
         if (data.gameState) {
-          setGameState({ 
+          setGameState(prev => ({ 
+            ...prev,
             leftPaddle: data.gameState.leftPaddle,
             rightPaddle: data.gameState.rightPaddle,
             ball: data.gameState.ball,
             leftScore: data.gameState.leftScore,
             rightScore: data.gameState.rightScore
-          });
+            // Preserve status if it's already 'playing'
+            // This ensures that if the game is playing, status remains 'playing'
+          }));
           // Redraw canvas with updated game state
           if (canvasRef) {
             drawGame(data.gameState);
@@ -239,7 +254,7 @@
         }));
         
         // Determine if user won
-        const userWon = winner === playerSide;
+        const userWon = winner === currentPlayerSide;
         
         // Show game end message based on player's perspective
         if (winner) {
@@ -265,14 +280,14 @@
         
         // Save match to localStorage
         try {
-          const userScore = playerSide === 'left' ? leftScore : rightScore;
-          const opponentScore = playerSide === 'left' ? rightScore : leftScore;
+          const userScore = currentPlayerSide === 'left' ? leftScore : rightScore;
+          const opponentScore = currentPlayerSide === 'left' ? rightScore : leftScore;
           
           // Try to get opponent name from game data or use generic name
           let opponentName = 'Opponent';
           if (data.player1Id && data.player2Id && user) {
             // Determine opponent ID
-            const opponentId = playerSide === 'left' ? data.player2Id : data.player1Id;
+            const opponentId = currentPlayerSide === 'left' ? data.player2Id : data.player1Id;
             opponentName = `Player ${opponentId}`;
           }
           
@@ -286,7 +301,7 @@
             result: userWon ? 'win' : 'loss',
             gameMode: roomId.includes('tournament') ? 'tournament' : 'multiplayer',
             duration: gameDuration,
-            playerSide
+            playerSide: currentPlayerSide
           });
           
           console.log('✅ Match saved to localStorage:', {
@@ -309,7 +324,7 @@
                 winner: winner,
                 leftScore: leftScore,
                 rightScore: rightScore,
-                playerSide
+                playerSide: currentPlayerSide
               }
             }
           });
@@ -318,7 +333,6 @@
       },
       onGamePlaying: (data) => {
         console.log('Game playing:', data);
-        setGameState(prev => ({ ...prev, status: 'playing' }));
         if (data.gameState) {
           console.log('Setting game state from game_playing:', data.gameState);
           setGameState({ 
@@ -327,16 +341,48 @@
             ball: data.gameState.ball,
             leftScore: data.gameState.leftScore,
             rightScore: data.gameState.rightScore,
-            status: 'playing'
+            status: 'playing',
+            winner: undefined
           });
           // Draw the initial game state
           if (canvasRef) {
             drawGame(data.gameState);
           }
+        } else {
+          // If no gameState provided, just set status to playing
+          setGameState(prev => ({ ...prev, status: 'playing' }));
         }
       },
       onError: (error) => {
         console.error('Socket.IO error:', error);
+      },
+      onPlayerJoined: (data) => {
+        console.log('Player joined:', data);
+        // IMPORTANT: Only update isSpectator if this event is for the current player
+        // Compare as strings to handle both number and string user IDs
+        if (String(data.userId) === String(currentUserId)) {
+          // This event is for the current player
+          if (data.isSpectator || data.playerSide === 'spectator') {
+            isSpectator = true;
+            console.log('👁️ This player is in spectator mode');
+          } else {
+            // Ensure we're not in spectator mode if we're a participant
+            isSpectator = false;
+            console.log('✅ This player is a participant (not spectator)');
+          }
+          // If this is a reconnection event with playerSide, update currentPlayerSide
+          if (data.playerSide && data.playerSide !== 'spectator') {
+            console.log('🔍 Updating currentPlayerSide after reconnection:', data.playerSide, '(userId:', data.userId, 'currentUserId:', currentUserId, ')');
+            currentPlayerSide = data.playerSide;
+          }
+        } else {
+          // This event is for another player, ignore spectator status
+          console.log('🔍 Player joined event for another player:', data.userId, '(current user:', currentUserId, ')');
+        }
+      },
+      onSpectatorMode: (data) => {
+        console.log('Spectator mode activated:', data);
+        isSpectator = true;
       }
     });
 
@@ -351,7 +397,7 @@
     });
     console.log('⚠️ IMPORTANT: playerSide being sent to server:', playerSide);
     
-    socketService.connect(parseInt(tournamentId), parseInt(matchId), userId, roomId, playerSide)
+    socketService.connect(parseInt(tournamentId), parseInt(matchId), userId, roomId, playerSide, gameSpeed)
       .then(() => {
         console.log('Socket.IO connected successfully');
         setConnected(true);
@@ -395,7 +441,12 @@
     };
 
     const getMovementFromKeys = () => {
-      if (playerSide === 'left') {
+      // Spectators cannot control paddles
+      if (isSpectator) {
+        return 0;
+      }
+      // Use currentPlayerSide instead of playerSide prop
+      if (currentPlayerSide === 'left') {
         if (keys.has('w') || keys.has('arrowup')) return -1;
         if (keys.has('s') || keys.has('arrowdown')) return 1;
       } else {
@@ -464,17 +515,31 @@
     </span>
   </div>
   
+  <!-- Spectator Mode Indicator -->
+  {#if isSpectator}
+    <div class="mb-4 bg-blue-50 border border-blue-200 text-blue-700 px-4 py-3 rounded-lg">
+      <div class="flex items-center space-x-2">
+        <span class="text-xl">👁️</span>
+        <div>
+          <div class="font-bold">観戦モード (Spectator Mode)</div>
+          <div class="text-sm">この試合の参加者ではありません。観戦のみ可能です。</div>
+          <div class="text-sm">You are not a participant in this match. You can only watch.</div>
+        </div>
+      </div>
+    </div>
+  {/if}
+  
   <div class="mb-4 flex justify-center space-x-8">
     <div class="text-center">
       <div class="text-2xl font-bold text-blue-600">{gameState.leftScore}</div>
       <div class="text-sm text-gray-600">
-        {playerSide === 'left' ? $_('label.you') : $_('label.opponent')}
+        {currentPlayerSide === 'left' ? $_('label.you') : $_('label.opponent')}
       </div>
     </div>
     <div class="text-center">
       <div class="text-2xl font-bold text-red-600">{gameState.rightScore}</div>
       <div class="text-sm text-gray-600">
-        {playerSide === 'right' ? $_('label.you') : $_('label.opponent')}
+        {currentPlayerSide === 'right' ? $_('label.you') : $_('label.opponent')}
       </div>
     </div>
   </div>
@@ -526,7 +591,7 @@
   <div class="mt-4 flex space-x-4">
     <button
       on:click={startGame}
-      disabled={gameState.status === 'playing' || gameState.status === 'ready' || !connected}
+      disabled={isSpectator || gameState.status === 'playing' || gameState.status === 'ready' || !connected}
       class="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
     >
       {gameState.status === 'ready' ? 'Starting...' : $_('button.startgame')}
@@ -534,7 +599,7 @@
     
     <button
       on:click={pauseGame}
-      disabled={!connected || (gameState.status !== 'playing' && gameState.status !== 'paused')}
+      disabled={isSpectator || !connected || (gameState.status !== 'playing' && gameState.status !== 'paused')}
       class="px-4 py-2 {gameState.status === 'paused' ? 'bg-green-600 hover:bg-green-700' : 'bg-yellow-600 hover:bg-yellow-700'} text-white rounded disabled:bg-gray-400 disabled:cursor-not-allowed"
     >
       {gameState.status === 'paused' ? $_('button.resume') : $_('button.pause')}

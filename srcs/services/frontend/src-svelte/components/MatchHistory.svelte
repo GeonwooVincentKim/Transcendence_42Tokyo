@@ -53,13 +53,15 @@
   }
 
   function formatDate(dateString: string): string {
-    const date = new Date(dateString);
+    // Parse the date string as UTC and convert to local time
+    const date = new Date(dateString + (dateString.includes('Z') ? '' : 'Z'));
     return date.toLocaleDateString('en-US', {
       year: 'numeric',
       month: 'short',
       day: 'numeric',
       hour: '2-digit',
-      minute: '2-digit'
+      minute: '2-digit',
+      timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone
     });
   }
 

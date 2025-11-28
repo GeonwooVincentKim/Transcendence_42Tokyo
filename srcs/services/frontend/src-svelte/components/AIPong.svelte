@@ -120,18 +120,14 @@
   });
 
   // Watch for game state changes to restart AI
-  $: if (gameState?.status === 'playing' && aiController) {
-    console.log('Game started, restarting AI');
-    if (aiController.startAI) {
+  // Note: AI controller handles its own start/stop based on game state
+  // This reactive statement is kept minimal to avoid duplicate starts
+  let lastGameStatus: string | null = null;
+  $: if (gameState?.status && gameState.status !== lastGameStatus && aiController) {
+    lastGameStatus = gameState.status;
+    if (gameState.status === 'playing' && aiController.startAI) {
+      // AI controller will handle starting itself
       aiController.startAI();
-    }
-  }
-
-  // Watch for game state changes to stop AI
-  $: if (gameState?.status === 'paused' && aiController) {
-    console.log('Game paused, stopping AI');
-    if (aiController.startAI) {
-      aiController.startAI(); // This will stop the AI loop
     }
   }
 

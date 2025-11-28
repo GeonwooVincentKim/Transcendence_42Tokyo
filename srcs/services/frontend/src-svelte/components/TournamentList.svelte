@@ -51,7 +51,16 @@
   function formatDate(dateString: string) {
     if (!dateString) return 'Invalid Date';
     try {
-      return new Date(dateString).toLocaleDateString();
+      // Parse the date string as UTC and convert to local time
+      const date = new Date(dateString + (dateString.includes('Z') ? '' : 'Z'));
+      return date.toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+        timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone
+      });
     } catch (error) {
       console.error('Error formatting date:', dateString, error);
       return 'Invalid Date';

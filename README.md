@@ -20,6 +20,13 @@ cd srcs/services/backend && npm install
 cd ../frontend && npm install
 cd ../tester && npm install
 cd ../..
+
+# Set up environment variables
+cd srcs
+cp .env.example .env
+# Edit .env and set JWT_SECRET to a strong random value
+# For production, generate a secure secret:
+# openssl rand -base64 32
 ```
 
 ### Development
@@ -33,6 +40,12 @@ docker-compose up --build
 # Backend API: http://localhost:8000
 # Database: localhost:5432
 ```
+
+**⚠️ Important Security Note:**
+- The `.env` file contains sensitive credentials and is automatically ignored by git
+- Never commit `.env` to version control
+- Always use `.env.example` as a template for required environment variables
+- In production, use a strong, randomly generated `JWT_SECRET` (minimum 32 characters)
 
 ### Testing
 ```bash

@@ -31,8 +31,8 @@
   }
 
   const matchWidth = 200;
-  const matchHeight = 80;
-  const matchSpacing = 50;
+  const matchHeight = 120; // Increased from 80 to 120 to prevent overlap
+  const matchSpacing = 80; // Increased from 50 to 80 to add more space between matches
   const roundSpacing = 300;
 
   onMount(() => {
@@ -52,7 +52,11 @@
 
   function getPlayerDisplayName(participant?: TournamentParticipant): string {
     if (!participant) return 'TBD';
-    return participant.display_name || 'Unknown Player';
+    // Try display_name first, then user.username, then guest_alias, finally fallback
+    return participant.display_name || 
+           participant.user?.username || 
+           participant.guest_alias || 
+           'Unknown Player';
   }
 
   function getPlayerAvatar(participant?: TournamentParticipant): string {
@@ -63,16 +67,17 @@
   }
 
   function getBracketTypeStyling(node: BracketNode): string {
+    // Ensure text is visible on white background
     const bracketPos = node.position.x;
     switch (bracketPos) {
       case 1: // Main bracket
-        return 'border-blue-500 bg-blue-50';
+        return 'border-blue-500 bg-blue-50 text-gray-900';
       case 2: // Losers bracket
-        return 'border-red-500 bg-red-50';
+        return 'border-red-500 bg-red-50 text-gray-900';
       case 3: // Grand final
-        return 'border-yellow-500 bg-yellow-50';
+        return 'border-yellow-500 bg-yellow-50 text-gray-900';
       default:
-        return 'border-gray-300 bg-white';
+        return 'border-gray-300 bg-white text-gray-900';
     }
   }
 
@@ -105,22 +110,58 @@
   }
 
   function handleMatchClick(node: BracketNode) {
+    console.log('🔍 handleMatchClick called:', {
+      nodeMatchId: node.match_id,
+      matchesCount: matches.length,
+      matchIds: matches.map(m => m.id),
+      onMatchClick: !!onMatchClick
+    });
+    
     if (node.match_id && onMatchClick) {
       const match = matches.find(m => m.id === node.match_id);
       if (match) {
-        console.log('Bracket match clicked:', {
+        // Don't allow starting completed matches
+        if (match.status === 'completed') {
+          console.log('⚠️ Match is already completed, cannot start again:', match.id);
+          return;
+        }
+        
+        console.log('✅ Bracket match clicked:', {
           node: node,
           match: match,
+          matchId: match.id,
+          player1_id: match.player1_id,
+          player2_id: match.player2_id,
           tournamentId: tournamentId
         });
         onMatchClick(match);
+      } else {
+        console.error('❌ Match not found in matches array:', {
+          nodeMatchId: node.match_id,
+          matchesCount: matches.length,
+          matchIds: matches.map(m => m.id)
+        });
       }
     } else {
-      console.warn('Match click handler not available:', {
+      console.warn('⚠️ Match click handler not available:', {
         match_id: node.match_id,
         onMatchClick: !!onMatchClick
       });
     }
+  }
+  
+  function canPlayMatch(node: BracketNode): boolean {
+    if (!node.match_id || !node.player1 || !node.player2) {
+      return false;
+    }
+    
+    const match = matches.find(m => m.id === node.match_id);
+    if (!match) {
+      return false;
+    }
+    
+    // Only allow playing if match is pending or active (not completed)
+    return match.status === 'pending' || match.status === 'active';
   }
 
   function handlePlayMatch(match: TournamentMatch) {
@@ -294,17 +335,17 @@
                 
                 <div class="space-y-2">
                   <div class="flex items-center justify-between">
-                    <span class="text-sm {match.winner_id === match.player1_id ? 'font-bold text-green-600' : ''}">
+                    <span class="text-sm text-gray-900 {match.winner_id === match.player1_id ? 'font-bold text-green-600' : ''}">
                       {match.player1?.display_name || 'TBD'}
                     </span>
-                    <span class="text-sm font-medium">{match.player1_score || 0}</span>
+                    <span class="text-sm font-medium text-gray-900">{match.player1_score || 0}</span>
                   </div>
                   
                   <div class="flex items-center justify-between">
-                    <span class="text-sm {match.winner_id === match.player2_id ? 'font-bold text-green-600' : ''}">
+                    <span class="text-sm text-gray-900 {match.winner_id === match.player2_id ? 'font-bold text-green-600' : ''}">
                       {match.player2?.display_name || 'TBD'}
                     </span>
-                    <span class="text-sm font-medium">{match.player2_score || 0}</span>
+                    <span class="text-sm font-medium text-gray-900">{match.player2_score || 0}</span>
                   </div>
                 </div>
 
@@ -380,12 +421,12 @@
             <!-- Match Box -->
             <div
               class="absolute border-2 rounded-lg shadow-sm hover:shadow-md transition-shadow cursor-pointer {getBracketTypeStyling(node)}"
-              style="left: {position.x}px; top: {position.y}px; width: {position.width}px; height: {position.height}px;"
+              style="left: {position.x}px; top: {position.y}px; width: {position.width}px; height: {position.height}px; color: #111827;"
               on:click={() => handleMatchClick(node)}
             >
-              <div class="p-3 h-full flex flex-col justify-between">
+              <div class="p-3 h-full flex flex-col justify-between" style="color: #111827;">
                 <!-- Player 1 -->
-                <div class="flex items-center gap-2 {node.winner?.id === node.player1?.id ? 'font-bold text-green-600' : ''}">
+                <div class="flex items-center gap-2 {node.winner?.id === node.player1?.id ? 'font-bold text-green-600' : 'text-gray-900'}">
                   {#if getPlayerAvatar(node.player1)}
                     <img 
                       src={getPlayerAvatar(node.player1)} 
@@ -394,13 +435,13 @@
                     />
                   {:else}
                     <div class="w-6 h-6 bg-gray-300 rounded-full flex items-center justify-center">
-                      <span class="text-xs font-medium text-gray-600">
+                      <span class="text-xs font-medium text-gray-700">
                         {node.player1?.display_name?.charAt(0).toUpperCase() || '?'}
                       </span>
                     </div>
                   {/if}
                   <div class="flex flex-col">
-                    <span class="text-sm truncate">{getPlayerDisplayName(node.player1)}</span>
+                    <span class="text-sm truncate text-gray-900">{getPlayerDisplayName(node.player1)}</span>
                     <span class="text-xs text-blue-600 font-medium">Left</span>
                   </div>
                 </div>
@@ -411,7 +452,7 @@
                 </div>
 
                 <!-- Player 2 -->
-                <div class="flex items-center gap-2 {node.winner?.id === node.player2?.id ? 'font-bold text-green-600' : ''}">
+                <div class="flex items-center gap-2 {node.winner?.id === node.player2?.id ? 'font-bold text-green-600' : 'text-gray-900'}">
                   {#if getPlayerAvatar(node.player2)}
                     <img 
                       src={getPlayerAvatar(node.player2)} 
@@ -420,13 +461,13 @@
                     />
                   {:else}
                     <div class="w-6 h-6 bg-gray-300 rounded-full flex items-center justify-center">
-                      <span class="text-xs font-medium text-gray-600">
+                      <span class="text-xs font-medium text-gray-700">
                         {node.player2?.display_name?.charAt(0).toUpperCase() || '?'}
                       </span>
                     </div>
                   {/if}
                   <div class="flex flex-col">
-                    <span class="text-sm truncate">{getPlayerDisplayName(node.player2)}</span>
+                    <span class="text-sm truncate text-gray-900">{getPlayerDisplayName(node.player2)}</span>
                     <span class="text-xs text-red-600 font-medium">Right</span>
                   </div>
                 </div>
@@ -434,17 +475,38 @@
 
               <!-- Match status indicator and Play button -->
               {#if node.match_id}
-                <div class="absolute -top-1 -right-1 w-3 h-3 rounded-full bg-blue-500"></div>
-                <!-- Play Match Button -->
-                {#if node.player1 && node.player2}
-                  <div class="absolute bottom-1 left-1 right-1">
-                    <button 
-                      on:click={() => handleMatchClick(node)}
-                      class="w-full px-2 py-1 bg-green-600 text-white text-xs rounded hover:bg-green-700 transition-colors"
-                    >
-                      Play
-                    </button>
-                  </div>
+                {@const match = matches.find(m => m.id === node.match_id)}
+                {#if match}
+                  {#if match.status === 'completed'}
+                    <div class="absolute -top-1 -right-1 w-3 h-3 rounded-full bg-green-500"></div>
+                    <div class="absolute bottom-2 left-1 right-1 mt-2">
+                      <div class="w-full px-2 py-1 bg-gray-100 text-gray-600 text-xs rounded text-center">
+                        Completed
+                      </div>
+                      {#if node.winner}
+                        <div class="w-full px-2 py-0.5 mt-1 text-xs text-green-600 font-semibold text-center truncate">
+                          Winner: {getPlayerDisplayName(node.winner)}
+                        </div>
+                      {/if}
+                    </div>
+                  {:else if canPlayMatch(node)}
+                    <div class="absolute -top-1 -right-1 w-3 h-3 rounded-full bg-blue-500"></div>
+                    <div class="absolute bottom-2 left-1 right-1 mt-2">
+                      <button 
+                        on:click={() => handleMatchClick(node)}
+                        class="w-full px-2 py-1 bg-green-600 text-white text-xs rounded hover:bg-green-700 transition-colors"
+                      >
+                        Play
+                      </button>
+                    </div>
+                  {:else}
+                    <div class="absolute -top-1 -right-1 w-3 h-3 rounded-full bg-yellow-500"></div>
+                    <div class="absolute bottom-2 left-1 right-1 mt-2">
+                      <div class="w-full px-2 py-1 bg-gray-100 text-gray-400 text-xs rounded text-center">
+                        Waiting
+                      </div>
+                    </div>
+                  {/if}
                 {/if}
               {/if}
             </div>
@@ -508,9 +570,15 @@
 
   .bracket-container {
     background: #f8fafc;
+    color: #111827; /* Ensure text is black */
   }
 
   .bracket-content {
     transition: transform 0.2s ease;
+    color: #111827; /* Ensure text is black */
+  }
+  
+  .bracket-content * {
+    color: inherit; /* Inherit text color from parent */
   }
 </style>

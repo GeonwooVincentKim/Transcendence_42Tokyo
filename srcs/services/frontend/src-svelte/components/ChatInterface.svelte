@@ -478,7 +478,15 @@
                   <div class="flex items-center space-x-2">
                     <span class="font-semibold text-sm">{message.username}</span>
                     <span class="text-xs text-gray-500">
-                      {message.isPending ? $_('button.sending') : new Date(message.created_at || message.createdAt).toLocaleTimeString()}
+                      {message.isPending ? $_('button.sending') : (() => {
+                        const dateStr = message.created_at || message.createdAt;
+                        const date = new Date(dateStr + (dateStr.includes('Z') ? '' : 'Z'));
+                        return date.toLocaleTimeString('en-US', {
+                          hour: '2-digit',
+                          minute: '2-digit',
+                          timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone
+                        });
+                      })()}
                     </span>
                     {#if message.isPending}
                       <span class="text-xs text-blue-500">●</span>
