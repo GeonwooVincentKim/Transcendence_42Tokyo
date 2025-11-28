@@ -27,6 +27,8 @@
 		"showdebug": "デバッグ表示",
 		"hidedebug": "デバッグ非表示",
 		"backtologin": "ログインに戻る",
+		"verifying": "認証中...",
+		"verify": "認証",
 		"cancel": "キャンセル",
 		"deleting": "削除中...",
 		"backtoprofile": "プロフィールに戻る",
@@ -232,7 +234,11 @@
 		"regeneratebackupcodesfailed": "バックアップコードの再生成に失敗しました",
 		"loadmessagesfailed": "メッセージの読み込みに失敗しました",
 		"acceptrequestfailed": "リクエストの承認に失敗しました",
-		"rejectrequestfailed": "リクエストの拒否に失敗しました"
+		"rejectrequestfailed": "リクエストの拒否に失敗しました",
+		"fillallfields": "すべてのフィールドを入力してください",
+		"loginfailed": "ログインに失敗しました",
+		"entercode": "2FAコードを入力してください",
+		"2faverificationfailed": "2FA認証に失敗しました"
 	},
 	"msg": {
 		"leaderboard": "リーダーボードはゲーム終了時にリアルタイムで更新されます",

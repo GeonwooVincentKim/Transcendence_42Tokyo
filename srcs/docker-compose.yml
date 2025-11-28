@@ -17,13 +17,10 @@ services:
     build: ./services/backend
     ports:
       - "8000:8000"
-    environment:
-      - NODE_ENV=development
-      - JWT_SECRET=changeme-super-secret-key
-      - DB_PATH=/app/data/pong.db
-      - CORS_ALLOW_ALL=true
-      # CORS is set to allow all origins in development mode
-      # No need to specify IP addresses - works with any IP automatically
+    env_file:
+      - .env
+    # Environment variables are now loaded from .env file
+    # See .env.example for required variables
     volumes:
       - pong_data:/app/data
     restart: unless-stopped

@@ -12,6 +12,7 @@ interface SocketIOEventHandlers {
   onPlayerJoined?: (data: any) => void;
   onPlayerLeft?: (data: any) => void;
   onPlayerReady?: (data: any) => void;
+  onSpectatorMode?: (data: any) => void;
   onGameStart?: (data: any) => void;
   onGamePlaying?: (data: any) => void;
   onGamePause?: (data: any) => void;
@@ -29,6 +30,7 @@ class SocketIOService {
   private userId: string | null = null;
   private tournamentId: number | null = null;
   private matchId: number | null = null;
+  private gameSpeed: 'slow' | 'normal' | 'fast' = 'normal';
   private eventHandlers: SocketIOEventHandlers = {};
   private reconnectAttempts = 0;
   private maxReconnectAttempts = 5;
@@ -42,12 +44,13 @@ class SocketIOService {
   /**
    * Connect to Socket.IO server
    */
-  connect(tournamentId: number, matchId: number, userId: string, roomId?: string, playerSide?: 'left' | 'right'): Promise<void> {
+  connect(tournamentId: number, matchId: number, userId: string, roomId?: string, playerSide?: 'left' | 'right', gameSpeed: 'slow' | 'normal' | 'fast' = 'normal'): Promise<void> {
     return new Promise((resolve, reject) => {
       try {
         this.tournamentId = tournamentId;
         this.matchId = matchId;
         this.userId = userId;
+        this.gameSpeed = gameSpeed;
 
         // Socket.IO server runs on the backend port (8000)
         // Dynamically determine URL at runtime (no rebuild needed when IP changes)
@@ -105,7 +108,8 @@ class SocketIOService {
             matchId,
             userId,
             token,
-            playerSide
+            playerSide,
+            gameSpeed: this.gameSpeed
           };
           
           console.log('🎯 SENDING join_game_room with data:');
@@ -170,6 +174,7 @@ class SocketIOService {
     this.userId = null;
     this.tournamentId = null;
     this.matchId = null;
+    this.gameSpeed = 'normal';
   }
 
   /**
@@ -251,6 +256,11 @@ class SocketIOService {
       this.eventHandlers.onPlayerLeft?.(data);
     });
 
+    this.socket.on('spectator_mode', (data) => {
+      console.log('Spectator mode activated:', data);
+      this.eventHandlers.onSpectatorMode?.(data);
+    });
+
     this.socket.on('player_ready', (data) => {
       console.log('Player ready:', data);
       this.eventHandlers.onPlayerReady?.(data);
@@ -272,7 +282,9 @@ class SocketIOService {
     });
 
     this.socket.on('game_state_update', (data) => {
-      console.log('Game state update:', data);
+      // Game state updates are very frequent (30 FPS), so we don't log them
+      // Uncomment the line below for debugging if needed
+      // console.log('Game state update:', data);
       this.eventHandlers.onGameStateUpdate?.(data);
     });
 
@@ -293,6 +305,17 @@ class SocketIOService {
 
     this.socket.on('pong', () => {
       this.eventHandlers.onPong?.();
+    });
+
+    this.socket.on('player_reconnected', (data) => {
+      console.log('Player reconnected:', data);
+      // If this is our own reconnection, update playerSide if provided
+      if (data.userId === this.userId && data.playerSide) {
+        console.log('🔍 Updating playerSide after reconnection:', data.playerSide);
+        // Store playerSide for potential use
+        // Note: This is informational, the actual playerSide is managed by the component
+      }
+      this.eventHandlers.onPlayerJoined?.(data);
     });
   }
 
@@ -334,7 +357,8 @@ class SocketIOService {
       console.log('Starting game...');
       this.socket.emit('start_game', {
         tournamentId: this.tournamentId,
-        matchId: this.matchId
+        matchId: this.matchId,
+        gameSpeed: this.gameSpeed
       });
     } else {
       console.error('Cannot start game: Socket not connected');
@@ -364,7 +388,8 @@ class SocketIOService {
       console.log('Resetting game...');
       this.socket.emit('reset_game', {
         tournamentId: this.tournamentId,
-        matchId: this.matchId
+        matchId: this.matchId,
+        gameSpeed: this.gameSpeed
       });
     } else {
       console.error('Cannot reset game: Socket not connected');
@@ -402,7 +427,7 @@ class SocketIOService {
     setTimeout(() => {
       if (this.tournamentId && this.matchId && this.userId) {
         // Don't pass roomId on reconnect, let it be regenerated
-        this.connect(this.tournamentId, this.matchId, this.userId)
+        this.connect(this.tournamentId, this.matchId, this.userId, undefined, undefined, this.gameSpeed)
           .catch(error => {
             console.error('Reconnection failed:', error);
           });

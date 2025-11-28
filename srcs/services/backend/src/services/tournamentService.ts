@@ -39,6 +39,11 @@ export interface TournamentParticipant {
   final_rank?: number | null;
   seed?: number | null;
   is_ready: boolean;
+  user?: {
+    id: number;
+    username: string;
+    email: string;
+  };
 }
 
 export interface TournamentMatch {
@@ -58,6 +63,9 @@ export interface TournamentMatch {
   started_at?: string | null;
   finished_at?: string | null;
   match_data?: string | null; // JSON string
+  player1?: TournamentParticipant;
+  player2?: TournamentParticipant;
+  winner?: TournamentParticipant;
 }
 
 export interface TournamentBracket {
@@ -240,14 +248,13 @@ export class TournamentService {
     }
 
     // For guest users, user_id can be null/undefined, but guest_alias must be provided
-    // For registered users, user_id must be provided, guest_alias should be null/undefined
+    // For registered users, user_id must be provided, and guest_alias should also be provided (same as display_name)
     if (!user_id && (!guest_alias || guest_alias.trim().length === 0)) {
       throw new Error('Either user_id or guest_alias is required');
     }
 
-    if (user_id && guest_alias && guest_alias.trim().length > 0) {
-      throw new Error('Cannot provide both user_id and guest_alias');
-    }
+    // Allow both user_id and guest_alias for registered users (guest_alias is set to display_name)
+    // This allows consistent display of participant names regardless of registration status
 
     // Check if tournament exists and is in registration phase
     const tournament = await this.getTournament(tournament_id);
@@ -355,14 +362,71 @@ export class TournamentService {
   }
 
   /**
-   * Get tournament participants
+   * Get tournament participants with user information
    */
   static async getTournamentParticipants(tournamentId: number): Promise<TournamentParticipant[]> {
     const rows = await DatabaseService.query(
-      'SELECT * FROM tournament_participants WHERE tournament_id = ? ORDER BY joined_at ASC',
+      `SELECT 
+        tp.*,
+        u.id as user_db_id,
+        u.username as user_username,
+        u.email as user_email
+      FROM tournament_participants tp
+      LEFT JOIN users u ON tp.user_id = u.id
+      WHERE tp.tournament_id = ? 
+      ORDER BY tp.joined_at ASC`,
       [tournamentId]
     );
-    return rows as TournamentParticipant[];
+    
+    console.log('🔍 getTournamentParticipants - rows count:', rows.length);
+    if (rows.length > 0) {
+      console.log('🔍 getTournamentParticipants - first row:', {
+        id: rows[0].id,
+        user_id: rows[0].user_id,
+        user_db_id: rows[0].user_db_id,
+        user_username: rows[0].user_username,
+        display_name: rows[0].display_name
+      });
+    }
+    
+    // Map rows to TournamentParticipant with user information
+    return rows.map((row: any) => {
+      const participant: any = {
+        id: row.id,
+        tournament_id: row.tournament_id,
+        user_id: row.user_id,
+        guest_alias: row.guest_alias,
+        display_name: row.display_name,
+        avatar_url: row.avatar_url,
+        joined_at: row.joined_at,
+        eliminated_at: row.eliminated_at,
+        final_rank: row.final_rank,
+        seed: row.seed,
+        is_ready: row.is_ready === 1
+      };
+      
+      // Add user information if exists
+      if (row.user_db_id) {
+        participant.user = {
+          id: row.user_db_id,
+          username: row.user_username,
+          email: row.user_email
+        };
+        console.log('🔍 Added user info to participant:', {
+          participantId: participant.id,
+          userId: participant.user.id,
+          username: participant.user.username
+        });
+      } else {
+        console.log('🔍 No user_db_id for participant:', {
+          participantId: participant.id,
+          user_id: participant.user_id,
+          display_name: participant.display_name
+        });
+      }
+      
+      return participant;
+    });
   }
 
   /**
@@ -450,14 +514,15 @@ export class TournamentService {
     // Create first round matches
     for (const match of firstRoundMatches) {
       await DatabaseService.run(
-        `INSERT INTO tournament_matches (tournament_id, round, match_number, player1_id, player2_id, status)
-         VALUES (?, 1, ?, ?, ?, ?)`,
+        `INSERT INTO tournament_matches (tournament_id, round, match_number, player1_id, player2_id, status, bracket_position)
+         VALUES (?, 1, ?, ?, ?, ?, ?)`,
         [
           tournamentId,
           matchNumber++,
           match.player1.id,
           match.player2?.id || null,
-          match.player2 ? 'pending' : 'completed'
+          match.player2 ? 'pending' : 'completed',
+          1 // bracket_position = 1 for single elimination
         ]
       );
 
@@ -481,9 +546,9 @@ export class TournamentService {
       
       for (let match = 1; match <= previousRoundMatches; match++) {
         await DatabaseService.run(
-          `INSERT INTO tournament_matches (tournament_id, round, match_number, status)
-           VALUES (?, ?, ?, ?)`,
-          [tournamentId, round, match, 'pending']
+          `INSERT INTO tournament_matches (tournament_id, round, match_number, status, bracket_position)
+           VALUES (?, ?, ?, ?, ?)`,
+          [tournamentId, round, match, 'pending', 1] // bracket_position = 1 for single elimination
         );
       }
     }
@@ -657,14 +722,201 @@ export class TournamentService {
   }
 
   /**
-   * Get tournament matches
+   * Get tournament matches with participant information
    */
   static async getTournamentMatches(tournamentId: number): Promise<TournamentMatch[]> {
     const rows = await DatabaseService.query(
-      'SELECT * FROM tournament_matches WHERE tournament_id = ? ORDER BY round ASC, match_number ASC',
+      `SELECT 
+        m.*,
+        p1.id as p1_id, p1.user_id as p1_user_id, p1.guest_alias as p1_guest_alias, 
+        p1.display_name as p1_display_name, p1.avatar_url as p1_avatar_url,
+        u1.id as u1_db_id, u1.username as u1_username, u1.email as u1_email,
+        p2.id as p2_id, p2.user_id as p2_user_id, p2.guest_alias as p2_guest_alias,
+        p2.display_name as p2_display_name, p2.avatar_url as p2_avatar_url,
+        u2.id as u2_db_id, u2.username as u2_username, u2.email as u2_email,
+        w.id as w_id, w.user_id as w_user_id, w.guest_alias as w_guest_alias,
+        w.display_name as w_display_name, w.avatar_url as w_avatar_url,
+        uw.id as uw_db_id, uw.username as uw_username, uw.email as uw_email
+      FROM tournament_matches m
+      LEFT JOIN tournament_participants p1 ON m.player1_id = p1.id
+      LEFT JOIN users u1 ON p1.user_id = u1.id
+      LEFT JOIN tournament_participants p2 ON m.player2_id = p2.id
+      LEFT JOIN users u2 ON p2.user_id = u2.id
+      LEFT JOIN tournament_participants w ON m.winner_id = w.id
+      LEFT JOIN users uw ON w.user_id = uw.id
+      WHERE m.tournament_id = ? 
+      ORDER BY m.round ASC, m.match_number ASC`,
       [tournamentId]
     );
-    return rows as TournamentMatch[];
+    
+    console.log('🔍 getTournamentMatches - rows count:', rows.length);
+    if (rows.length > 0) {
+      console.log('🔍 getTournamentMatches - first row:', {
+        match_id: rows[0].id,
+        player1_id: rows[0].player1_id,
+        player2_id: rows[0].player2_id,
+        p1_id: rows[0].p1_id,
+        p2_id: rows[0].p2_id,
+        p1_display_name: rows[0].p1_display_name,
+        p2_display_name: rows[0].p2_display_name,
+        u1_db_id: rows[0].u1_db_id,
+        u1_username: rows[0].u1_username,
+        u2_db_id: rows[0].u2_db_id,
+        u2_username: rows[0].u2_username
+      });
+    }
+    
+    // Map rows to TournamentMatch with participant information
+    const matches: TournamentMatch[] = rows.map((row: any) => {
+      const match: any = {
+        id: row.id,
+        tournament_id: row.tournament_id,
+        round: row.round,
+        match_number: row.match_number,
+        bracket_position: row.bracket_position,
+        player1_id: row.player1_id,
+        player2_id: row.player2_id,
+        winner_id: row.winner_id,
+        status: row.status,
+        player1_score: row.player1_score,
+        player2_score: row.player2_score,
+        game_session_id: row.game_session_id,
+        created_at: row.created_at,
+        started_at: row.started_at,
+        finished_at: row.finished_at,
+        match_data: row.match_data
+      };
+      
+      console.log('🔍 Processing match row:', {
+        matchId: match.id,
+        player1_id: match.player1_id,
+        player2_id: match.player2_id,
+        hasP1Id: !!row.p1_id,
+        hasP2Id: !!row.p2_id,
+        p1DisplayName: row.p1_display_name,
+        p2DisplayName: row.p2_display_name
+      });
+      
+      // Add player1 participant if exists
+      if (row.p1_id) {
+        match.player1 = {
+          id: row.p1_id,
+          tournament_id: tournamentId,
+          user_id: row.p1_user_id,
+          guest_alias: row.p1_guest_alias,
+          display_name: row.p1_display_name || null, // Allow null display_name
+          avatar_url: row.p1_avatar_url,
+          joined_at: '',
+          eliminated_at: null,
+          final_rank: null,
+          seed: null,
+          is_ready: false
+        };
+        // Add user information if exists
+        if (row.u1_db_id) {
+          match.player1.user = {
+            id: row.u1_db_id,
+            username: row.u1_username,
+            email: row.u1_email
+          };
+        }
+        // If display_name is missing but user exists, use username
+        if (!match.player1.display_name && match.player1.user?.username) {
+          match.player1.display_name = match.player1.user.username;
+        }
+        // If display_name is still missing but guest_alias exists, use guest_alias
+        if (!match.player1.display_name && match.player1.guest_alias) {
+          match.player1.display_name = match.player1.guest_alias;
+        }
+      } else {
+        match.player1 = undefined;
+      }
+      
+      // Add player2 participant if exists
+      if (row.p2_id) {
+        match.player2 = {
+          id: row.p2_id,
+          tournament_id: tournamentId,
+          user_id: row.p2_user_id,
+          guest_alias: row.p2_guest_alias,
+          display_name: row.p2_display_name || null, // Allow null display_name
+          avatar_url: row.p2_avatar_url,
+          joined_at: '',
+          eliminated_at: null,
+          final_rank: null,
+          seed: null,
+          is_ready: false
+        };
+        // Add user information if exists
+        if (row.u2_db_id) {
+          match.player2.user = {
+            id: row.u2_db_id,
+            username: row.u2_username,
+            email: row.u2_email
+          };
+        }
+        // If display_name is missing but user exists, use username
+        if (!match.player2.display_name && match.player2.user?.username) {
+          match.player2.display_name = match.player2.user.username;
+        }
+        // If display_name is still missing but guest_alias exists, use guest_alias
+        if (!match.player2.display_name && match.player2.guest_alias) {
+          match.player2.display_name = match.player2.guest_alias;
+        }
+      } else {
+        match.player2 = undefined;
+      }
+      
+      // Add winner participant if exists
+      if (row.w_id) {
+        match.winner = {
+          id: row.w_id,
+          tournament_id: tournamentId,
+          user_id: row.w_user_id,
+          guest_alias: row.w_guest_alias,
+          display_name: row.w_display_name || null, // Allow null display_name
+          avatar_url: row.w_avatar_url,
+          joined_at: '',
+          eliminated_at: null,
+          final_rank: null,
+          seed: null,
+          is_ready: false
+        };
+        // Add user information if exists
+        if (row.uw_db_id) {
+          match.winner.user = {
+            id: row.uw_db_id,
+            username: row.uw_username,
+            email: row.uw_email
+          };
+        }
+        // If display_name is missing but user exists, use username
+        if (!match.winner.display_name && match.winner.user?.username) {
+          match.winner.display_name = match.winner.user.username;
+        }
+        // If display_name is still missing but guest_alias exists, use guest_alias
+        if (!match.winner.display_name && match.winner.guest_alias) {
+          match.winner.display_name = match.winner.guest_alias;
+        }
+        console.log('🔍 Winner participant:', {
+          w_id: row.w_id,
+          w_display_name: row.w_display_name,
+          w_user_id: row.w_user_id,
+          uw_username: row.uw_username,
+          final_display_name: match.winner.display_name
+        });
+      } else if (row.winner_id) {
+        // winner_id exists but w_id is null - this shouldn't happen, but log it
+        console.log('⚠️ winner_id exists but w_id is null:', {
+          winner_id: row.winner_id,
+          match_id: match.id
+        });
+      }
+      
+      return match;
+    });
+    
+    return matches;
   }
 
   /**
@@ -730,9 +982,43 @@ export class TournamentService {
     // Handle match progression based on tournament type
     if (tournament.tournament_type === 'double_elimination') {
       await this.handleDoubleEliminationMatchProgression(match.tournament_id, match, winnerId);
+    } else if (tournament.tournament_type === 'single_elimination') {
+      // Handle single elimination match progression
+      await this.handleSingleEliminationMatchProgression(match.tournament_id, match, winnerId);
     } else {
-      // Handle other tournament types
+      // Handle other tournament types (round robin, etc.)
     await this.checkTournamentCompletion(match.tournament_id);
+    }
+  }
+
+  /**
+   * Handle match progression for single elimination tournaments
+   */
+  private static async handleSingleEliminationMatchProgression(
+    tournamentId: number,
+    completedMatch: TournamentMatch,
+    winnerId: number
+  ): Promise<void> {
+    // Check if this is the final match
+    const allMatches = await this.getTournamentMatches(tournamentId);
+    const maxRound = Math.max(...allMatches.map(m => m.round));
+    
+    if (completedMatch.round >= maxRound) {
+      // This is the final match, tournament is complete
+      await DatabaseService.run(
+        'UPDATE tournaments SET status = ?, finished_at = CURRENT_TIMESTAMP WHERE id = ?',
+        ['completed', tournamentId]
+      );
+      
+      // Update final rankings
+      await this.updateSingleEliminationRankings(tournamentId);
+    } else {
+      // IMPORTANT: First check if we can start the next round and activate it
+      // This ensures the next round matches are in 'pending' status before we try to assign players
+      await this.checkAndStartNextRound(tournamentId, completedMatch.round, completedMatch.round + 1, 1);
+      
+      // Then advance the winner to the next round
+      await this.advancePlayerToNextRound(tournamentId, winnerId, completedMatch.round + 1, 1);
     }
   }
 
@@ -779,7 +1065,9 @@ export class TournamentService {
     }
     
     // Check if we can start the next round
-    await this.checkAndStartNextRound(tournamentId, completedMatch.round + 1, 1);
+    // IMPORTANT: Check if all matches in the CURRENT round (completedMatch.round) are completed
+    // before activating the NEXT round (completedMatch.round + 1)
+    await this.checkAndStartNextRound(tournamentId, completedMatch.round, completedMatch.round + 1, 1);
   }
 
   /**
@@ -802,7 +1090,9 @@ export class TournamentService {
       await this.sendPlayerToGrandFinal(tournamentId, winnerId);
     } else {
       // Check if we can start the next round
-      await this.checkAndStartNextRound(tournamentId, completedMatch.round + 1, 2);
+      // IMPORTANT: Check if all matches in the CURRENT round (completedMatch.round) are completed
+      // before activating the NEXT round (completedMatch.round + 1)
+      await this.checkAndStartNextRound(tournamentId, completedMatch.round, completedMatch.round + 1, 2);
     }
   }
 
@@ -833,33 +1123,62 @@ export class TournamentService {
     nextRound: number,
     bracketPosition: number
   ): Promise<void> {
+    console.log(`🏆 Advancing player ${playerId} to round ${nextRound}, bracket position ${bracketPosition}`);
+    
     // Find the next match for this player
+    // IMPORTANT: Check for matches with bracket_position = 1 OR bracket_position IS NULL
+    // (for backward compatibility with existing tournaments that might not have bracket_position set)
     const nextMatch = await DatabaseService.get(
       `SELECT id FROM tournament_matches 
-       WHERE tournament_id = ? AND round = ? AND bracket_position = ? 
+       WHERE tournament_id = ? AND round = ? 
+       AND (bracket_position = ? OR bracket_position IS NULL)
        AND (player1_id IS NULL OR player2_id IS NULL)
        ORDER BY match_number ASC LIMIT 1`,
       [tournamentId, nextRound, bracketPosition]
     ) as { id: number } | null;
+    
+    console.log(`🔍 Searching for next match: tournamentId=${tournamentId}, round=${nextRound}, bracketPosition=${bracketPosition}`);
+    if (!nextMatch) {
+      // Debug: Check if any matches exist in the next round
+      const allMatchesInRound = await DatabaseService.query(
+        `SELECT id, player1_id, player2_id, status, bracket_position FROM tournament_matches 
+         WHERE tournament_id = ? AND round = ?`,
+        [tournamentId, nextRound]
+      );
+      console.log(`🔍 All matches in round ${nextRound}:`, allMatchesInRound);
+    }
 
     if (nextMatch) {
+      console.log(`✅ Found next match ${nextMatch.id} for player ${playerId}`);
+      
       // Check if player1 or player2 slot is available
       const match = await DatabaseService.get(
         'SELECT player1_id, player2_id FROM tournament_matches WHERE id = ?',
         [nextMatch.id]
       ) as { player1_id: number | null; player2_id: number | null };
 
+      console.log(`🔍 Next match ${nextMatch.id} current state:`, {
+        player1_id: match.player1_id,
+        player2_id: match.player2_id
+      });
+
       if (match.player1_id === null) {
         await DatabaseService.run(
           'UPDATE tournament_matches SET player1_id = ? WHERE id = ?',
           [playerId, nextMatch.id]
         );
+        console.log(`✅ Assigned player ${playerId} as player1 in match ${nextMatch.id}`);
       } else if (match.player2_id === null) {
         await DatabaseService.run(
           'UPDATE tournament_matches SET player2_id = ? WHERE id = ?',
           [playerId, nextMatch.id]
         );
+        console.log(`✅ Assigned player ${playerId} as player2 in match ${nextMatch.id}`);
+      } else {
+        console.log(`⚠️ Next match ${nextMatch.id} is already full, cannot assign player ${playerId}`);
       }
+    } else {
+      console.log(`⚠️ No next match found for player ${playerId} in round ${nextRound}, bracket position ${bracketPosition}`);
     }
   }
 
@@ -949,23 +1268,32 @@ export class TournamentService {
    */
   private static async checkAndStartNextRound(
     tournamentId: number,
-    round: number,
+    currentRound: number,
+    nextRound: number,
     bracketPosition: number
   ): Promise<void> {
+    console.log(`🔍 checkAndStartNextRound: tournamentId=${tournamentId}, currentRound=${currentRound}, nextRound=${nextRound}, bracketPosition=${bracketPosition}`);
+    
     // Check if all matches in current round are completed
     const pendingMatches = await DatabaseService.get(
       `SELECT COUNT(*) as count FROM tournament_matches 
        WHERE tournament_id = ? AND round = ? AND bracket_position = ? AND status != 'completed'`,
-      [tournamentId, round - 1, bracketPosition]
+      [tournamentId, currentRound, bracketPosition]
     ) as { count: number };
 
+    console.log(`🔍 Pending matches in round ${currentRound}: ${pendingMatches.count}`);
+
     if (pendingMatches.count === 0) {
-      // All matches in previous round completed, activate next round
+      // All matches in current round completed, activate next round
+      console.log(`✅ All matches in round ${currentRound} completed, activating round ${nextRound}`);
       await DatabaseService.run(
         `UPDATE tournament_matches SET status = 'pending' 
          WHERE tournament_id = ? AND round = ? AND bracket_position = ?`,
-        [tournamentId, round, bracketPosition]
+        [tournamentId, nextRound, bracketPosition]
       );
+      console.log(`✅ Updated ${nextRound} round matches to 'pending' status`);
+    } else {
+      console.log(`⏳ Round ${currentRound} still has ${pendingMatches.count} pending matches, not activating next round yet`);
     }
   }
 
@@ -1207,6 +1535,25 @@ export class TournamentService {
     const participantMap = new Map(participants.map(p => [p.id, p]));
     const bracket: BracketNode[] = [];
 
+    console.log('🔍 buildSingleEliminationBracket - matches:', matches.length);
+    console.log('🔍 buildSingleEliminationBracket - participants:', participants.length);
+    console.log('🔍 buildSingleEliminationBracket - participantMap keys:', Array.from(participantMap.keys()));
+    console.log('🔍 buildSingleEliminationBracket - participants with details:', participants.map(p => ({
+      id: p.id,
+      display_name: p.display_name,
+      user_id: p.user_id,
+      user: p.user?.username
+    })));
+    if (matches.length > 0) {
+      console.log('🔍 buildSingleEliminationBracket - first match:', {
+        matchId: matches[0].id,
+        player1_id: matches[0].player1_id,
+        player2_id: matches[0].player2_id,
+        player1InMap: matches[0].player1_id ? participantMap.has(matches[0].player1_id) : false,
+        player2InMap: matches[0].player2_id ? participantMap.has(matches[0].player2_id) : false
+      });
+    }
+
     // Group matches by round
     const matchesByRound = new Map<number, TournamentMatch[]>();
     matches.forEach(match => {
@@ -1219,15 +1566,243 @@ export class TournamentService {
     // Build bracket nodes
     matchesByRound.forEach((roundMatches, round) => {
       roundMatches.forEach(match => {
-        const node: BracketNode = {
+        console.log('🔍 Processing match:', {
+          matchId: match.id,
+          player1_id: match.player1_id,
+          player2_id: match.player2_id,
+          hasPlayer1: !!match.player1,
+          hasPlayer2: !!match.player2,
+          player1DisplayName: match.player1?.display_name,
+          player2DisplayName: match.player2?.display_name
+        });
+
+        // Always try to get from participantMap first, as it has the most complete data
+        // Only use match.player1/match.player2 if they have display_name and participantMap doesn't have the participant
+        let player1: TournamentParticipant | undefined = undefined;
+        let player2: TournamentParticipant | undefined = undefined;
+        
+        // Try to get player1 from participantMap first
+        if (match.player1_id) {
+          const mapPlayer1 = participantMap.get(match.player1_id);
+          if (mapPlayer1 && mapPlayer1.display_name) {
+            player1 = mapPlayer1;
+            console.log('🔍 Got player1 from participantMap:', {
+              player1_id: match.player1_id,
+              displayName: player1.display_name,
+              user: player1.user?.username
+            });
+          } else if (match.player1 && match.player1.display_name) {
+            // Fallback to match.player1 if participantMap doesn't have it
+            player1 = match.player1;
+            console.log('🔍 Using match.player1 as fallback:', {
+              player1_id: match.player1_id,
+              displayName: player1.display_name
+            });
+          } else {
+            console.log('🔍 Could not find player1:', {
+              player1_id: match.player1_id,
+              inMap: !!mapPlayer1,
+              mapHasDisplayName: mapPlayer1?.display_name,
+              matchHasPlayer1: !!match.player1,
+              matchHasDisplayName: match.player1?.display_name
+            });
+          }
+        }
+        
+        // Try to get player2 from participantMap first
+        if (match.player2_id) {
+          const mapPlayer2 = participantMap.get(match.player2_id);
+          if (mapPlayer2 && mapPlayer2.display_name) {
+            player2 = mapPlayer2;
+            console.log('🔍 Got player2 from participantMap:', {
+              player2_id: match.player2_id,
+              displayName: player2.display_name,
+              user: player2.user?.username
+            });
+          } else if (match.player2 && match.player2.display_name) {
+            // Fallback to match.player2 if participantMap doesn't have it
+            player2 = match.player2;
+            console.log('🔍 Using match.player2 as fallback:', {
+              player2_id: match.player2_id,
+              displayName: player2.display_name
+            });
+          } else {
+            console.log('🔍 Could not find player2:', {
+              player2_id: match.player2_id,
+              inMap: !!mapPlayer2,
+              mapHasDisplayName: mapPlayer2?.display_name,
+              matchHasPlayer2: !!match.player2,
+              matchHasDisplayName: match.player2?.display_name
+            });
+          }
+        }
+        
+        // If player1 exists but doesn't have user info, try to enrich from participantMap
+        if (player1 && !player1.user && match.player1_id) {
+          const enrichedPlayer1 = participantMap.get(match.player1_id);
+          if (enrichedPlayer1 && enrichedPlayer1.user) {
+            player1.user = enrichedPlayer1.user;
+            console.log('🔍 Enriched player1 with user info:', enrichedPlayer1.user.username);
+          }
+        }
+        
+        // If player2 exists but doesn't have user info, try to enrich from participantMap
+        if (player2 && !player2.user && match.player2_id) {
+          const enrichedPlayer2 = participantMap.get(match.player2_id);
+          if (enrichedPlayer2 && enrichedPlayer2.user) {
+            player2.user = enrichedPlayer2.user;
+            console.log('🔍 Enriched player2 with user info:', enrichedPlayer2.user.username);
+          }
+        }
+
+        // Final check: if player1 or player2 is still undefined, try one more time from participantMap
+        if (!player1 && match.player1_id) {
+          player1 = participantMap.get(match.player1_id);
+          console.log('🔍 Final attempt to get player1 from map:', {
+            player1_id: match.player1_id,
+            found: !!player1,
+            displayName: player1?.display_name
+          });
+        }
+        
+        if (!player2 && match.player2_id) {
+          player2 = participantMap.get(match.player2_id);
+          console.log('🔍 Final attempt to get player2 from map:', {
+            player2_id: match.player2_id,
+            found: !!player2,
+            displayName: player2?.display_name
+          });
+        }
+
+        // Ensure player1 and player2 are either valid TournamentParticipant or undefined (not empty object)
+        const finalPlayer1 = player1 && player1.display_name ? player1 : undefined;
+        const finalPlayer2 = player2 && player2.display_name ? player2 : undefined;
+        
+        console.log('🔍 Before creating node:', {
+          player1: player1 ? { id: player1.id, display_name: player1.display_name } : 'undefined',
+          player2: player2 ? { id: player2.id, display_name: player2.display_name } : 'undefined',
+          finalPlayer1: finalPlayer1 ? { id: finalPlayer1.id, display_name: finalPlayer1.display_name } : 'undefined',
+          finalPlayer2: finalPlayer2 ? { id: finalPlayer2.id, display_name: finalPlayer2.display_name } : 'undefined'
+        });
+        
+        // Build node object conditionally to avoid undefined properties in JSON
+        const node: any = {
           id: match.id,
           match_id: match.id,
-          player1: match.player1_id ? participantMap.get(match.player1_id) : undefined,
-          player2: match.player2_id ? participantMap.get(match.player2_id) : undefined,
-          winner: match.winner_id ? participantMap.get(match.winner_id) : undefined,
           round,
           position: { x: match.bracket_position || 0, y: round }
         };
+        
+        // Only add player1, player2, winner if they exist and have display_name
+        console.log('🔍 Setting player1 and player2:', {
+          finalPlayer1Exists: !!finalPlayer1,
+          finalPlayer1DisplayName: finalPlayer1?.display_name,
+          finalPlayer2Exists: !!finalPlayer2,
+          finalPlayer2DisplayName: finalPlayer2?.display_name
+        });
+        
+        if (finalPlayer1 && finalPlayer1.display_name) {
+          // Create a clean copy to avoid any serialization issues
+          const player1Copy: any = {
+            id: finalPlayer1.id,
+            tournament_id: finalPlayer1.tournament_id,
+            user_id: finalPlayer1.user_id,
+            guest_alias: finalPlayer1.guest_alias,
+            display_name: finalPlayer1.display_name,
+            avatar_url: finalPlayer1.avatar_url,
+            joined_at: finalPlayer1.joined_at,
+            eliminated_at: finalPlayer1.eliminated_at,
+            final_rank: finalPlayer1.final_rank,
+            seed: finalPlayer1.seed,
+            is_ready: finalPlayer1.is_ready
+          };
+          if (finalPlayer1.user) {
+            player1Copy.user = {
+              id: finalPlayer1.user.id,
+              username: finalPlayer1.user.username,
+              email: finalPlayer1.user.email
+            };
+          }
+          node.player1 = player1Copy;
+          console.log('🔍 Set player1:', JSON.stringify(player1Copy));
+        } else {
+          console.log('🔍 Skipping player1:', { finalPlayer1: !!finalPlayer1, displayName: finalPlayer1?.display_name });
+        }
+        
+        if (finalPlayer2 && finalPlayer2.display_name) {
+          // Create a clean copy to avoid any serialization issues
+          const player2Copy: any = {
+            id: finalPlayer2.id,
+            tournament_id: finalPlayer2.tournament_id,
+            user_id: finalPlayer2.user_id,
+            guest_alias: finalPlayer2.guest_alias,
+            display_name: finalPlayer2.display_name,
+            avatar_url: finalPlayer2.avatar_url,
+            joined_at: finalPlayer2.joined_at,
+            eliminated_at: finalPlayer2.eliminated_at,
+            final_rank: finalPlayer2.final_rank,
+            seed: finalPlayer2.seed,
+            is_ready: finalPlayer2.is_ready
+          };
+          if (finalPlayer2.user) {
+            player2Copy.user = {
+              id: finalPlayer2.user.id,
+              username: finalPlayer2.user.username,
+              email: finalPlayer2.user.email
+            };
+          }
+          node.player2 = player2Copy;
+          console.log('🔍 Set player2:', JSON.stringify(player2Copy));
+        } else {
+          console.log('🔍 Skipping player2:', { finalPlayer2: !!finalPlayer2, displayName: finalPlayer2?.display_name });
+        }
+        
+        const winner = match.winner || (match.winner_id ? participantMap.get(match.winner_id) : undefined);
+        if (winner && winner.display_name) {
+          node.winner = {
+            id: winner.id,
+            tournament_id: winner.tournament_id,
+            user_id: winner.user_id,
+            guest_alias: winner.guest_alias,
+            display_name: winner.display_name,
+            avatar_url: winner.avatar_url,
+            joined_at: winner.joined_at,
+            eliminated_at: winner.eliminated_at,
+            final_rank: winner.final_rank,
+            seed: winner.seed,
+            is_ready: winner.is_ready
+          };
+          if (winner.user) {
+            node.winner.user = {
+              id: winner.user.id,
+              username: winner.user.username,
+              email: winner.user.email
+            };
+          }
+        }
+        
+        console.log('🔍 Created bracket node:', {
+          nodeId: node.id,
+          player1: node.player1?.display_name || 'undefined',
+          player2: node.player2?.display_name || 'undefined',
+          winner: node.winner?.display_name || 'undefined',
+          player1Id: node.player1?.id,
+          player2Id: node.player2?.id,
+          winnerId: node.winner?.id,
+          player1Exists: !!node.player1,
+          player2Exists: !!node.player2,
+          winnerExists: !!node.winner,
+          matchWinnerId: match.winner_id,
+          matchWinner: match.winner ? { id: match.winner.id, display_name: match.winner.display_name } : 'none',
+          player1Type: typeof node.player1,
+          player2Type: typeof node.player2,
+          player1Keys: node.player1 ? Object.keys(node.player1) : [],
+          player2Keys: node.player2 ? Object.keys(node.player2) : [],
+          player1Full: JSON.stringify(node.player1),
+          player2Full: JSON.stringify(node.player2),
+          nodeStringified: JSON.stringify(node)
+        });
+        
         bracket.push(node);
       });
     });
@@ -1287,12 +1862,14 @@ export class TournamentService {
     // Build nodes for each round
     matchesByRound.forEach((roundMatches, round) => {
       roundMatches.forEach(match => {
+        // Use match.player1 and match.player2 if available (from getTournamentMatches),
+        // otherwise fall back to participantMap lookup
         const node: BracketNode = {
           id: match.id,
           match_id: match.id,
-          player1: match.player1_id ? participantMap.get(match.player1_id) : undefined,
-          player2: match.player2_id ? participantMap.get(match.player2_id) : undefined,
-          winner: match.winner_id ? participantMap.get(match.winner_id) : undefined,
+          player1: match.player1 || (match.player1_id ? participantMap.get(match.player1_id) : undefined),
+          player2: match.player2 || (match.player2_id ? participantMap.get(match.player2_id) : undefined),
+          winner: match.winner || (match.winner_id ? participantMap.get(match.winner_id) : undefined),
           round,
           position: { 
             x: match.bracket_position || 1, 

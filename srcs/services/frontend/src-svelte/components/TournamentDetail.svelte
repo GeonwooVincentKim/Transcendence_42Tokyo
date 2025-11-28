@@ -55,6 +55,33 @@
       console.log('Tournament data loaded:', { participantsData, matchesData, bracketData });
       console.log('Participants count:', participantsData.length);
       console.log('Tournament status:', tournament.status);
+      console.log('Matches data:', matchesData);
+      console.log('First match details:', matchesData[0]);
+      if (matchesData[0]) {
+        console.log('First match player1:', matchesData[0].player1);
+        console.log('First match player2:', matchesData[0].player2);
+        console.log('First match player1 display_name:', matchesData[0].player1?.display_name);
+        console.log('First match player1 user:', matchesData[0].player1?.user);
+        console.log('First match player2 display_name:', matchesData[0].player2?.display_name);
+        console.log('First match player2 user:', matchesData[0].player2?.user);
+      }
+      console.log('Bracket data:', bracketData);
+      if (bracketData.length > 0) {
+        console.log('First bracket node:', bracketData[0]);
+        console.log('First bracket node player1:', bracketData[0].player1);
+        console.log('First bracket node player2:', bracketData[0].player2);
+        console.log('First bracket node player1 display_name:', bracketData[0].player1?.display_name);
+        console.log('First bracket node player1 user:', bracketData[0].player1?.user);
+        console.log('First bracket node player2 display_name:', bracketData[0].player2?.display_name);
+        console.log('First bracket node player2 user:', bracketData[0].player2?.user);
+      }
+      console.log('Participants data:', participantsData);
+      if (participantsData.length > 0) {
+        console.log('First participant:', participantsData[0]);
+        console.log('First participant user:', participantsData[0].user);
+        console.log('First participant user_id:', participantsData[0].user_id);
+        console.log('First participant guest_alias:', participantsData[0].guest_alias);
+      }
       console.log('Can start tournament check:', {
         status: tournament.status === 'registration',
         participants: participantsData.length >= 2,
@@ -103,23 +130,81 @@
     console.log('🔍 tournament.id:', tournament?.id, 'Type:', typeof tournament?.id);
     console.log('🔍 match.id:', match?.id, 'Type:', typeof match?.id);
     console.log('🔍 match details:', match);
+    console.log('🔍 match.player1_id:', match.player1_id);
+    console.log('🔍 match.player2_id:', match.player2_id);
+    console.log('🔍 match.player1:', match.player1);
+    console.log('🔍 match.player2:', match.player2);
+    console.log('🔍 match.status:', match.status);
+    console.log('🔍 onStartMatch callback:', onStartMatch);
     
-    if (onStartMatch) {
-      const roomId = `tournament-${tournament.id}-match-${match.id}`;
-      console.log('🎮 Starting tournament match:', {
-        tournamentId: tournament.id,
-        matchId: match.id,
-        roomId: roomId,
+    // Don't allow starting completed matches
+    if (match.status === 'completed') {
+      console.warn('⚠️ Match is already completed, cannot start again:', match.id);
+      error = 'This match has already been completed';
+      return;
+    }
+    
+    if (!onStartMatch) {
+      console.error('❌ onStartMatch callback not provided!');
+      error = 'Cannot start match: callback not provided';
+      return;
+    }
+    
+    if (!match.player1_id || !match.player2_id) {
+      console.error('❌ Match is not ready: missing players', {
+        player1_id: match.player1_id,
+        player2_id: match.player2_id,
         match: match
       });
-      onStartMatch(tournament.id, match.id, roomId, match);
-    } else {
-      console.warn('⚠️ onStartMatch callback not provided');
+      error = 'Match is not ready: both players must be assigned';
+      return;
+    }
+    
+    const roomId = `tournament-${tournament.id}-match-${match.id}`;
+    console.log('🎮 Starting tournament match:', {
+      tournamentId: tournament.id,
+      matchId: match.id,
+      roomId: roomId,
+      match: match
+    });
+    
+    // If match.player1 and match.player2 are undefined, try to get them from participants
+    let enrichedMatch = { ...match };
+    if (!enrichedMatch.player1 && match.player1_id) {
+      const participant1 = participants.find(p => p.id === match.player1_id);
+      if (participant1) {
+        enrichedMatch.player1 = participant1;
+        console.log('🔍 Enriched match.player1 from participants:', participant1);
+      }
+    }
+    if (!enrichedMatch.player2 && match.player2_id) {
+      const participant2 = participants.find(p => p.id === match.player2_id);
+      if (participant2) {
+        enrichedMatch.player2 = participant2;
+        console.log('🔍 Enriched match.player2 from participants:', participant2);
+      }
+    }
+    
+    try {
+      onStartMatch(tournament.id, match.id, roomId, enrichedMatch);
+      console.log('✅ onStartMatch called successfully');
+    } catch (err) {
+      console.error('❌ Error calling onStartMatch:', err);
+      error = err instanceof Error ? err.message : 'Failed to start match';
     }
   }
 
   function formatDate(dateString: string) {
-    return new Date(dateString).toLocaleDateString();
+    // Parse the date string as UTC and convert to local time
+    const date = new Date(dateString + (dateString.includes('Z') ? '' : 'Z'));
+    return date.toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone
+    });
   }
 
   function getStatusColor(status: string) {
@@ -245,7 +330,7 @@
           <div class="text-gray-700 font-bold">Participants Array:</div>
           {#each participants as participant, index}
             <div class="ml-2">
-              {index + 1}. ID: {participant.id}, User: {participant.user?.username || 'No user'}, Display: {participant.display_name || 'No display name'}
+              {index + 1}. ID: {participant.id}, User: {participant.user?.username || participant.guest_alias || 'Guest'}, Display: {participant.display_name || 'No display name'}
             </div>
           {/each}
         </div>
@@ -372,26 +457,33 @@
           <h3 class="text-xl font-semibold text-gray-900 mb-4">All Matches ({matches.length})</h3>
           <div class="space-y-4">
             {#each matches as match (match.id)}
+              {@const player1 = match.player1 || (match.player1_id ? participants.find(p => p.id === match.player1_id) : null)}
+              {@const player2 = match.player2 || (match.player2_id ? participants.find(p => p.id === match.player2_id) : null)}
+              {@const winner = match.winner || (match.winner_id ? participants.find(p => p.id === match.winner_id) : null)}
               <div class="border border-gray-200 rounded-lg p-4">
                 <div class="flex justify-between items-center">
                   <div class="flex-1">
                     <div class="flex items-center space-x-4">
                       <div class="text-sm">
                         <span class="font-medium">
-                          {match.player1?.username || 'TBD'}
+                          {player1?.display_name || player1?.user?.username || player1?.guest_alias || 'TBD'}
                         </span>
                         <span class="text-gray-500 mx-2">vs</span>
                         <span class="font-medium">
-                          {match.player2?.username || 'TBD'}
+                          {player2?.display_name || player2?.user?.username || player2?.guest_alias || 'TBD'}
                         </span>
                       </div>
                       <span class="px-2 py-1 rounded text-xs font-medium {getStatusColor(match.status)}">
                         {getStatusText(match.status)}
                       </span>
                     </div>
-                    {#if match.winner_id}
-                      <div class="text-sm text-green-600 mt-1">
-                        Winner: {match.winner?.username}
+                    {#if match.winner_id && winner}
+                      <div class="text-sm text-green-600 mt-1 font-semibold">
+                        Winner: {winner.display_name || winner.user?.username || winner.guest_alias || 'Unknown'}
+                      </div>
+                    {:else if match.winner_id}
+                      <div class="text-sm text-green-600 mt-1 font-semibold">
+                        Winner: Unknown (ID: {match.winner_id})
                       </div>
                     {/if}
                   </div>

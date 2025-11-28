@@ -8,7 +8,8 @@
 <script lang="ts">
   import { AuthService } from '../shared/services/authService';
   import { LoginRequest, AuthResponse } from '../shared/types/auth';
-  import { onMount } from 'svelte';
+  import { _, locale } from 'svelte-i18n';
+  import { get } from 'svelte/store';
   
   // Props
   export let onLoginSuccess: (authData: AuthResponse) => void;
@@ -27,69 +28,10 @@
   let userId = '';
   let twoFactorCode = '';
   
-  // i18n state
-  let currentLanguage = 'en';
-  let translations: any = {};
-  
-  // Load translations
-  onMount(async () => {
-    await loadTranslations();
-  });
-  
-  async function loadTranslations() {
-    try {
-      // Try multiple possible paths for translations
-      let response;
-      const paths = [
-        `/locales/${currentLanguage}/translations.json`,
-        `/src-svelte/shared/locales/${currentLanguage}/translations.json`
-      ];
-      
-      for (const path of paths) {
-        try {
-          response = await fetch(path);
-          if (response.ok && response.headers.get('content-type')?.includes('application/json')) {
-            break;
-          }
-        } catch (e) {
-          continue;
-        }
-      }
-      
-      if (!response || !response.ok) {
-        throw new Error('Failed to load translations from any path');
-      }
-      
-      const contentType = response.headers.get('content-type');
-      if (!contentType || !contentType.includes('application/json')) {
-        const text = await response.text();
-        console.error('Received non-JSON response:', text.substring(0, 100));
-        throw new Error('Translation file is not valid JSON');
-      }
-      
-      translations = await response.json();
-    } catch (err) {
-      console.error('Failed to load translations:', err);
-      // Fallback to English
-      translations = {
-        'label.logintitle': 'Login to Pong Game',
-        'label.usrnm': 'Username',
-        'label.pw': 'Password',
-        'placeholder.username': 'Enter your username',
-        'placeholder.password': 'Enter your password',
-        'button.login': 'Login',
-        'button.loggingin': 'Logging in...',
-        'button.registeracct': "Don't have an account? Register here",
-        'button.forgotusrnm': 'Forgot Username?',
-        'button.forgotpw': 'Forgot Password?'
-      };
-    }
-  }
-  
   // Handle language change
-  async function handleLangChange(lang: string) {
-    currentLanguage = lang;
-    await loadTranslations();
+  function handleLangChange(lang: string) {
+    locale.set(lang);
+    localStorage.setItem('locale', lang);
   }
   
   // Handle form input changes
@@ -112,7 +54,7 @@
     
     // Validate form data
     if (!formData.username.trim() || !formData.password.trim()) {
-      error = 'Please fill in all fields';
+      error = get(_)('error.fillallfields') || 'Please fill in all fields';
       return;
     }
     
@@ -130,7 +72,7 @@
 
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.message || 'Login failed');
+        throw new Error(errorData.message || get(_)('error.loginfailed') || 'Login failed');
       }
 
       const data = await response.json();
@@ -149,7 +91,7 @@
       // Call success callback
       onLoginSuccess(data);
     } catch (err) {
-      error = err instanceof Error ? err.message : 'Login failed';
+      error = err instanceof Error ? err.message : get(_)('error.loginfailed') || 'Login failed';
     } finally {
       isLoading = false;
     }
@@ -160,7 +102,7 @@
     event.preventDefault();
     
     if (!twoFactorCode.trim()) {
-      error = 'Please enter your 2FA code';
+      error = get(_)('error.entercode') || 'Please enter your 2FA code';
       return;
     }
     
@@ -178,7 +120,7 @@
 
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.error || '2FA verification failed');
+        throw new Error(errorData.error || get(_)('error.2faverificationfailed') || '2FA verification failed');
       }
 
       const authData = await response.json();
@@ -189,21 +131,16 @@
       // Call success callback
       onLoginSuccess(authData);
     } catch (err) {
-      error = err instanceof Error ? err.message : '2FA verification failed';
+      error = err instanceof Error ? err.message : get(_)('error.2faverificationfailed') || '2FA verification failed';
     } finally {
       isLoading = false;
     }
-  }
-  
-  // Helper function to get translation
-  function t(key: string): string {
-    return translations[key] || key;
   }
 </script>
 
 <div class="max-w-md mx-auto bg-white rounded-lg shadow-md p-6">
   <h2 class="text-2xl font-bold text-center text-gray-800 mb-6">
-    {requires2FA ? 'Two-Factor Authentication' : t('label.logintitle')}
+    {requires2FA ? $_('label.twofactor') : $_('label.logintitle')}
   </h2>
   
   {#if requires2FA}
@@ -211,7 +148,7 @@
     <form on:submit={handle2FASubmit} class="space-y-4">
       <div>
         <label for="twoFactorCode" class="block text-sm font-medium text-gray-700 mb-1">
-          Enter your 6-digit code
+          {$_('msg.enterverificationcode')}
         </label>
         <input
           type="text"
@@ -224,7 +161,7 @@
           required
         />
         <p class="mt-2 text-sm text-gray-500">
-          Enter the code from your authenticator app or use a backup code.
+          {$_('msg.backupcodes')}
         </p>
       </div>
 
@@ -241,7 +178,7 @@
         disabled={isLoading}
         class="w-full bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
       >
-        {isLoading ? 'Verifying...' : 'Verify'}
+        {isLoading ? $_('button.verifying') : $_('button.verify')}
       </button>
       
       <!-- Back Button -->
@@ -250,7 +187,7 @@
         on:click={() => { requires2FA = false; twoFactorCode = ''; error = null; }}
         class="w-full bg-gray-600 text-white py-2 px-4 rounded-md hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2"
       >
-        Back to Login
+        {$_('button.backtologin')}
       </button>
     </form>
   {:else}
@@ -259,7 +196,7 @@
     <!-- Username Field -->
     <div>
       <label for="username" class="block text-sm font-medium text-gray-700 mb-1">
-        {t('label.usrnm')}
+        {$_('label.usrnm')}
       </label>
       <input
         type="text"
@@ -268,7 +205,7 @@
         bind:value={formData.username}
         on:input={handleInputChange}
         class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-        placeholder={t('placeholder.username')}
+        placeholder={$_('placeholder.username')}
         disabled={isLoading}
         required
       />
@@ -277,7 +214,7 @@
     <!-- Password Field -->
     <div>
       <label for="password" class="block text-sm font-medium text-gray-700 mb-1">
-        {t('label.pw')}
+        {$_('label.pw')}
       </label>
       <input
         type="password"
@@ -286,7 +223,7 @@
         bind:value={formData.password}
         on:input={handleInputChange}
         class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-        placeholder={t('placeholder.password')}
+        placeholder={$_('placeholder.password')}
         disabled={isLoading}
         required
       />
@@ -305,7 +242,7 @@
       disabled={isLoading}
       class="w-full bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
     >
-      {isLoading ? t('button.loggingin') : t('button.login')}
+      {isLoading ? $_('button.loggingin') : $_('button.login')}
     </button>
   </form>
 
@@ -317,7 +254,7 @@
         on:click={onSwitchToRegister}
         class="text-blue-600 hover:text-blue-800 font-medium"
       >
-        {t('button.registeracct')}
+        {$_('button.registeracct')}
       </button>
     </p>
   </div>
@@ -330,7 +267,7 @@
         on:click={onSwitchToForgotUsername}
         class="text-blue-600 hover:text-blue-800 font-medium"
       >
-        {t('button.forgotusrnm')}
+        {$_('button.forgotusrnm')}
       </button>
       {' • '}
       <button
@@ -338,7 +275,7 @@
         on:click={onSwitchToForgotPassword}
         class="text-blue-600 hover:text-blue-800 font-medium"
       >
-        {t('button.forgotpw')}
+        {$_('button.forgotpw')}
       </button>
     </p>
   </div>

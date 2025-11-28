@@ -28,6 +28,8 @@
 		"showdebug": "디버그 표시",
 		"hidedebug": "디버그 숨기기",
 		"backtologin": "로그인으로 돌아가기",
+		"verifying": "인증 중...",
+		"verify": "인증",
 		"cancel": "취소",
 		"deleting": "삭제 중...",
 		"backtoprofile": "프로필로 돌아가기",
@@ -333,7 +335,11 @@
 		"regeneratebackupcodesfailed": "백업 코드 재생성 실패",
 		"loadmessagesfailed": "메시지 로드 실패",
 		"acceptrequestfailed": "요청 수락 실패",
-		"rejectrequestfailed": "요청 거절 실패"
+		"rejectrequestfailed": "요청 거절 실패",
+		"fillallfields": "모든 필드를 입력하세요",
+		"loginfailed": "로그인 실패",
+		"entercode": "2FA 코드를 입력하세요",
+		"2faverificationfailed": "2FA 인증 실패"
 	},
 	"msg": {
 		"leaderboard": "리더보드는 플레이어가 게임을 완료할 때 실시간으로 업데이트됩니다",

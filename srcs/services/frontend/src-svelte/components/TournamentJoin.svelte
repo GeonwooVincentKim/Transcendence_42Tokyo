@@ -19,7 +19,6 @@
   let error: string | null = null;
   let success: string | null = null;
   let displayName = '';
-  let guestAlias = '';
   let avatarUrl = '';
 
   // Initialize display name for logged in users
@@ -46,26 +45,29 @@
       return;
     }
 
-    // For guest users, validate guest alias
-    if (!isAuthenticated && (!guestAlias || guestAlias.trim().length === 0)) {
-      error = 'Guest alias is required for non-logged in users';
-      return;
-    }
+    // Guest alias is now automatically set to display_name, so no separate validation needed
 
     try {
       loading = true;
       error = null;
       success = null;
 
+      // Set guest_alias to the same value as display_name for all users
       const joinInput = {
         user_id: isAuthenticated ? currentUser?.id : undefined,
-        guest_alias: !isAuthenticated ? guestAlias.trim() : undefined,
+        guest_alias: displayName.trim(), // Always set guest_alias to display_name
         display_name: displayName.trim(),
         avatar_url: avatarUrl.trim() || null
       };
       
       await tournamentService.joinTournament(tournament.id, joinInput);
       success = 'Successfully joined the tournament!';
+      
+      // Save guestAlias (same as display_name) to localStorage for guest users
+      if (!isAuthenticated) {
+        localStorage.setItem('guestAlias', displayName.trim());
+        console.log('💾 Saved guestAlias to localStorage:', displayName.trim());
+      }
       
       // Dispatch success event after a short delay
       setTimeout(() => {
@@ -83,7 +85,16 @@
   }
 
   function formatDate(dateString: string) {
-    return new Date(dateString).toLocaleDateString();
+    // Parse the date string as UTC and convert to local time
+    const date = new Date(dateString + (dateString.includes('Z') ? '' : 'Z'));
+    return date.toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone
+    });
   }
 
   function getStatusColor(status: string) {
@@ -214,27 +225,7 @@
             </p>
           </div>
 
-          <!-- Guest Alias (for non-authenticated users) -->
-          {#if !isAuthenticated}
-            <div>
-              <label for="guestAlias" class="block text-sm font-medium text-gray-700 mb-2">
-                Guest ID *
-              </label>
-              <input
-                id="guestAlias"
-                type="text"
-                bind:value={guestAlias}
-                placeholder="Enter a unique guest ID"
-                class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
-                maxlength="50"
-                pattern="[a-zA-Z0-9_-]+"
-                required
-              />
-              <p class="text-xs text-gray-500 mt-1">
-                Use letters, numbers, underscores, and hyphens only
-              </p>
-            </div>
-          {/if}
+          <!-- Note: guest_alias is automatically set to the same value as display_name -->
 
           <!-- Avatar URL (optional) -->
           <div>

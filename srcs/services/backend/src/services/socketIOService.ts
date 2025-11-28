@@ -18,6 +18,7 @@ interface GameRoom {
   tournamentId: number;
   matchId: number;
   players: Map<string, any>; // Socket.IO socket
+  gameSpeed: 'slow' | 'normal' | 'fast'; // Game speed setting
   gameState: {
     status: 'waiting' | 'ready' | 'playing' | 'paused' | 'finished';
     player1Id?: string; // Changed to string to support unique player IDs
@@ -26,6 +27,22 @@ interface GameRoom {
     player2Ready: boolean;
     gameData?: any;
   };
+}
+
+/**
+ * Convert game speed setting to actual speed values
+ * This must match the frontend implementation
+ */
+function getSpeedValues(gameSpeed: 'slow' | 'normal' | 'fast' = 'normal') {
+  switch (gameSpeed) {
+    case 'slow':
+      return { ballSpeed: 3, paddleSpeed: 5 };
+    case 'fast':
+      return { ballSpeed: 7, paddleSpeed: 12 };
+    case 'normal':
+    default:
+      return { ballSpeed: 5, paddleSpeed: 8 };
+  }
 }
 
 class SocketIOService {
@@ -76,7 +93,7 @@ class SocketIOService {
       console.log(`Socket.IO connection established: ${socket.id}`);
 
       // Handle joining game room
-      socket.on('join_game_room', (data: { roomId?: string, tournamentId: number, matchId: number, userId: string, token?: string, playerSide?: 'left' | 'right' }) => {
+      socket.on('join_game_room', async (data: { roomId?: string, tournamentId: number, matchId: number, userId: string, token?: string, playerSide?: 'left' | 'right', gameSpeed?: 'slow' | 'normal' | 'fast' }) => {
         console.log('\n' + '🟢'.repeat(40));
         console.log('🎯 BACKEND RECEIVED join_game_room EVENT');
         console.log('🟢'.repeat(40));
@@ -92,14 +109,18 @@ class SocketIOService {
         console.log('   playerSide === null:', data.playerSide === null);
         console.log('   playerSide === "left":', data.playerSide === 'left');
         console.log('   playerSide === "right":', data.playerSide === 'right');
+        console.log('   gameSpeed:', data.gameSpeed);
         console.log('   socketId:', socket.id);
         console.log('🔍 Full data object:');
         console.log(JSON.stringify(data, null, 2));
         console.log('🟢'.repeat(40) + '\n');
         
+        // Default gameSpeed to 'normal' if not provided
+        const gameSpeed = data.gameSpeed || 'normal';
+        
         // If token is provided, try to extract real user ID
         if (data.token) {
-          this.extractUserIdFromToken(data.token).then(realUserId => {
+          this.extractUserIdFromToken(data.token).then(async (realUserId) => {
             if (realUserId) {
               console.log('🔍 Extracted real user ID from token:', realUserId, '(original userId:', data.userId, ')');
               socket.userId = realUserId; // Store real user ID in socket
@@ -109,32 +130,32 @@ class SocketIOService {
               console.log('🔍 Stored player ID mapping:', data.userId, '->', realUserId);
               
               if (data.roomId) {
-                this.joinGameRoomById(socket, data.roomId, realUserId, data.playerSide);
+                await this.joinGameRoomById(socket, data.roomId, realUserId, data.playerSide, gameSpeed);
               } else {
-                this.joinGameRoom(socket, data.tournamentId, data.matchId, realUserId, data.playerSide);
+                await this.joinGameRoom(socket, data.tournamentId, data.matchId, realUserId, data.playerSide, gameSpeed);
               }
             } else {
               console.log('⚠️ Failed to extract user ID from token, using provided userId:', data.userId);
               if (data.roomId) {
-                this.joinGameRoomById(socket, data.roomId, data.userId, data.playerSide);
+                await this.joinGameRoomById(socket, data.roomId, data.userId, data.playerSide, gameSpeed);
               } else {
-                this.joinGameRoom(socket, data.tournamentId, data.matchId, data.userId, data.playerSide);
+                await this.joinGameRoom(socket, data.tournamentId, data.matchId, data.userId, data.playerSide, gameSpeed);
               }
             }
-          }).catch(error => {
+          }).catch(async (error) => {
             console.error('❌ Error extracting user ID from token:', error);
             if (data.roomId) {
-              this.joinGameRoomById(socket, data.roomId, data.userId, data.playerSide);
+              await this.joinGameRoomById(socket, data.roomId, data.userId, data.playerSide, gameSpeed);
             } else {
-              this.joinGameRoom(socket, data.tournamentId, data.matchId, data.userId, data.playerSide);
+              await this.joinGameRoom(socket, data.tournamentId, data.matchId, data.userId, data.playerSide, gameSpeed);
             }
           });
         } else {
           console.log('⚠️ No token provided, using provided userId:', data.userId);
           if (data.roomId) {
-            this.joinGameRoomById(socket, data.roomId, data.userId, data.playerSide);
+            await this.joinGameRoomById(socket, data.roomId, data.userId, data.playerSide, gameSpeed);
           } else {
-            this.joinGameRoom(socket, data.tournamentId, data.matchId, data.userId, data.playerSide);
+            await this.joinGameRoom(socket, data.tournamentId, data.matchId, data.userId, data.playerSide, gameSpeed);
           }
         }
       });
@@ -277,12 +298,13 @@ class SocketIOService {
   /**
    * Join a game room by roomId
    */
-  private joinGameRoomById(socket: any, roomId: string, userId: string, requestedSide?: 'left' | 'right') {
+  private async joinGameRoomById(socket: any, roomId: string, userId: string, requestedSide?: 'left' | 'right', gameSpeed: 'slow' | 'normal' | 'fast' = 'normal') {
     console.log('='.repeat(80));
     console.log(`🎯 joinGameRoomById CALLED`);
     console.log(`   roomId: ${roomId}`);
     console.log(`   userId: ${userId}`);
     console.log(`   requestedSide: ${requestedSide} (type: ${typeof requestedSide})`);
+    console.log(`   gameSpeed: ${gameSpeed}`);
     console.log(`   socketId: ${socket.id}`);
     console.log('='.repeat(80));
     
@@ -311,6 +333,86 @@ class SocketIOService {
     
     console.log(`🔍 Parsed tournamentId: ${tournamentId}, matchId: ${matchId}`);
     
+    // Validate that the user is authorized to join this tournament match
+    if (tournamentId > 0) {
+      try {
+        const { TournamentService } = await import('./tournamentService.js');
+        const { DatabaseService } = await import('./databaseService.js');
+        
+        // Get match details
+        const match = await TournamentService.getMatch(matchId);
+        if (!match) {
+          console.error(`❌ Match ${matchId} not found`);
+          socket.emit('error', { message: 'Match not found' });
+          return;
+        }
+        
+        // Check if match belongs to the tournament
+        if (match.tournament_id !== tournamentId) {
+          console.error(`❌ Match ${matchId} does not belong to tournament ${tournamentId}`);
+          socket.emit('error', { message: 'Match does not belong to this tournament' });
+          return;
+        }
+        
+        // Get tournament participants for this match
+        const participant1 = match.player1_id ? await DatabaseService.get(
+          'SELECT id, user_id, guest_alias FROM tournament_participants WHERE id = ?',
+          [match.player1_id]
+        ) as { id: number; user_id: number | null; guest_alias: string | null } | null : null;
+        
+        const participant2 = match.player2_id ? await DatabaseService.get(
+          'SELECT id, user_id, guest_alias FROM tournament_participants WHERE id = ?',
+          [match.player2_id]
+        ) as { id: number; user_id: number | null; guest_alias: string | null } | null : null;
+        
+        // Use socket.userId (from token) if available, otherwise fallback to userId parameter
+        const realUserId = socket.userId || userId;
+        console.log(`🔍 Checking participant match: realUserId=${realUserId}, userId param=${userId}, socket.userId=${socket.userId}`);
+        
+        // Check if userId matches either participant
+        // IMPORTANT: Use socket.userId (from token) for registered users, not the userId parameter
+        // For guest users, compare guest_alias directly (not with startsWith)
+        const userIdNum = parseInt(realUserId, 10);
+        const isPlayer1 = participant1 && (
+          (participant1.user_id && participant1.user_id === userIdNum) ||
+          (participant1.guest_alias && participant1.guest_alias === realUserId)
+        );
+        const isPlayer2 = participant2 && (
+          (participant2.user_id && participant2.user_id === userIdNum) ||
+          (participant2.guest_alias && participant2.guest_alias === realUserId)
+        );
+        
+        console.log(`🔍 Participant match check:`, {
+          participant1: participant1 ? { user_id: participant1.user_id, guest_alias: participant1.guest_alias } : null,
+          participant2: participant2 ? { user_id: participant2.user_id, guest_alias: participant2.guest_alias } : null,
+          realUserId,
+          userIdNum,
+          isPlayer1,
+          isPlayer2
+        });
+        
+        // Store whether this is a spectator (not a participant)
+        const isSpectator = !isPlayer1 && !isPlayer2;
+        
+        if (isSpectator) {
+          console.log(`👁️ User ${realUserId} is joining as spectator (not a participant in match ${matchId})`);
+          console.log(`   Match participants: player1_id=${match.player1_id}, player2_id=${match.player2_id}`);
+          console.log(`   Participant1: user_id=${participant1?.user_id}, guest_alias=${participant1?.guest_alias}`);
+          console.log(`   Participant2: user_id=${participant2?.user_id}, guest_alias=${participant2?.guest_alias}`);
+          // Continue to allow spectator to join, but mark them as spectator
+        } else {
+          console.log(`✅ User ${realUserId} is authorized to join match ${matchId} (isPlayer1: ${isPlayer1}, isPlayer2: ${isPlayer2})`);
+        }
+        
+        // Store spectator status for later use
+        (socket as any).isSpectator = isSpectator;
+      } catch (error) {
+        console.error('❌ Error validating tournament match access:', error);
+        socket.emit('error', { message: 'Error validating match access' });
+        return;
+      }
+    }
+    
     // Get or create game room
     let room = this.gameRooms.get(roomId);
     if (!room) {
@@ -319,6 +421,7 @@ class SocketIOService {
         tournamentId,
         matchId,
         players: new Map(),
+        gameSpeed: gameSpeed, // Set gameSpeed when creating room
         gameState: {
           status: 'waiting',
           player1Ready: false,
@@ -326,48 +429,195 @@ class SocketIOService {
         }
       };
       this.gameRooms.set(roomId, room);
+    } else {
+      // If room exists, keep existing gameSpeed to ensure all players use the same speed
+      console.log(`🔍 Room ${roomId} already exists with gameSpeed: ${room.gameSpeed}, new player's gameSpeed: ${gameSpeed}`);
     }
 
+    // Use socket.userId (from token) if available, otherwise fallback to userId parameter
+    const realUserId = socket.userId || userId;
+    console.log(`🔍 joinGameRoomById: realUserId=${realUserId}, userId param=${userId}, socket.userId=${socket.userId}`);
+    
     // Check if this userId is already in the room (reconnection)
-    const existingPlayer = room.players.get(userId);
-    if (existingPlayer) {
-      console.log(`🔄 Player ${userId} reconnecting, updating socket (existing socket: ${existingPlayer.socket?.id}, new socket: ${socket.id})`);
+    // Check both the original userId and realUserId to handle reconnection cases
+    const existingPlayer = room.players.get(realUserId) || room.players.get(userId);
+    const existingPlayerKey = existingPlayer ? (room.players.get(realUserId) ? realUserId : userId) : null;
+    
+    if (existingPlayer && existingPlayerKey) {
+      console.log(`🔄 Player ${realUserId} (original: ${userId}) reconnecting, updating socket (existing socket: ${existingPlayer.socket?.id}, new socket: ${socket.id})`);
       console.log(`🔍 Existing player data:`, existingPlayer);
       
-      // IMPORTANT: Preserve the existing player's side!
-      const preservedSide = existingPlayer.side || requestedSide || 'left';
-      console.log(`🔍 Preserving player side: ${preservedSide} (existing: ${existingPlayer.side}, requested: ${requestedSide})`);
+      // IMPORTANT: Preserve existing player's spectator status
+      // If player was already in the room as a participant (not spectator), NEVER change them to spectator
+      const existingIsSpectator = typeof existingPlayer === 'object' && 'isSpectator' in existingPlayer 
+        ? existingPlayer.isSpectator === true 
+        : false;
       
-      // Update socket for existing player
-      existingPlayer.socket = socket;
-      // Make sure we keep the side!
-      existingPlayer.side = preservedSide;
+      // IMPORTANT: If existing player was NOT a spectator, they should NEVER become a spectator
+      // For reconnection, ALWAYS preserve the existing status - never change a participant to spectator
+      // Only allow changing from spectator to participant if explicitly needed (but not the other way around)
+      const isSpectator = existingIsSpectator; // Always preserve existing status on reconnection
+      
+      console.log(`🔍 Spectator status check (reconnection): existingIsSpectator=${existingIsSpectator}, socket.isSpectator=${(socket as any).isSpectator}, final isSpectator=${isSpectator}`);
+      console.log(`🔍 IMPORTANT: Preserving existing spectator status on reconnection - participant stays participant, spectator stays spectator`);
+      
+      // Update the player entry to use realUserId if different
+      if (realUserId !== existingPlayerKey) {
+        room.players.delete(existingPlayerKey);
+        console.log(`🔄 Moved player entry from ${existingPlayerKey} to ${realUserId}`);
+      }
+      
+      // IMPORTANT: Preserve the existing player's side!
+      // Priority: 1. requestedSide (from client - most reliable on reconnection), 2. existingPlayer.side (if saved), 3. determine from other players
+      let preservedSide: 'left' | 'right' | 'spectator';
+      
+      if (isSpectator) {
+        // Spectator mode - no side assignment
+        preservedSide = 'spectator';
+        console.log(`👁️ Player ${userId} reconnecting as SPECTATOR`);
+      } else {
+        // On reconnection, prioritize requestedSide from client as it's the most reliable source
+        if (requestedSide) {
+          // Use requested side from client (this is the most reliable source on reconnection)
+          preservedSide = requestedSide;
+          console.log(`✅ Using requested player side: ${preservedSide} (reconnection)`);
+        } else if (typeof existingPlayer === 'object' && 'side' in existingPlayer && existingPlayer.side) {
+          preservedSide = existingPlayer.side;
+          console.log(`✅ Using saved player side: ${preservedSide}`);
+        } else {
+          // Last resort: check other players to determine which side is available
+          const otherPlayers = Array.from(room.players.values());
+          const leftPlayer = otherPlayers.find((p: any) => p.side === 'left' && p.userId !== userId);
+          const rightPlayer = otherPlayers.find((p: any) => p.side === 'right' && p.userId !== userId);
+          
+          if (leftPlayer && !rightPlayer) {
+            preservedSide = 'right';
+            console.log(`✅ Determined side from other players: ${preservedSide} (left is taken)`);
+          } else if (rightPlayer && !leftPlayer) {
+            preservedSide = 'left';
+            console.log(`✅ Determined side from other players: ${preservedSide} (right is taken)`);
+          } else {
+            // Default to left if we can't determine
+            preservedSide = 'left';
+            console.log(`⚠️ Could not determine side, defaulting to: ${preservedSide}`);
+          }
+        }
+      }
+      
+      console.log(`🔍 Final preserved side: ${preservedSide} (existing: ${typeof existingPlayer === 'object' && 'side' in existingPlayer ? existingPlayer.side : 'none'}, requested: ${requestedSide}, isSpectator: ${isSpectator})`);
+      
+      // Update socket for existing player - ensure side is always set
+      // Use realUserId for the player entry
+      if (typeof existingPlayer === 'object' && 'socket' in existingPlayer) {
+        existingPlayer.socket = socket;
+        existingPlayer.side = preservedSide;
+        existingPlayer.userId = realUserId; // Use realUserId instead of userId
+        existingPlayer.isSpectator = isSpectator;
+        console.log(`✅ Updated existing player with side: ${preservedSide}, isSpectator: ${isSpectator}`);
+        
+        // Update the player entry key if needed
+        if (realUserId !== existingPlayerKey) {
+          room.players.set(realUserId, existingPlayer);
+          if (existingPlayerKey) {
+            room.players.delete(existingPlayerKey);
+          }
+        }
+      } else {
+        // Convert old format to new format
+        room.players.set(realUserId, {
+          socket: socket,
+          userId: realUserId, // Use realUserId instead of userId
+          side: preservedSide,
+          ready: typeof existingPlayer === 'object' && 'ready' in existingPlayer ? existingPlayer.ready : false,
+          isSpectator: isSpectator
+        });
+        if (existingPlayerKey && existingPlayerKey !== realUserId) {
+          room.players.delete(existingPlayerKey);
+        }
+        console.log(`✅ Converted old format player to new format with side: ${preservedSide}, isSpectator: ${isSpectator}`);
+      }
       
       socket.join(roomId);
       
-      // Ensure player IDs are set in game state
-      if (!room.gameState.player1Id) {
-        room.gameState.player1Id = userId;
-      } else if (!room.gameState.player2Id && room.gameState.player1Id !== userId) {
-        room.gameState.player2Id = userId;
+      // Ensure playerRooms mapping is updated with realUserId
+      this.playerRooms.set(realUserId, roomId);
+      if (userId !== realUserId) {
+        this.playerRooms.set(userId, roomId); // Also keep the original mapping
+      }
+      
+      // Ensure player IDs are set in game state (only for actual players, not spectators)
+      // Use realUserId for player IDs
+      if (!isSpectator) {
+        if (!room.gameState.player1Id) {
+          room.gameState.player1Id = realUserId;
+        } else if (!room.gameState.player2Id && room.gameState.player1Id !== realUserId) {
+          room.gameState.player2Id = realUserId;
+        } else if (room.gameState.player1Id === realUserId || room.gameState.player2Id === realUserId) {
+          // Player is already assigned, ensure the ID is correct
+          if (room.gameState.player1Id === userId && userId !== realUserId) {
+            room.gameState.player1Id = realUserId;
+          }
+          if (room.gameState.player2Id === userId && userId !== realUserId) {
+            room.gameState.player2Id = realUserId;
+          }
+        }
+      } else {
+        console.log(`👁️ Spectator ${realUserId} will not be assigned as player1 or player2`);
       }
       
       // Notify about reconnection
       this.broadcastToRoom(roomId, 'player_reconnected', {
-        userId,
+        userId: realUserId, // Use realUserId
         roomState: room.gameState,
-        message: `Player ${userId} reconnected`
+        playerSide: preservedSide,
+        isSpectator: isSpectator,
+        message: isSpectator ? `Spectator ${realUserId} reconnected` : `Player ${realUserId} reconnected`
       });
+      
+      // Send spectator mode notification if applicable
+      if (isSpectator) {
+        socket.emit('spectator_mode', {
+          message: 'You are watching this match as a spectator',
+          roomState: room.gameState
+        });
+      }
+      
+      // Send current game state to reconnected player
+      if (room.gameState.gameData) {
+        // If game is already playing, send game_playing event to restore game state
+        if (room.gameState.status === 'playing') {
+          socket.emit('game_playing', {
+            roomState: room.gameState,
+            gameState: room.gameState.gameData,
+            message: 'Game resumed after reconnection'
+          });
+        } else {
+          // Otherwise, just send the current game state
+          socket.emit('game_state_update', {
+            gameState: room.gameState.gameData,
+            fromPlayer: 'server'
+          });
+        }
+      }
       
       // Check game readiness after reconnection
       this.checkGameReadiness(roomId);
+      console.log(`✅ Player ${realUserId} reconnected successfully with side: ${preservedSide}`);
       return; // Don't add as new player
     }
     
-    // Check if room is full (2 players already)
-    if (room.players.size >= 2) {
-      const existingPlayerIds = Array.from(room.players.keys());
-      console.log(`⚠️ Room ${roomId} is full! Current players: ${existingPlayerIds.join(', ')}, trying to join: ${userId}`);
+    // Check if this is a spectator (for tournament matches)
+    const isSpectator = (socket as any).isSpectator === true;
+    
+    // Count actual players (excluding spectators)
+    const actualPlayers = Array.from(room.players.values()).filter(
+      (playerInfo: any) => !playerInfo.isSpectator && playerInfo.side !== 'spectator'
+    );
+    
+    // Check if room is full (2 actual players already) - but allow spectators
+    if (!isSpectator && actualPlayers.length >= 2) {
+      const existingPlayerIds = actualPlayers.map((p: any) => p.userId);
+      console.log(`⚠️ Room ${roomId} is full! Current actual players: ${existingPlayerIds.join(', ')}, trying to join: ${userId}`);
       
       // Notify the player that room is full
       socket.emit('room_full', {
@@ -378,77 +628,91 @@ class SocketIOService {
       return;
     }
     
-    // Determine player side (left or right)
-    // If client requested a specific side and it's available, use it
-    // Otherwise, assign based on order (first player = left, second = right)
-    let playerSide: 'left' | 'right';
+    // Determine player side (left, right, or spectator)
+    // Spectators don't get a side, they just watch
+    let playerSide: 'left' | 'right' | 'spectator';
     
-    console.log('🔍 DETERMINING PLAYER SIDE:');
-    console.log(`   requestedSide: ${requestedSide} (type: ${typeof requestedSide})`);
-    console.log(`   requestedSide === undefined: ${requestedSide === undefined}`);
-    console.log(`   requestedSide === null: ${requestedSide === null}`);
-    console.log(`   requestedSide === 'left': ${requestedSide === 'left'}`);
-    console.log(`   requestedSide === 'right': ${requestedSide === 'right'}`);
-    console.log(`   playerCount in room: ${room.players.size}`);
-    
-    if (requestedSide) {
-      // Check if requested side is already taken
-      const currentPlayers = Array.from(room.players.values());
-      console.log(`🔍 Current players in room:`, currentPlayers.map((p: any) => ({ userId: p.userId, side: p.side })));
-      
-      const sideAlreadyTaken = currentPlayers.some(
-        (player: any) => player.side === requestedSide
-      );
-      
-      console.log(`   Is ${requestedSide} already taken? ${sideAlreadyTaken}`);
-      
-      if (sideAlreadyTaken) {
-        // Requested side is taken, assign the other side
-        playerSide = requestedSide === 'left' ? 'right' : 'left';
-        console.log(`⚠️ Player ${userId} requested ${requestedSide} but it's taken, assigning ${playerSide}`);
-      } else {
-        // Requested side is available
-        playerSide = requestedSide;
-        console.log(`✅ Player ${userId} assigned requested side: ${playerSide}`);
-      }
+    if (isSpectator) {
+      // Spectator mode - no side assignment
+      playerSide = 'spectator';
+      console.log(`👁️ Player ${realUserId} joining as SPECTATOR`);
     } else {
-      // No side requested, assign based on order
-      const playerCount = room.players.size;
-      playerSide = playerCount === 0 ? 'left' : 'right';
-      console.log(`❌ NO SIDE REQUESTED! Player ${userId} assigned side by order: ${playerSide} (playerCount: ${playerCount})`);
-      console.log(`   This should not happen if frontend is sending playerSide correctly!`);
+      console.log('🔍 DETERMINING PLAYER SIDE:');
+      console.log(`   requestedSide: ${requestedSide} (type: ${typeof requestedSide})`);
+      console.log(`   requestedSide === undefined: ${requestedSide === undefined}`);
+      console.log(`   requestedSide === null: ${requestedSide === null}`);
+      console.log(`   requestedSide === 'left': ${requestedSide === 'left'}`);
+      console.log(`   requestedSide === 'right': ${requestedSide === 'right'}`);
+      console.log(`   playerCount in room: ${room.players.size}`);
+      
+      if (requestedSide) {
+        // Check if requested side is already taken
+        const currentPlayers = Array.from(room.players.values());
+        console.log(`🔍 Current players in room:`, currentPlayers.map((p: any) => ({ userId: p.userId, side: p.side })));
+        
+        const sideAlreadyTaken = currentPlayers.some(
+          (player: any) => player.side === requestedSide
+        );
+        
+        console.log(`   Is ${requestedSide} already taken? ${sideAlreadyTaken}`);
+        
+        if (sideAlreadyTaken) {
+          // Requested side is taken, assign the other side
+          playerSide = requestedSide === 'left' ? 'right' : 'left';
+          console.log(`⚠️ Player ${realUserId} requested ${requestedSide} but it's taken, assigning ${playerSide}`);
+        } else {
+          // Requested side is available
+          playerSide = requestedSide;
+          console.log(`✅ Player ${realUserId} assigned requested side: ${playerSide}`);
+        }
+      } else {
+        // No side requested, assign based on order
+        const playerCount = room.players.size;
+        playerSide = playerCount === 0 ? 'left' : 'right';
+        console.log(`❌ NO SIDE REQUESTED! Player ${realUserId} assigned side by order: ${playerSide} (playerCount: ${playerCount})`);
+        console.log(`   This should not happen if frontend is sending playerSide correctly!`);
+      }
     }
     
-    console.log(`🎯 FINAL DECISION: Player ${userId} will be on ${playerSide} side`);
+    console.log(`🎯 FINAL DECISION: Player ${realUserId} will be on ${playerSide} side`);
     console.log('='.repeat(80));
     
     // Create player object with user information
     const playerInfo = {
       socket: socket,
-      userId: socket.userId || userId, // Use socket.userId if available, fallback to userId
+      userId: realUserId, // Use realUserId
       side: playerSide,
-      ready: false
+      ready: false,
+      isSpectator: isSpectator
     };
     
-    // Add player to room
-    room.players.set(userId, playerInfo);
-    this.playerRooms.set(userId, roomId);
+    // Add player to room using realUserId as key
+    room.players.set(realUserId, playerInfo);
+    this.playerRooms.set(realUserId, roomId);
+    if (userId !== realUserId) {
+      this.playerRooms.set(userId, roomId); // Also keep the original mapping
+    }
     socket.join(roomId);
 
-    // Set player IDs in game state BEFORE logging
-    if (!room.gameState.player1Id) {
-      room.gameState.player1Id = userId;
-      console.log(`✅ Set player1Id to ${userId}`);
-    } else if (!room.gameState.player2Id && room.gameState.player1Id !== userId) {
-      room.gameState.player2Id = userId;
-      console.log(`✅ Set player2Id to ${userId}`);
-    } else if (room.gameState.player1Id === userId) {
-      console.log(`⚠️ Player ${userId} is already player1, skipping`);
-    } else if (room.gameState.player2Id === userId) {
-      console.log(`⚠️ Player ${userId} is already player2, skipping`);
+    // Set player IDs in game state BEFORE logging (only for actual players, not spectators)
+    // Use realUserId for player IDs
+    if (!isSpectator) {
+      if (!room.gameState.player1Id) {
+        room.gameState.player1Id = realUserId;
+        console.log(`✅ Set player1Id to ${realUserId}`);
+      } else if (!room.gameState.player2Id && room.gameState.player1Id !== realUserId) {
+        room.gameState.player2Id = realUserId;
+        console.log(`✅ Set player2Id to ${realUserId}`);
+      } else if (room.gameState.player1Id === realUserId) {
+        console.log(`⚠️ Player ${realUserId} is already player1, skipping`);
+      } else if (room.gameState.player2Id === realUserId) {
+        console.log(`⚠️ Player ${realUserId} is already player2, skipping`);
+      }
+    } else {
+      console.log(`👁️ Spectator ${realUserId} will not be assigned as player1 or player2`);
     }
 
-    console.log(`Player ${userId} joined room ${roomId} as ${playerSide}`, {
+    console.log(`Player ${realUserId} joined room ${roomId} as ${playerSide}`, {
       player1Id: room.gameState.player1Id,
       player2Id: room.gameState.player2Id,
       totalPlayers: room.players.size,
@@ -457,10 +721,20 @@ class SocketIOService {
 
     // Notify all players
     this.broadcastToRoom(roomId, 'player_joined', {
-      userId,
+      userId: realUserId, // Use realUserId
       roomState: room.gameState,
-      message: `Player ${userId} joined the game room`
+      playerSide: playerSide,
+      isSpectator: isSpectator,
+      message: isSpectator ? `Spectator ${realUserId} joined the game room` : `Player ${realUserId} joined the game room`
     });
+    
+    // Send spectator status to the joining player
+    if (isSpectator) {
+      socket.emit('spectator_mode', {
+        message: 'You are watching this match as a spectator',
+        roomState: room.gameState
+      });
+    }
 
     // Check if both players are ready
     this.checkGameReadiness(roomId);
@@ -469,8 +743,88 @@ class SocketIOService {
   /**
    * Join a game room
    */
-  private joinGameRoom(socket: any, tournamentId: number, matchId: number, userId: string, requestedSide?: 'left' | 'right') {
+  private async joinGameRoom(socket: any, tournamentId: number, matchId: number, userId: string, requestedSide?: 'left' | 'right', gameSpeed: 'slow' | 'normal' | 'fast' = 'normal') {
     const roomId = `tournament-${tournamentId}-match-${matchId}`;
+    
+    // Validate that the user is authorized to join this tournament match
+    if (tournamentId > 0) {
+      try {
+        const { TournamentService } = await import('./tournamentService.js');
+        const { DatabaseService } = await import('./databaseService.js');
+        
+        // Get match details
+        const match = await TournamentService.getMatch(matchId);
+        if (!match) {
+          console.error(`❌ Match ${matchId} not found`);
+          socket.emit('error', { message: 'Match not found' });
+          return;
+        }
+        
+        // Check if match belongs to the tournament
+        if (match.tournament_id !== tournamentId) {
+          console.error(`❌ Match ${matchId} does not belong to tournament ${tournamentId}`);
+          socket.emit('error', { message: 'Match does not belong to this tournament' });
+          return;
+        }
+        
+        // Get tournament participants for this match
+        const participant1 = match.player1_id ? await DatabaseService.get(
+          'SELECT id, user_id, guest_alias FROM tournament_participants WHERE id = ?',
+          [match.player1_id]
+        ) as { id: number; user_id: number | null; guest_alias: string | null } | null : null;
+        
+        const participant2 = match.player2_id ? await DatabaseService.get(
+          'SELECT id, user_id, guest_alias FROM tournament_participants WHERE id = ?',
+          [match.player2_id]
+        ) as { id: number; user_id: number | null; guest_alias: string | null } | null : null;
+        
+        // Use socket.userId (from token) if available, otherwise fallback to userId parameter
+        const realUserId = socket.userId || userId;
+        console.log(`🔍 Checking participant match: realUserId=${realUserId}, userId param=${userId}, socket.userId=${socket.userId}`);
+        
+        // Check if userId matches either participant
+        // IMPORTANT: Use socket.userId (from token) for registered users, not the userId parameter
+        // For guest users, compare guest_alias directly (not with startsWith)
+        const userIdNum = parseInt(realUserId, 10);
+        const isPlayer1 = participant1 && (
+          (participant1.user_id && participant1.user_id === userIdNum) ||
+          (participant1.guest_alias && participant1.guest_alias === realUserId)
+        );
+        const isPlayer2 = participant2 && (
+          (participant2.user_id && participant2.user_id === userIdNum) ||
+          (participant2.guest_alias && participant2.guest_alias === realUserId)
+        );
+        
+        console.log(`🔍 Participant match check:`, {
+          participant1: participant1 ? { user_id: participant1.user_id, guest_alias: participant1.guest_alias } : null,
+          participant2: participant2 ? { user_id: participant2.user_id, guest_alias: participant2.guest_alias } : null,
+          realUserId,
+          userIdNum,
+          isPlayer1,
+          isPlayer2
+        });
+        
+        // Store whether this is a spectator (not a participant)
+        const isSpectator = !isPlayer1 && !isPlayer2;
+        
+        if (isSpectator) {
+          console.log(`👁️ User ${realUserId} is joining as spectator (not a participant in match ${matchId})`);
+          console.log(`   Match participants: player1_id=${match.player1_id}, player2_id=${match.player2_id}`);
+          console.log(`   Participant1: user_id=${participant1?.user_id}, guest_alias=${participant1?.guest_alias}`);
+          console.log(`   Participant2: user_id=${participant2?.user_id}, guest_alias=${participant2?.guest_alias}`);
+          // Continue to allow spectator to join, but mark them as spectator
+        } else {
+          console.log(`✅ User ${realUserId} is authorized to join match ${matchId} (isPlayer1: ${isPlayer1}, isPlayer2: ${isPlayer2})`);
+        }
+        
+        // Store spectator status for later use
+        (socket as any).isSpectator = isSpectator;
+      } catch (error) {
+        console.error('❌ Error validating tournament match access:', error);
+        socket.emit('error', { message: 'Error validating match access' });
+        return;
+      }
+    }
     
     // Get or create game room
     let room = this.gameRooms.get(roomId);
@@ -480,6 +834,7 @@ class SocketIOService {
         tournamentId,
         matchId,
         players: new Map(),
+        gameSpeed: gameSpeed, // Set gameSpeed when creating room
         gameState: {
           status: 'waiting',
           player1Ready: false,
@@ -487,110 +842,293 @@ class SocketIOService {
         }
       };
       this.gameRooms.set(roomId, room);
+    } else {
+      // If room exists, update gameSpeed if provided (use the first player's gameSpeed or update if different)
+      // For consistency, we'll use the first player's gameSpeed, but if a new player joins with a different speed,
+      // we'll keep the existing room's speed to ensure all players use the same speed
+      console.log(`🔍 Room ${roomId} already exists with gameSpeed: ${room.gameSpeed}, new player's gameSpeed: ${gameSpeed}`);
     }
 
+    // Use socket.userId (from token) if available, otherwise fallback to userId parameter
+    const realUserId = socket.userId || userId;
+    console.log(`🔍 joinGameRoom: realUserId=${realUserId}, userId param=${userId}, socket.userId=${socket.userId}`);
+    
     // Check if this userId is already in the room (reconnection)
-    const existingPlayer = room.players.get(userId);
-    if (existingPlayer) {
-      console.log(`🔄 Player ${userId} reconnecting, updating socket`);
+    // Check both the original userId and realUserId to handle reconnection cases
+    const existingPlayer = room.players.get(realUserId) || room.players.get(userId);
+    const existingPlayerKey = existingPlayer ? (room.players.get(realUserId) ? realUserId : userId) : null;
+    
+    if (existingPlayer && existingPlayerKey) {
+      console.log(`🔄 Player ${realUserId} (original: ${userId}) reconnecting, updating socket`);
       console.log(`🔍 Existing player data:`, existingPlayer);
       
-      // IMPORTANT: Preserve the existing player's side!
-      const preservedSide = existingPlayer.side || requestedSide || 'left';
-      console.log(`🔍 Preserving player side: ${preservedSide} (existing: ${existingPlayer.side}, requested: ${requestedSide})`);
+      // IMPORTANT: Preserve existing player's spectator status
+      // If player was already in the room as a participant (not spectator), NEVER change them to spectator
+      const existingIsSpectator = typeof existingPlayer === 'object' && 'isSpectator' in existingPlayer 
+        ? existingPlayer.isSpectator === true 
+        : false;
       
-      // Update socket for existing player
-      if (typeof existingPlayer === 'object' && existingPlayer.socket) {
+      // IMPORTANT: If existing player was NOT a spectator, they should NEVER become a spectator
+      // For reconnection, ALWAYS preserve the existing status - never change a participant to spectator
+      // Only allow changing from spectator to participant if explicitly needed (but not the other way around)
+      const isSpectator = existingIsSpectator; // Always preserve existing status on reconnection
+      
+      console.log(`🔍 Spectator status check (reconnection): existingIsSpectator=${existingIsSpectator}, socket.isSpectator=${(socket as any).isSpectator}, final isSpectator=${isSpectator}`);
+      console.log(`🔍 IMPORTANT: Preserving existing spectator status on reconnection - participant stays participant, spectator stays spectator`);
+      
+      // IMPORTANT: Preserve the existing player's side!
+      // Priority: 1. requestedSide (from client - most reliable on reconnection), 2. existingPlayer.side (if saved), 3. determine from other players
+      let preservedSide: 'left' | 'right' | 'spectator';
+      if (isSpectator) {
+        preservedSide = 'spectator';
+      } else {
+        // On reconnection, prioritize requestedSide from client as it's the most reliable source
+        if (requestedSide) {
+          // Use requested side from client (this is the most reliable source on reconnection)
+          preservedSide = requestedSide;
+          console.log(`✅ Using requested player side: ${preservedSide} (reconnection)`);
+        } else if (typeof existingPlayer === 'object' && 'side' in existingPlayer && existingPlayer.side) {
+          preservedSide = existingPlayer.side;
+          console.log(`✅ Using saved player side: ${preservedSide}`);
+        } else {
+          // Last resort: check other players to determine which side is available
+          const otherPlayers = Array.from(room.players.values());
+          const leftPlayer = otherPlayers.find((p: any) => p.side === 'left' && p.userId !== userId);
+          const rightPlayer = otherPlayers.find((p: any) => p.side === 'right' && p.userId !== userId);
+          
+          if (leftPlayer && !rightPlayer) {
+            preservedSide = 'right';
+            console.log(`✅ Determined side from other players: ${preservedSide} (left is taken)`);
+          } else if (rightPlayer && !leftPlayer) {
+            preservedSide = 'left';
+            console.log(`✅ Determined side from other players: ${preservedSide} (right is taken)`);
+          } else {
+            // Default to left if we can't determine
+            preservedSide = 'left';
+            console.log(`⚠️ Could not determine side, defaulting to: ${preservedSide}`);
+          }
+        }
+      }
+      
+      console.log(`🔍 Final preserved side: ${preservedSide} (existing: ${typeof existingPlayer === 'object' && 'side' in existingPlayer ? existingPlayer.side : 'none'}, requested: ${requestedSide})`);
+      
+      // Update socket for existing player - ensure side is always set
+      // Use realUserId for the player entry
+      if (typeof existingPlayer === 'object' && 'socket' in existingPlayer) {
         existingPlayer.socket = socket;
-        // Make sure we keep the side!
         existingPlayer.side = preservedSide;
+        existingPlayer.userId = realUserId; // Use realUserId instead of userId
+        existingPlayer.isSpectator = isSpectator;
+        console.log(`✅ Updated existing player with side: ${preservedSide}, isSpectator: ${isSpectator}`);
+        
+        // Update the player entry key if needed
+        if (realUserId !== existingPlayerKey) {
+          room.players.set(realUserId, existingPlayer);
+          if (existingPlayerKey) {
+            room.players.delete(existingPlayerKey);
+          }
+        }
       } else {
         // Convert old format to new format
-        room.players.set(userId, {
+        room.players.set(realUserId, {
           socket: socket,
-          userId: userId,
+          userId: realUserId, // Use realUserId instead of userId
           side: preservedSide,
-          ready: existingPlayer.ready || false
+          ready: typeof existingPlayer === 'object' && 'ready' in existingPlayer ? existingPlayer.ready : false,
+          isSpectator: isSpectator
         });
+        if (existingPlayerKey && existingPlayerKey !== realUserId) {
+          room.players.delete(existingPlayerKey);
+        }
+        console.log(`✅ Converted old format player to new format with side: ${preservedSide}, isSpectator: ${isSpectator}`);
       }
+      
       socket.join(roomId);
+      
+      // Ensure playerRooms mapping is updated with realUserId
+      this.playerRooms.set(realUserId, roomId);
+      if (userId !== realUserId) {
+        this.playerRooms.set(userId, roomId); // Also keep the original mapping
+      }
+      
+      // Ensure player IDs are set in game state (only for actual players, not spectators)
+      // Use realUserId for player IDs
+      if (!isSpectator) {
+        if (!room.gameState.player1Id) {
+          room.gameState.player1Id = realUserId;
+        } else if (!room.gameState.player2Id && room.gameState.player1Id !== realUserId) {
+          room.gameState.player2Id = realUserId;
+        } else if (room.gameState.player1Id === realUserId || room.gameState.player2Id === realUserId) {
+          // Player is already assigned, ensure the ID is correct
+          if (room.gameState.player1Id === userId && userId !== realUserId) {
+            room.gameState.player1Id = realUserId;
+          }
+          if (room.gameState.player2Id === userId && userId !== realUserId) {
+            room.gameState.player2Id = realUserId;
+          }
+        }
+      } else {
+        console.log(`👁️ Spectator ${realUserId} will not be assigned as player1 or player2`);
+      }
+      
       // Notify about reconnection
       this.broadcastToRoom(roomId, 'player_reconnected', {
-        userId,
+        userId: realUserId, // Use realUserId
         roomState: room.gameState,
-        message: `Player ${userId} reconnected`
+        playerSide: preservedSide,
+        isSpectator: isSpectator,
+        message: isSpectator ? `Spectator ${realUserId} reconnected` : `Player ${realUserId} reconnected`
       });
+      
+      // Send current game state to reconnected player
+      if (room.gameState.gameData) {
+        // If game is already playing, send game_playing event to restore game state
+        if (room.gameState.status === 'playing') {
+          socket.emit('game_playing', {
+            roomState: room.gameState,
+            gameState: room.gameState.gameData,
+            message: 'Game resumed after reconnection'
+          });
+        } else {
+          // Otherwise, just send the current game state
+          socket.emit('game_state_update', {
+            gameState: room.gameState.gameData,
+            fromPlayer: 'server'
+          });
+        }
+      }
+      
+      // Send spectator mode notification if applicable
+      if (isSpectator) {
+        socket.emit('spectator_mode', {
+          message: 'You are watching this match as a spectator',
+          roomState: room.gameState
+        });
+      }
+      
+      console.log(`✅ Player ${realUserId} reconnected successfully with side: ${preservedSide}`);
       return; // Don't add as new player
     }
     
-    // Determine player side (left or right)
-    // If client requested a specific side and it's available, use it
-    // Otherwise, assign based on order (first player = left, second = right)
-    let playerSide: 'left' | 'right';
+    // Check if this is a spectator (for tournament matches)
+    const isSpectator = (socket as any).isSpectator === true;
     
-    if (requestedSide) {
-      // Check if requested side is already taken
-      const sideAlreadyTaken = Array.from(room.players.values()).some(
-        (player: any) => player.side === requestedSide
-      );
+    // Count actual players (excluding spectators)
+    const actualPlayers = Array.from(room.players.values()).filter(
+      (playerInfo: any) => !playerInfo.isSpectator && playerInfo.side !== 'spectator'
+    );
+    
+    // Check if room is full (2 actual players already) - but allow spectators
+    if (!isSpectator && actualPlayers.length >= 2) {
+      const existingPlayerIds = actualPlayers.map((p: any) => p.userId);
+      console.log(`⚠️ Room ${roomId} is full! Current actual players: ${existingPlayerIds.join(', ')}, trying to join: ${realUserId}`);
       
-      if (sideAlreadyTaken) {
-        // Requested side is taken, assign the other side
-        playerSide = requestedSide === 'left' ? 'right' : 'left';
-        console.log(`⚠️ Player ${userId} requested ${requestedSide} but it's taken, assigning ${playerSide}`);
-      } else {
-        // Requested side is available
-        playerSide = requestedSide;
-        console.log(`✅ Player ${userId} assigned requested side: ${playerSide}`);
-      }
+      // Notify the player that room is full
+      socket.emit('room_full', {
+        roomId,
+        message: 'Room is full. Maximum 2 players allowed.',
+        currentPlayers: existingPlayerIds
+      });
+      return;
+    }
+    
+    // Determine player side (left, right, or spectator)
+    // Spectators don't get a side, they just watch
+    let playerSide: 'left' | 'right' | 'spectator';
+    
+    if (isSpectator) {
+      // Spectator mode - no side assignment
+      playerSide = 'spectator';
+      console.log(`👁️ Player ${realUserId} joining as SPECTATOR`);
     } else {
-      // No side requested, assign based on order
-      const playerCount = room.players.size;
-      playerSide = playerCount === 0 ? 'left' : 'right';
-      console.log(`📍 Player ${userId} assigned side by order: ${playerSide}`);
+      if (requestedSide) {
+        // Check if requested side is already taken
+        const sideAlreadyTaken = Array.from(room.players.values()).some(
+          (player: any) => player.side === requestedSide
+        );
+        
+        if (sideAlreadyTaken) {
+          // Requested side is taken, assign the other side
+          playerSide = requestedSide === 'left' ? 'right' : 'left';
+          console.log(`⚠️ Player ${realUserId} requested ${requestedSide} but it's taken, assigning ${playerSide}`);
+        } else {
+          // Requested side is available
+          playerSide = requestedSide;
+          console.log(`✅ Player ${realUserId} assigned requested side: ${playerSide}`);
+        }
+      } else {
+        // No side requested, assign based on order
+        const playerCount = room.players.size;
+        playerSide = playerCount === 0 ? 'left' : 'right';
+        console.log(`📍 Player ${realUserId} assigned side by order: ${playerSide}`);
+      }
     }
     
     // Create player object with user information
     const playerInfo = {
       socket: socket,
-      userId: userId,
+      userId: realUserId, // Use realUserId
       side: playerSide,
-      ready: false
+      ready: false,
+      isSpectator: isSpectator
     };
     
-    // Add player to room
-    room.players.set(userId, playerInfo);
-    this.playerRooms.set(userId, roomId);
+    // Add player to room using realUserId as key
+    room.players.set(realUserId, playerInfo);
+    this.playerRooms.set(realUserId, roomId);
+    if (userId !== realUserId) {
+      this.playerRooms.set(userId, roomId); // Also keep the original mapping
+    }
 
     // Join Socket.IO room for efficient broadcasting
     socket.join(roomId);
 
-    // Determine player position - use string userId instead of numeric conversion
-    if (!room.gameState.player1Id) {
-      room.gameState.player1Id = userId;
-    } else if (!room.gameState.player2Id && room.gameState.player1Id !== userId) {
-      room.gameState.player2Id = userId;
+    // Determine player position - use string userId instead of numeric conversion (only for actual players, not spectators)
+    // Use realUserId for player IDs
+    if (!isSpectator) {
+      if (!room.gameState.player1Id) {
+        room.gameState.player1Id = realUserId;
+      } else if (!room.gameState.player2Id && room.gameState.player1Id !== realUserId) {
+        room.gameState.player2Id = realUserId;
+      }
+    } else {
+      console.log(`👁️ Spectator ${realUserId} will not be assigned as player1 or player2`);
     }
 
-    console.log(`Player ${userId} joined room ${roomId}`, {
+    console.log(`Player ${realUserId} joined room ${roomId} as ${playerSide}`, {
       player1Id: room.gameState.player1Id,
       player2Id: room.gameState.player2Id,
-      totalPlayers: room.players.size
+      totalPlayers: room.players.size,
+      isSpectator: isSpectator
     });
 
     // Notify all players in room
     this.broadcastToRoom(roomId, 'player_joined', {
-      userId,
+      userId: realUserId, // Use realUserId
       roomState: room.gameState,
-      message: `Player ${userId} joined the game room`
+      playerSide: playerSide,
+      isSpectator: isSpectator,
+      message: isSpectator ? `Spectator ${realUserId} joined the game room` : `Player ${realUserId} joined the game room`
     });
+    
+    // Send spectator mode notification if applicable
+    if (isSpectator) {
+      socket.emit('spectator_mode', {
+        message: 'You are watching this match as a spectator',
+        roomState: room.gameState
+      });
+    }
 
     // Check if both players are ready
     this.checkGameReadiness(roomId);
     
-    // Auto-start game loop if both players are present (for debugging)
-    if (room.players.size === 2) {
-      console.log(`Auto-starting game loop for room ${roomId} with 2 players`);
+    // Auto-start game loop if both actual players (not spectators) are present (for debugging)
+    const actualPlayersCount = Array.from(room.players.values()).filter(
+      (playerInfo: any) => !playerInfo.isSpectator && playerInfo.side !== 'spectator'
+    );
+    
+    if (actualPlayersCount.length === 2) {
+      console.log(`Auto-starting game loop for room ${roomId} with 2 actual players (total players: ${room.players.size})`);
       
       // Set match status to active when both players join
       this.setMatchActive(tournamentId, matchId);
@@ -688,35 +1226,44 @@ class SocketIOService {
     }
 
     const { player1Id, player2Id, player1Ready, player2Ready, status } = room.gameState;
-    const playersArray = Array.from(room.players.entries());
+    
+    // Filter out spectators - only count actual players
+    const actualPlayers = Array.from(room.players.entries()).filter(
+      ([userId, playerInfo]: [string, any]) => {
+        const isSpectator = playerInfo.isSpectator === true || playerInfo.side === 'spectator';
+        return !isSpectator;
+      }
+    );
     
     console.log(`🔍 checkGameReadiness for room ${roomId}:`, {
-      playersSize: room.players.size,
+      totalPlayersSize: room.players.size,
+      actualPlayersCount: actualPlayers.length,
       player1Id,
       player2Id,
       player1Ready,
       player2Ready,
       status,
-      allPlayerIds: playersArray.map(p => p[0])
+      allPlayerIds: Array.from(room.players.entries()).map(p => p[0]),
+      actualPlayerIds: actualPlayers.map(p => p[0])
     });
 
-    // Ensure player IDs are set from the players map
-    if (playersArray.length >= 1 && !room.gameState.player1Id) {
-      room.gameState.player1Id = playersArray[0][0];
+    // Ensure player IDs are set from the actual players (excluding spectators)
+    if (actualPlayers.length >= 1 && !room.gameState.player1Id) {
+      room.gameState.player1Id = actualPlayers[0][0];
       console.log(`✅ Set player1Id to ${room.gameState.player1Id}`);
     }
-    if (playersArray.length >= 2 && !room.gameState.player2Id) {
-      room.gameState.player2Id = playersArray[1][0];
+    if (actualPlayers.length >= 2 && !room.gameState.player2Id) {
+      room.gameState.player2Id = actualPlayers[1][0];
       console.log(`✅ Set player2Id to ${room.gameState.player2Id}`);
     }
 
-    // Check if both players are present and game hasn't started yet
+    // Check if both actual players (not spectators) are present and game hasn't started yet
     // Auto-start game when both players join (no need for manual ready)
-    if (room.players.size >= 2 && status !== 'ready' && status !== 'playing') {
-      // Set player IDs from the players map (ensure they're set)
-      if (playersArray.length >= 2) {
-        room.gameState.player1Id = playersArray[0][0]; // First player's userId
-        room.gameState.player2Id = playersArray[1][0]; // Second player's userId
+    if (actualPlayers.length >= 2 && status !== 'ready' && status !== 'playing') {
+      // Set player IDs from the actual players map (ensure they're set, excluding spectators)
+      if (actualPlayers.length >= 2) {
+        room.gameState.player1Id = actualPlayers[0][0]; // First actual player's userId
+        room.gameState.player2Id = actualPlayers[1][0]; // Second actual player's userId
         console.log(`✅ Updated player IDs: player1Id=${room.gameState.player1Id}, player2Id=${room.gameState.player2Id}`);
       }
       
@@ -726,8 +1273,8 @@ class SocketIOService {
       
       console.log(`🎮 Starting game in room ${roomId} with players: ${room.gameState.player1Id} vs ${room.gameState.player2Id}`);
       
-      // Notify all players to start game
-      console.log(`📢 Broadcasting game_start to room ${roomId} with ${room.players.size} players`);
+      // Notify all players (including spectators) to start game
+      console.log(`📢 Broadcasting game_start to room ${roomId} with ${room.players.size} total players (${actualPlayers.length} actual players)`);
       this.broadcastToRoom(roomId, 'game_start', {
         roomState: room.gameState,
         message: 'Both players joined! Starting game...'
@@ -737,11 +1284,14 @@ class SocketIOService {
       setTimeout(() => {
         room.gameState.status = 'playing';
         
-        // Initialize game data
+        // Get speed values based on gameSpeed
+        const speedValues = getSpeedValues(room.gameSpeed);
+        
+        // Initialize game data with speed values from gameSpeed
         const initialGameData = {
           leftPaddle: { y: 200 },
           rightPaddle: { y: 200 },
-          ball: { x: 400, y: 200, dx: 5, dy: 3 },
+          ball: { x: 400, y: 200, dx: speedValues.ballSpeed, dy: speedValues.ballSpeed * 0.6 },
           leftScore: 0,
           rightScore: 0
         };
@@ -785,10 +1335,11 @@ class SocketIOService {
       
       // Update room's game data with paddle position
       if (!room.gameState.gameData) {
+        const speedValues = getSpeedValues(room.gameSpeed);
         room.gameState.gameData = {
           leftPaddle: { y: 200 },
           rightPaddle: { y: 200 },
-          ball: { x: 400, y: 200, dx: 5, dy: 3 },
+          ball: { x: 400, y: 200, dx: speedValues.ballSpeed, dy: speedValues.ballSpeed * 0.6 },
           leftScore: 0,
           rightScore: 0
         };
@@ -813,11 +1364,12 @@ class SocketIOService {
       // Handle game reset
       console.log('🔄 RESET REQUESTED by player:', userId);
       
-      // Reset game data to initial state
+      // Reset game data to initial state with gameSpeed-based speeds
+      const speedValues = getSpeedValues(room.gameSpeed);
       room.gameState.gameData = {
         leftPaddle: { y: 200 },
         rightPaddle: { y: 200 },
-        ball: { x: 400, y: 200, dx: 5, dy: 3 },
+        ball: { x: 400, y: 200, dx: speedValues.ballSpeed, dy: speedValues.ballSpeed * 0.6 },
         leftScore: 0,
         rightScore: 0
       };
@@ -1017,13 +1569,15 @@ class SocketIOService {
     // Ensure ball exists and has required properties
     if (!gameData.ball || typeof gameData.ball.x !== 'number' || typeof gameData.ball.y !== 'number') {
       console.log(`⚠️ Ball data is invalid, reinitializing for room ${roomId}:`, gameData.ball);
-      gameData.ball = { x: 400, y: 200, dx: 5, dy: 3 };
+      const speedValues = getSpeedValues(room.gameSpeed);
+      gameData.ball = { x: 400, y: 200, dx: speedValues.ballSpeed, dy: speedValues.ballSpeed * 0.6 };
     }
     
     // Ensure ball has velocity properties
     if (typeof gameData.ball.dx !== 'number' || typeof gameData.ball.dy !== 'number') {
-      gameData.ball.dx = gameData.ball.dx || 5;
-      gameData.ball.dy = gameData.ball.dy || 3;
+      const speedValues = getSpeedValues(room.gameSpeed);
+      gameData.ball.dx = gameData.ball.dx || speedValues.ballSpeed;
+      gameData.ball.dy = gameData.ball.dy || speedValues.ballSpeed * 0.6;
     }
     
     // Debug logging disabled for cleaner console
@@ -1062,11 +1616,11 @@ class SocketIOService {
     if (gameData.ball.x < 0) {
       // Right player scores
       gameData.rightScore++;
-      this.resetBall(gameData);
+      this.resetBall(gameData, room.gameSpeed);
     } else if (gameData.ball.x > 800) {
       // Left player scores
       gameData.leftScore++;
-      this.resetBall(gameData);
+      this.resetBall(gameData, room.gameSpeed);
     }
 
     // Check for game end condition (10 points)
@@ -1123,11 +1677,12 @@ class SocketIOService {
   /**
    * Reset ball to center after scoring
    */
-  private resetBall(gameData: any) {
+  private resetBall(gameData: any, gameSpeed: 'slow' | 'normal' | 'fast' = 'normal') {
+    const speedValues = getSpeedValues(gameSpeed);
     gameData.ball.x = 400;
     gameData.ball.y = 200;
-    gameData.ball.dx = (Math.random() > 0.5 ? 1 : -1) * 5;
-    gameData.ball.dy = (Math.random() - 0.5) * 6;
+    gameData.ball.dx = (Math.random() > 0.5 ? 1 : -1) * speedValues.ballSpeed;
+    gameData.ball.dy = (Math.random() - 0.5) * speedValues.ballSpeed * 1.2;
   }
 
   /**
@@ -1157,16 +1712,30 @@ class SocketIOService {
         matchId = parseInt(parts[1]);
         console.log(`🔍 Parsed tournamentId: ${tournamentId}, matchId: ${matchId}`);
       } else {
-        console.log('ℹ️ Not a tournament game, skipping match result save');
-        return;
+        // Check if roomId is a simple number (for regular multiplayer)
+        const simpleRoomMatch = roomId.match(/^\d+$/);
+        if (simpleRoomMatch) {
+          console.log('🎮 Regular multiplayer game detected (simple roomId), updating user statistics directly');
+          await this.updateRegularMultiplayerStatistics(roomId, gameData, winner);
+          return;
+        } else {
+          console.log('ℹ️ Not a tournament game and not a simple number, skipping match result save');
+          return;
+        }
       }
       
       if (isNaN(tournamentId) || isNaN(matchId)) {
         console.log('⚠️ Invalid tournament or match ID in room:', roomId);
         console.log(`⚠️ tournamentId: ${tournamentId}, matchId: ${matchId}`);
         console.log('⚠️ This usually means the frontend is not setting the roomId correctly');
-        console.log('⚠️ Expected format: tournament-{id}-match-{matchId}');
+        console.log('⚠️ Expected format: tournament-{id}-match-{matchId} or simple number');
         console.log('⚠️ Actual roomId:', roomId);
+        // Try to handle as regular multiplayer game
+        const simpleRoomMatch = roomId.match(/^\d+$/);
+        if (simpleRoomMatch) {
+          console.log('🎮 Attempting to handle as regular multiplayer game');
+          await this.updateRegularMultiplayerStatistics(roomId, gameData, winner);
+        }
         return;
       }
 
@@ -1224,36 +1793,122 @@ class SocketIOService {
       let player1Score: number;
       let player2Score: number;
 
-      // Determine winner based on which side won
-      if (winner === 'left' && leftPlayer) {
-        // Left side won - need to find which tournament participant this is
-        const leftUserId = leftPlayer.userId;
-        // Check if leftUserId matches player1 or player2 in the match
-        if (match.player1_id && String(match.player1_id) === String(leftUserId)) {
-          winnerId = match.player1_id;
-        } else if (match.player2_id && String(match.player2_id) === String(leftUserId)) {
-          winnerId = match.player2_id;
-        } else {
-          console.error(`❌ Could not match left player ${leftUserId} to tournament participant`);
-          return;
-        }
+      // Determine which player is on which side and set scores accordingly
+      const leftUserId = leftPlayer?.userId;
+      const rightUserId = rightPlayer?.userId;
+      
+      // Get tournament participants to map user_id to participant_id
+      const { DatabaseService } = await import('./databaseService.js');
+      const participant1 = await DatabaseService.get(
+        'SELECT id, user_id, guest_alias FROM tournament_participants WHERE id = ?',
+        [match.player1_id]
+      ) as { id: number; user_id: number | null; guest_alias: string | null } | null;
+      
+      const participant2 = await DatabaseService.get(
+        'SELECT id, user_id, guest_alias FROM tournament_participants WHERE id = ?',
+        [match.player2_id]
+      ) as { id: number; user_id: number | null; guest_alias: string | null } | null;
+      
+      console.log(`🔍 Tournament participants:`, {
+        participant1: participant1 ? { id: participant1.id, user_id: participant1.user_id, guest_alias: participant1.guest_alias } : 'none',
+        participant2: participant2 ? { id: participant2.id, user_id: participant2.user_id, guest_alias: participant2.guest_alias } : 'none',
+        leftUserId,
+        rightUserId
+      });
+      
+      // Get user_id from participants (handle both registered users and guests)
+      const player1UserId = participant1?.user_id ? String(participant1.user_id) : null;
+      const player2UserId = participant2?.user_id ? String(participant2.user_id) : null;
+      
+      // For guests, we need to check guest_alias or use participant mapping
+      // Check if player1 is on left or right side by comparing user_id
+      const player1IsLeft = player1UserId && leftUserId && String(player1UserId) === String(leftUserId);
+      const player1IsRight = player1UserId && rightUserId && String(player1UserId) === String(rightUserId);
+      
+      // If user_id doesn't match, check if it's a guest (this is a fallback)
+      let player1IsLeftGuest = false;
+      let player1IsRightGuest = false;
+      if (!player1IsLeft && !player1IsRight && participant1?.guest_alias) {
+        // For guests, we might need to use playerIdMapping or other method
+        // For now, we'll try to match by checking if the userId matches the guest pattern
+        const leftIsGuest = leftUserId && leftUserId.startsWith('guest_');
+        const rightIsGuest = rightUserId && rightUserId.startsWith('guest_');
+        // This is a simplified check - in practice, you might need more sophisticated matching
+      }
+      
+      // Set scores based on which side each player is on
+      if (player1IsLeft || player1IsLeftGuest) {
         player1Score = gameData.leftScore;
         player2Score = gameData.rightScore;
-      } else if (winner === 'right' && rightPlayer) {
-        // Right side won - need to find which tournament participant this is
-        const rightUserId = rightPlayer.userId;
-        if (match.player1_id && String(match.player1_id) === String(rightUserId)) {
-          winnerId = match.player1_id;
-        } else if (match.player2_id && String(match.player2_id) === String(rightUserId)) {
-          winnerId = match.player2_id;
-        } else {
-          console.error(`❌ Could not match right player ${rightUserId} to tournament participant`);
-          return;
-        }
+      } else if (player1IsRight || player1IsRightGuest) {
         player1Score = gameData.rightScore;
         player2Score = gameData.leftScore;
       } else {
-        console.error(`❌ Could not determine winner: winner=${winner}, leftPlayer=${!!leftPlayer}, rightPlayer=${!!rightPlayer}`);
+        // Try reverse comparison (player2)
+        const player2IsLeft = player2UserId && leftUserId && String(player2UserId) === String(leftUserId);
+        const player2IsRight = player2UserId && rightUserId && String(player2UserId) === String(rightUserId);
+        
+        if (player2IsLeft) {
+          // player2 is on left, so player1 is on right
+          player1Score = gameData.rightScore;
+          player2Score = gameData.leftScore;
+        } else if (player2IsRight) {
+          // player2 is on right, so player1 is on left
+          player1Score = gameData.leftScore;
+          player2Score = gameData.rightScore;
+        } else {
+          console.error(`❌ Could not determine which side player1 is on`);
+          console.error(`   leftUserId: ${leftUserId}, rightUserId: ${rightUserId}`);
+          console.error(`   player1UserId: ${player1UserId}, player2UserId: ${player2UserId}`);
+          console.error(`   match.player1_id: ${match.player1_id}, match.player2_id: ${match.player2_id}`);
+          return;
+        }
+      }
+
+      // Determine winner based on which side won
+      // Handle case where leftPlayer or rightPlayer might be undefined
+      if (!leftPlayer && !rightPlayer) {
+        console.error(`❌ No players found in room when determining winner`);
+        console.error(`   Players in room:`, Array.from(room.players.values()).map((p: any) => ({ userId: p.userId, side: p.side })));
+        return;
+      }
+      
+      if (winner === 'left') {
+        if (!leftPlayer) {
+          console.error(`❌ Winner is 'left' but no left player found`);
+          return;
+        }
+        // Left side won - find which tournament participant this is
+        if (player1UserId && String(player1UserId) === String(leftUserId)) {
+          winnerId = match.player1_id!;
+        } else if (player2UserId && String(player2UserId) === String(leftUserId)) {
+          winnerId = match.player2_id!;
+        } else {
+          console.error(`❌ Could not match left player ${leftUserId} to tournament participant`);
+          console.error(`   player1UserId: ${player1UserId}, player2UserId: ${player2UserId}`);
+          console.error(`   participant1:`, participant1);
+          console.error(`   participant2:`, participant2);
+          return;
+        }
+      } else if (winner === 'right') {
+        if (!rightPlayer) {
+          console.error(`❌ Winner is 'right' but no right player found`);
+          return;
+        }
+        // Right side won - find which tournament participant this is
+        if (player1UserId && String(player1UserId) === String(rightUserId)) {
+          winnerId = match.player1_id!;
+        } else if (player2UserId && String(player2UserId) === String(rightUserId)) {
+          winnerId = match.player2_id!;
+        } else {
+          console.error(`❌ Could not match right player ${rightUserId} to tournament participant`);
+          console.error(`   player1UserId: ${player1UserId}, player2UserId: ${player2UserId}`);
+          console.error(`   participant1:`, participant1);
+          console.error(`   participant2:`, participant2);
+          return;
+        }
+      } else {
+        console.error(`❌ Invalid winner value: ${winner}`);
         return;
       }
 
@@ -1273,6 +1928,11 @@ class SocketIOService {
       console.log('📊 Starting user statistics update...');
       await this.updateUserStatistics(match, winnerId, player1Score, player2Score);
       console.log('✅ User statistics update completed');
+
+      // Save match history for both players (only for registered users, not guests)
+      console.log('📝 Saving match history for tournament match...');
+      await this.saveTournamentMatchHistory(match, participant1, participant2, player1UserId, player2UserId, player1Score, player2Score, winnerId, leftUserId, rightUserId);
+      console.log('✅ Match history saved for tournament match');
 
       console.log('✅ Tournament match result saved successfully!');
     } catch (error) {
@@ -1410,41 +2070,59 @@ class SocketIOService {
       console.log(`🔍 Player ID mappings: Left ${leftPlayer.userId} -> ${realLeftUserId}, Right ${rightPlayer.userId} -> ${realRightUserId}`);
       
       // Update left player statistics
-      if (leftPlayer.userId && !leftPlayer.userId.startsWith('guest_')) {
-        await UserService.updateUserStatistics(
-          realLeftUserId,
-          gameData.leftScore,
-          leftPlayerWon
-        );
-        console.log(`📊 Updated stats for left player ${realLeftUserId}: Score ${gameData.leftScore}, Won: ${leftPlayerWon}`);
+      // Check both the original userId and the real userId to determine if it's a guest
+      const isLeftGuest = (leftPlayer.userId && leftPlayer.userId.startsWith('guest_')) || 
+                          (realLeftUserId && realLeftUserId.startsWith('guest_'));
+      if (!isLeftGuest && realLeftUserId) {
+        try {
+          await UserService.updateUserStatistics(
+            realLeftUserId.toString(),
+            gameData.leftScore,
+            leftPlayerWon
+          );
+          console.log(`✅ Updated stats for left player ${realLeftUserId}: Score ${gameData.leftScore}, Won: ${leftPlayerWon}`);
+        } catch (error) {
+          console.error(`❌ Error updating stats for left player ${realLeftUserId}:`, error);
+        }
       } else {
-        console.log('⚠️ Left player is guest, skipping statistics update');
+        console.log(`⚠️ Left player is guest (userId: ${leftPlayer.userId}, realUserId: ${realLeftUserId}), skipping statistics update`);
       }
 
       // Update right player statistics
-      if (rightPlayer.userId && !rightPlayer.userId.startsWith('guest_')) {
-        await UserService.updateUserStatistics(
-          realRightUserId,
-          gameData.rightScore,
-          rightPlayerWon
-        );
-        console.log(`📊 Updated stats for right player ${realRightUserId}: Score ${gameData.rightScore}, Won: ${rightPlayerWon}`);
+      // Check both the original userId and the real userId to determine if it's a guest
+      const isRightGuest = (rightPlayer.userId && rightPlayer.userId.startsWith('guest_')) || 
+                           (realRightUserId && realRightUserId.startsWith('guest_'));
+      if (!isRightGuest && realRightUserId) {
+        try {
+          await UserService.updateUserStatistics(
+            realRightUserId.toString(),
+            gameData.rightScore,
+            rightPlayerWon
+          );
+          console.log(`✅ Updated stats for right player ${realRightUserId}: Score ${gameData.rightScore}, Won: ${rightPlayerWon}`);
+        } catch (error) {
+          console.error(`❌ Error updating stats for right player ${realRightUserId}:`, error);
+        }
       } else {
-        console.log('⚠️ Right player is guest, skipping statistics update');
+        console.log(`⚠️ Right player is guest (userId: ${rightPlayer.userId}, realUserId: ${realRightUserId}), skipping statistics update`);
       }
 
       // Save match history for both players (only if they are real users, not guests)
       console.log('📝 Saving match history...');
       
       // Save match history for left player
-      if (leftPlayer.userId && !leftPlayer.userId.startsWith('guest_')) {
+      const isLeftGuestForHistory = (leftPlayer.userId && leftPlayer.userId.startsWith('guest_')) || 
+                                     (realLeftUserId && realLeftUserId.startsWith('guest_'));
+      if (!isLeftGuestForHistory && realLeftUserId) {
         try {
-          const leftUserIdInt = parseInt(realLeftUserId);
-          const rightUserIdInt = rightPlayer.userId.startsWith('guest_') ? null : parseInt(realRightUserId);
+          const leftUserIdInt = parseInt(realLeftUserId.toString());
+          const isRightGuestForHistory = (rightPlayer.userId && rightPlayer.userId.startsWith('guest_')) || 
+                                         (realRightUserId && realRightUserId.startsWith('guest_'));
+          const rightUserIdInt = isRightGuestForHistory ? null : parseInt(realRightUserId.toString());
           
           // Get opponent username
-          let opponentName = rightPlayer.userId;
-          if (!rightPlayer.userId.startsWith('guest_') && rightUserIdInt) {
+          let opponentName = rightPlayer.userId || 'Opponent';
+          if (!isRightGuestForHistory && rightUserIdInt) {
             try {
               const opponentUser = await DatabaseService.query(
                 'SELECT username FROM users WHERE id = $1',
@@ -1478,14 +2156,18 @@ class SocketIOService {
       }
       
       // Save match history for right player
-      if (rightPlayer.userId && !rightPlayer.userId.startsWith('guest_')) {
+      const isRightGuestForHistory = (rightPlayer.userId && rightPlayer.userId.startsWith('guest_')) || 
+                                      (realRightUserId && realRightUserId.startsWith('guest_'));
+      if (!isRightGuestForHistory && realRightUserId) {
         try {
-          const rightUserIdInt = parseInt(realRightUserId);
-          const leftUserIdInt = leftPlayer.userId.startsWith('guest_') ? null : parseInt(realLeftUserId);
+          const rightUserIdInt = parseInt(realRightUserId.toString());
+          const isLeftGuestForHistory2 = (leftPlayer.userId && leftPlayer.userId.startsWith('guest_')) || 
+                                         (realLeftUserId && realLeftUserId.startsWith('guest_'));
+          const leftUserIdInt = isLeftGuestForHistory2 ? null : parseInt(realLeftUserId.toString());
           
           // Get opponent username
-          let opponentName = leftPlayer.userId;
-          if (!leftPlayer.userId.startsWith('guest_') && leftUserIdInt) {
+          let opponentName = leftPlayer.userId || 'Opponent';
+          if (!isLeftGuestForHistory2 && leftUserIdInt) {
             try {
               const opponentUser = await DatabaseService.query(
                 'SELECT username FROM users WHERE id = $1',
@@ -1715,11 +2397,12 @@ class SocketIOService {
         setTimeout(() => {
           room.gameState.status = 'playing';
           
-          // Initialize fresh game data
+          // Initialize fresh game data with gameSpeed-based speeds
+          const speedValues = getSpeedValues(room.gameSpeed);
           const initialGameData = {
             leftPaddle: { y: 200 },
             rightPaddle: { y: 200 },
-            ball: { x: 400, y: 200, dx: 5, dy: 3 },
+            ball: { x: 400, y: 200, dx: speedValues.ballSpeed, dy: speedValues.ballSpeed * 0.6 },
             leftScore: 0,
             rightScore: 0
           };
@@ -1754,6 +2437,13 @@ class SocketIOService {
     if (!room || room.gameState.status !== 'playing') {
       return;
     }
+    
+    // Check if player is a spectator
+    const player = room.players.get(userId);
+    if (player && typeof player === 'object' && 'isSpectator' in player && player.isSpectator) {
+      console.log(`👁️ Spectator ${userId} attempted to move paddle, ignoring`);
+      return;
+    }
 
     // Update paddle position in game state
     if (!room.gameState.gameData) {
@@ -1762,7 +2452,9 @@ class SocketIOService {
     }
 
     const gameData = room.gameState.gameData;
-    const paddleSpeed = 10;
+    // Get speed values based on gameSpeed - all players use the same speed
+    const speedValues = getSpeedValues(room.gameSpeed);
+    const paddleSpeed = speedValues.paddleSpeed;
     const paddleHeight = 80;
     const canvasHeight = 400;
 
@@ -1820,6 +2512,122 @@ class SocketIOService {
     this.playerRooms.clear();
     
     console.log('✅ All game rooms cleared successfully');
+  }
+
+  /**
+   * Save tournament match history for both players
+   */
+  private async saveTournamentMatchHistory(
+    match: any,
+    participant1: { id: number; user_id: number | null; guest_alias: string | null } | null,
+    participant2: { id: number; user_id: number | null; guest_alias: string | null } | null,
+    player1UserId: string | null,
+    player2UserId: string | null,
+    player1Score: number,
+    player2Score: number,
+    winnerId: number,
+    leftUserId: string | null,
+    rightUserId: string | null
+  ): Promise<void> {
+    const { DatabaseService } = await import('./databaseService.js');
+    
+    // Determine which player is on which side
+    const player1IsLeft = player1UserId && leftUserId && String(player1UserId) === String(leftUserId);
+    const player1IsRight = player1UserId && rightUserId && String(player1UserId) === String(rightUserId);
+    const player2IsLeft = player2UserId && leftUserId && String(player2UserId) === String(leftUserId);
+    const player2IsRight = player2UserId && rightUserId && String(player2UserId) === String(rightUserId);
+    
+    // Save match history for player1 (if registered user)
+    if (participant1?.user_id && !participant1.user_id.toString().startsWith('guest_')) {
+      try {
+        const player1UserIdInt = parseInt(participant1.user_id.toString(), 10);
+        const player2UserIdInt = participant2?.user_id ? parseInt(participant2.user_id.toString(), 10) : null;
+        
+        // Determine opponent name
+        let opponentName = 'Unknown';
+        if (participant2) {
+          if (participant2.user_id) {
+            const opponentUser = await DatabaseService.get(
+              'SELECT username FROM users WHERE id = ?',
+              [participant2.user_id]
+            ) as { username: string } | null;
+            opponentName = opponentUser?.username || participant2.guest_alias || 'Unknown';
+          } else if (participant2.guest_alias) {
+            opponentName = participant2.guest_alias;
+          }
+        }
+        
+        // Determine scores based on which side player1 is on
+        // player1Score and player2Score are already correctly set based on which side each player is on
+        // So we can use them directly
+        const player1Won = winnerId === match.player1_id;
+        const userScore = player1Score; // player1Score is already the score for player1
+        const opponentScore = player2Score; // player2Score is already the score for player2
+        
+        await DatabaseService.run(
+          `INSERT INTO match_history (user_id, opponent_id, opponent_name, user_score, opponent_score, result, game_mode, played_at)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, CURRENT_TIMESTAMP)`,
+          [
+            player1UserIdInt,
+            player2UserIdInt,
+            opponentName,
+            userScore,
+            opponentScore,
+            player1Won ? 'win' : 'loss',
+            'tournament'
+          ]
+        );
+        console.log(`✅ Saved tournament match history for player1 (user_id: ${player1UserIdInt}) vs ${opponentName}`);
+      } catch (error) {
+        console.error(`❌ Error saving tournament match history for player1:`, error);
+      }
+    }
+    
+    // Save match history for player2 (if registered user)
+    if (participant2?.user_id && !participant2.user_id.toString().startsWith('guest_')) {
+      try {
+        const player2UserIdInt = parseInt(participant2.user_id.toString(), 10);
+        const player1UserIdInt = participant1?.user_id ? parseInt(participant1.user_id.toString(), 10) : null;
+        
+        // Determine opponent name
+        let opponentName = 'Unknown';
+        if (participant1) {
+          if (participant1.user_id) {
+            const opponentUser = await DatabaseService.get(
+              'SELECT username FROM users WHERE id = ?',
+              [participant1.user_id]
+            ) as { username: string } | null;
+            opponentName = opponentUser?.username || participant1.guest_alias || 'Unknown';
+          } else if (participant1.guest_alias) {
+            opponentName = participant1.guest_alias;
+          }
+        }
+        
+        // Determine scores based on which side player2 is on
+        // player1Score and player2Score are already correctly set based on which side each player is on
+        // So we can use them directly
+        const player2Won = winnerId === match.player2_id;
+        const userScore = player2Score; // player2Score is already the score for player2
+        const opponentScore = player1Score; // player1Score is already the score for player1
+        
+        await DatabaseService.run(
+          `INSERT INTO match_history (user_id, opponent_id, opponent_name, user_score, opponent_score, result, game_mode, played_at)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, CURRENT_TIMESTAMP)`,
+          [
+            player2UserIdInt,
+            player1UserIdInt,
+            opponentName,
+            userScore,
+            opponentScore,
+            player2Won ? 'win' : 'loss',
+            'tournament'
+          ]
+        );
+        console.log(`✅ Saved tournament match history for player2 (user_id: ${player2UserIdInt}) vs ${opponentName}`);
+      } catch (error) {
+        console.error(`❌ Error saving tournament match history for player2:`, error);
+      }
+    }
   }
 }
 

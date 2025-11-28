@@ -25,12 +25,18 @@ export class Router {
    * Navigate to a specific path
    */
   navigate(path: string) {
-    const route = this.routes.find(r => r.path === path);
+    // Extract path without hash for route matching
+    const pathWithoutHash = path.split('#')[0];
+    const route = this.routes.find(r => r.path === pathWithoutHash || r.path === path);
+    
+    // Update URL first
+    window.history.pushState({}, '', path);
+    
+    // Then update route and notify listeners
     if (route) {
       this.currentRoute = route;
-      this.notifyListeners();
-      window.history.pushState({}, '', path);
     }
+    this.notifyListeners();
   }
 
   /**
@@ -63,8 +69,13 @@ export class Router {
       const route = this.routes.find(r => r.path === path);
       if (route) {
         this.currentRoute = route;
-        this.notifyListeners();
+      } else {
+        // If no route found, try to find a matching route or set to null
+        // This allows listeners to handle the path manually
+        this.currentRoute = null;
       }
+      // Always notify listeners to handle hash changes and path updates
+      this.notifyListeners();
     });
 
     // Set initial route
@@ -72,6 +83,9 @@ export class Router {
     const route = this.routes.find(r => r.path === path);
     if (route) {
       this.currentRoute = route;
+    } else {
+      // If initial path doesn't match, set to null and let listeners handle it
+      this.currentRoute = null;
     }
   }
 

@@ -15,6 +15,7 @@
   import { AuthService } from './shared/services/authService';
   import type { AuthResponse, User } from './shared/types/auth';
   import io from 'socket.io-client';
+  import { router } from './lib/router';
 
   // Game mode state
   let gameMode: 'menu' | 'single' | 'multiplayer' | 'ai' = 'menu';
@@ -50,6 +51,110 @@
       await new Promise(resolve => setTimeout(resolve, 100));
     }
     await checkAuth();
+    
+    // Initialize router
+    router.addRoute({ path: '/', component: null, title: 'Game' });
+    router.addRoute({ path: '/game', component: null, title: 'Game' });
+    router.addRoute({ path: '/profile', component: null, title: 'Profile' });
+    router.addRoute({ path: '/tournament', component: null, title: 'Tournament' });
+    router.addRoute({ path: '/ranking', component: null, title: 'Ranking' });
+    router.addRoute({ path: '/deleteAccount', component: null, title: 'Delete Account' });
+    router.addRoute({ path: '/forgotPassword', component: null, title: 'Forgot Password' });
+    router.addRoute({ path: '/forgotUsername', component: null, title: 'Forgot Username' });
+    
+    // Subscribe to route changes
+    router.subscribe((route) => {
+      console.log('🔍 Router subscription triggered:', {
+        route: route,
+        currentPath: window.location.pathname,
+        currentHash: window.location.hash,
+        currentView: view,
+        currentGameMode: gameMode
+      });
+      
+      // Get current path from URL (in case route is null)
+      const currentPath = window.location.pathname;
+      
+      if (route) {
+        const path = route.path;
+        if (path === '/' || path === '/game') {
+          view = 'game';
+          // Check URL hash for game mode
+          const hash = window.location.hash;
+          console.log('🔍 Setting gameMode from hash:', hash);
+          if (hash === '#single') {
+            gameMode = 'single';
+          } else if (hash === '#multiplayer') {
+            gameMode = 'multiplayer';
+          } else if (hash === '#ai') {
+            gameMode = 'ai';
+          } else {
+            // Hash is empty or doesn't match any game mode, reset to menu
+            gameMode = 'menu';
+          }
+        } else if (path === '/profile') {
+          view = 'profile';
+        } else if (path === '/tournament') {
+          view = 'tournament';
+        } else if (path === '/ranking') {
+          view = 'ranking';
+        } else if (path === '/deleteAccount') {
+          view = 'deleteAccount';
+        } else if (path === '/forgotPassword') {
+          view = 'forgotPassword';
+        } else if (path === '/forgotUsername') {
+          view = 'forgotUsername';
+        }
+      } else {
+        // No route matched, check current URL path directly
+        if (currentPath === '/' || currentPath === '/game') {
+          view = 'game';
+          // Check URL hash for game mode
+          const hash = window.location.hash;
+          if (hash === '#single') {
+            gameMode = 'single';
+          } else if (hash === '#multiplayer') {
+            gameMode = 'multiplayer';
+          } else if (hash === '#ai') {
+            gameMode = 'ai';
+          } else {
+            // Hash is empty or doesn't match any game mode, reset to menu
+            gameMode = 'menu';
+          }
+        } else if (currentPath === '/profile') {
+          view = 'profile';
+        } else if (currentPath === '/tournament') {
+          view = 'tournament';
+        } else if (currentPath === '/ranking') {
+          view = 'ranking';
+        } else if (currentPath === '/deleteAccount') {
+          view = 'deleteAccount';
+        } else if (currentPath === '/forgotPassword') {
+          view = 'forgotPassword';
+        } else if (currentPath === '/forgotUsername') {
+          view = 'forgotUsername';
+        }
+      }
+      
+      console.log('🔍 Router subscription result:', {
+        view: view,
+        gameMode: gameMode
+      });
+    });
+    
+    // Initialize router
+    router.init();
+    
+    // Set initial route based on current URL
+    const currentPath = window.location.pathname;
+    if (currentPath === '/' || currentPath === '/game' || currentPath === '') {
+      view = 'game';
+      if (currentPath !== '/game') {
+        window.history.replaceState({}, '', '/game');
+      }
+    } else {
+      router.navigate(currentPath);
+    }
     
     // Add event listener for game end and return to main menu
     const handleReturnToMainEvent = (event: CustomEvent) => {
@@ -90,6 +195,9 @@
     user = authData.user;
     isAuthenticated = true;
     view = 'game';
+    
+    // Update URL
+    router.navigate('/game');
     
     // Initialize socket connection for real-time updates
     initializeSocket();
@@ -163,16 +271,19 @@
   // Game mode functions
   const startSinglePlayerGame = () => {
     gameMode = 'single';
+    router.navigate('/game#single');
   };
 
   const startAIGame = () => {
     gameMode = 'ai';
+    router.navigate('/game#ai');
   };
 
   const showMultiplayerSetup = () => {
     gameMode = 'multiplayer';
     showRoomInput = true;
     roomId = ''; // Reset roomId
+    router.navigate('/game#multiplayer');
   };
 
   const startMultiplayerGame = () => {
@@ -190,10 +301,31 @@
 
   const handleReturnToMenu = () => {
     gameMode = 'menu';
+    router.navigate('/game');
   };
 
   // Handle view changes
   const setView = (newView: typeof view) => {
+    // Update URL based on view - the router subscription will update the view state
+    let path = '/game';
+    if (newView === 'profile') {
+      path = '/profile';
+    } else if (newView === 'tournament') {
+      path = '/tournament';
+    } else if (newView === 'ranking') {
+      path = '/ranking';
+    } else if (newView === 'deleteAccount') {
+      path = '/deleteAccount';
+    } else if (newView === 'forgotPassword') {
+      path = '/forgotPassword';
+    } else if (newView === 'forgotUsername') {
+      path = '/forgotUsername';
+    } else {
+      path = '/game';
+    }
+    // Navigate first, then update view immediately to avoid delay
+    router.navigate(path);
+    // Also update view immediately for instant feedback
     view = newView;
   };
 
@@ -209,6 +341,8 @@
     // Reset multiplayer state
     showRoomInput = true;
     roomId = '';
+    // Update URL
+    router.navigate('/game');
   };
 </script>
 
@@ -429,27 +563,111 @@
               console.log('🎮 App.svelte onStartMatch called:', { tournamentId, matchId, newRoomId, match });
               gameMode = 'multiplayer';
               roomId = newRoomId;
+              showRoomInput = false; // Hide room input, show game directly
               
               // Determine player side based on match participants
               // If current user is player1, they are on the left side
               // If current user is player2, they are on the right side
-              if (match && user) {
+              if (match) {
                 // Get participant IDs from match
                 const player1Id = match.player1_id;
                 const player2Id = match.player2_id;
+                const player1 = match.player1;
+                const player2 = match.player2;
                 
-                // Find which participant corresponds to current user
+                // Find which participant corresponds to current user (registered or guest)
+                let isPlayer1 = false;
+                let isPlayer2 = false;
+                
+                if (user) {
+                  // Registered user: check by user_id
+                  const userId = typeof user.id === 'string' ? parseInt(user.id) : user.id;
+                  console.log('🔍 Checking registered user:', {
+                    userId: userId,
+                    user_id_type: typeof user.id,
+                    player1UserId: player1?.user_id,
+                    player2UserId: player2?.user_id,
+                    player1Id: player1Id,
+                    player2Id: player2Id
+                  });
+                  
+                  // Compare user_id (convert to number for comparison)
+                  const player1UserIdNum = player1?.user_id ? Number(player1.user_id) : null;
+                  const player2UserIdNum = player2?.user_id ? Number(player2.user_id) : null;
+                  const userIdNum = Number(userId);
+                  
+                  console.log('🔍 Comparing user IDs:', {
+                    userIdNum: userIdNum,
+                    player1UserIdNum: player1UserIdNum,
+                    player2UserIdNum: player2UserIdNum,
+                    player1Match: player1UserIdNum === userIdNum,
+                    player2Match: player2UserIdNum === userIdNum
+                  });
+                  
+                  if (player1UserIdNum !== null && player1UserIdNum === userIdNum) {
+                    isPlayer1 = true;
+                    console.log('✅ Found user as player1 by user_id');
+                  } else if (player2UserIdNum !== null && player2UserIdNum === userIdNum) {
+                    isPlayer2 = true;
+                    console.log('✅ Found user as player2 by user_id');
+                  } else if (player1Id && Number(player1Id) === userIdNum) {
+                    isPlayer1 = true;
+                    console.log('✅ Found user as player1 by player1Id');
+                  } else if (player2Id && Number(player2Id) === userIdNum) {
+                    isPlayer2 = true;
+                    console.log('✅ Found user as player2 by player2Id');
+                  } else {
+                    console.log('⚠️ No match found for user ID');
+                  }
+                } else {
+                  // Guest user: check by guest_alias from localStorage or match
+                  const guestAlias = localStorage.getItem('guestAlias');
+                  console.log('🔍 Checking guest user:', {
+                    guestAlias: guestAlias,
+                    player1GuestAlias: player1?.guest_alias,
+                    player2GuestAlias: player2?.guest_alias,
+                    player1: player1,
+                    player2: player2
+                  });
+                  
+                  if (guestAlias) {
+                    // Compare guest_alias (case-insensitive and trimmed)
+                    const normalizedGuestAlias = guestAlias.trim().toLowerCase();
+                    
+                    if (player1?.guest_alias && player1.guest_alias.trim().toLowerCase() === normalizedGuestAlias) {
+                      isPlayer1 = true;
+                      console.log('✅ Found guest as player1 by guest_alias');
+                    } else if (player2?.guest_alias && player2.guest_alias.trim().toLowerCase() === normalizedGuestAlias) {
+                      isPlayer2 = true;
+                      console.log('✅ Found guest as player2 by guest_alias');
+                    } else {
+                      console.log('⚠️ Guest alias mismatch:', {
+                        stored: normalizedGuestAlias,
+                        player1: player1?.guest_alias,
+                        player2: player2?.guest_alias
+                      });
+                    }
+                  } else {
+                    console.log('⚠️ No guestAlias in localStorage');
+                  }
+                }
+                
                 console.log('🔍 Determining player side:', {
-                  userId: user.id,
+                  userId: user?.id,
+                  guestAlias: localStorage.getItem('guestAlias'),
                   player1Id: player1Id,
-                  player2Id: player2Id
+                  player2Id: player2Id,
+                  player1: player1,
+                  player2: player2,
+                  isPlayer1: isPlayer1,
+                  isPlayer2: isPlayer2
                 });
                 
                 // For tournament matches, player1 is always left, player2 is always right
-                if (player1Id && player1Id === user.id) {
+                if (isPlayer1) {
                   playerSide = 'left';
                   console.log('✅ User is player1, assigned to LEFT side');
-                } else if (player2Id && player2Id === user.id) {
+                } else if (isPlayer2) {
                   playerSide = 'right';
                   console.log('✅ User is player2, assigned to RIGHT side');
                 } else {
@@ -459,11 +677,26 @@
                 }
               } else {
                 playerSide = 'left';
-                console.log('⚠️ No match or user data, defaulting to LEFT');
+                console.log('⚠️ No match data, defaulting to LEFT');
               }
               
               console.log('🎮 App.svelte roomId set to:', roomId, 'playerSide:', playerSide);
+              console.log('🎮 App.svelte gameMode set to:', gameMode);
+              console.log('🎮 App.svelte showRoomInput set to:', showRoomInput);
+              
+              // Set view first, then navigate
               setView('game');
+              // Navigate to game view
+              router.navigate('/game#multiplayer');
+              
+              console.log('🎮 App.svelte view set to:', view);
+              console.log('🎮 App.svelte final state:', {
+                view: view,
+                gameMode: gameMode,
+                roomId: roomId,
+                playerSide: playerSide,
+                showRoomInput: showRoomInput
+              });
             }}
           />
         {:else if view === 'ranking'}

@@ -317,6 +317,14 @@ export async function tournamentRoutes(fastify: FastifyInstance) {
       }
 
       const body = request.body as any;
+      console.log('🔍 Tournament join request:', {
+        tournamentId,
+        body,
+        user_id: body.user_id,
+        guest_alias: body.guest_alias,
+        display_name: body.display_name
+      });
+
       const joinInput: JoinTournamentInput = {
         tournament_id: tournamentId,
         user_id: body.user_id,
@@ -331,6 +339,7 @@ export async function tournamentRoutes(fastify: FastifyInstance) {
         data: participant
       });
     } catch (error) {
+      console.error('❌ Tournament join error:', error);
       reply.code(400).send({
         success: false,
         error: error instanceof Error ? error.message : 'Failed to join tournament'
@@ -424,6 +433,7 @@ export async function tournamentRoutes(fastify: FastifyInstance) {
               type: 'array',
               items: {
                 type: 'object',
+                additionalProperties: true, // Allow dynamic properties like 'user'
                 properties: {
                   id: { type: 'integer' },
                   tournament_id: { type: 'integer' },
@@ -435,7 +445,16 @@ export async function tournamentRoutes(fastify: FastifyInstance) {
                   eliminated_at: { type: 'string' },
                   final_rank: { type: 'integer' },
                   seed: { type: 'integer' },
-                  is_ready: { type: 'boolean' }
+                  is_ready: { type: 'boolean' },
+                  user: {
+                    type: 'object',
+                    additionalProperties: true,
+                    properties: {
+                      id: { type: 'integer' },
+                      username: { type: 'string' },
+                      email: { type: 'string' }
+                    }
+                  }
                 }
               }
             }
@@ -555,21 +574,7 @@ export async function tournamentRoutes(fastify: FastifyInstance) {
               type: 'array',
               items: {
                 type: 'object',
-                properties: {
-                  id: { type: 'integer' },
-                  match_id: { type: 'integer' },
-                  player1: { type: 'object' },
-                  player2: { type: 'object' },
-                  winner: { type: 'object' },
-                  round: { type: 'integer' },
-                  position: {
-                    type: 'object',
-                    properties: {
-                      x: { type: 'integer' },
-                      y: { type: 'integer' }
-                    }
-                  }
-                }
+                additionalProperties: true  // Allow any properties to avoid schema validation issues
               }
             }
           }
@@ -587,6 +592,14 @@ export async function tournamentRoutes(fastify: FastifyInstance) {
       }
 
       const bracket = await TournamentService.getTournamentBracket(tournamentId);
+      console.log('🔍 Sending bracket response:', {
+        bracketLength: bracket.length,
+        firstNode: bracket[0] ? {
+          id: bracket[0].id,
+          player1: bracket[0].player1 ? { id: bracket[0].player1.id, display_name: bracket[0].player1.display_name } : 'undefined',
+          player2: bracket[0].player2 ? { id: bracket[0].player2.id, display_name: bracket[0].player2.display_name } : 'undefined'
+        } : 'empty'
+      });
       reply.send({
         success: true,
         data: bracket
