@@ -40,10 +40,10 @@ install-deps:
 build:
 	@echo "Building all services..."
 	@cd srcs && \
-	if command -v docker-compose > /dev/null 2>&1; then \
-		docker-compose build; \
-	elif docker compose version > /dev/null 2>&1; then \
+	if docker compose version > /dev/null 2>&1; then \
 		docker compose build; \
+	elif command -v docker-compose > /dev/null 2>&1; then \
+		docker-compose build; \
 	else \
 		echo "Error: docker-compose or docker compose not found"; \
 		exit 1; \
@@ -54,10 +54,10 @@ build:
 dev:
 	@echo "Starting development environment..."
 	@cd srcs && \
-	if command -v docker-compose > /dev/null 2>&1; then \
-		docker-compose up --build --scale tester=0; \
-	elif docker compose version > /dev/null 2>&1; then \
+	if docker compose version > /dev/null 2>&1; then \
 		docker compose up --build --scale tester=0; \
+	elif command -v docker-compose > /dev/null 2>&1; then \
+		docker-compose up --build --scale tester=0; \
 	else \
 		echo "Error: docker-compose or docker compose not found"; \
 		exit 1; \
@@ -67,10 +67,10 @@ dev:
 prod:
 	@echo "Starting production environment..."
 	@cd srcs && \
-	if command -v docker-compose > /dev/null 2>&1; then \
-		docker-compose -f docker-compose.yml up --build -d; \
-	elif docker compose version > /dev/null 2>&1; then \
+	if docker compose version > /dev/null 2>&1; then \
 		docker compose -f docker-compose.yml up --build -d; \
+	elif command -v docker-compose > /dev/null 2>&1; then \
+		docker-compose -f docker-compose.yml up --build -d; \
 	else \
 		echo "Error: docker-compose or docker compose not found"; \
 		exit 1; \
@@ -100,10 +100,10 @@ test-e2e:
 clean:
 	@echo "Cleaning up containers and volumes..."
 	@cd srcs && \
-	if command -v docker-compose > /dev/null 2>&1; then \
-		docker-compose down -v --remove-orphans; \
-	elif docker compose version > /dev/null 2>&1; then \
+	if docker compose version > /dev/null 2>&1; then \
 		docker compose down -v --remove-orphans; \
+	elif command -v docker-compose > /dev/null 2>&1; then \
+		docker-compose down -v --remove-orphans; \
 	else \
 		echo "Error: docker-compose or docker compose not found"; \
 		exit 1; \
@@ -114,10 +114,10 @@ clean:
 logs:
 	@echo "Showing logs from all services..."
 	@cd srcs && \
-	if command -v docker-compose > /dev/null 2>&1; then \
-		docker-compose logs -f; \
-	elif docker compose version > /dev/null 2>&1; then \
+	if docker compose version > /dev/null 2>&1; then \
 		docker compose logs -f; \
+	elif command -v docker-compose > /dev/null 2>&1; then \
+		docker-compose logs -f; \
 	else \
 		echo "Error: docker-compose or docker compose not found"; \
 		exit 1; \
@@ -127,10 +127,10 @@ logs:
 status:
 	@echo "Service status:"
 	@cd srcs && \
-	if command -v docker-compose > /dev/null 2>&1; then \
-		docker-compose ps; \
-	elif docker compose version > /dev/null 2>&1; then \
+	if docker compose version > /dev/null 2>&1; then \
 		docker compose ps; \
+	elif command -v docker-compose > /dev/null 2>&1; then \
+		docker-compose ps; \
 	else \
 		echo "Error: docker-compose or docker compose not found"; \
 		exit 1; \
@@ -151,10 +151,10 @@ update-ip:
 restart:
 	@echo "Restarting services..."
 	@cd srcs && \
-	if command -v docker-compose > /dev/null 2>&1; then \
-		docker-compose down && docker-compose up -d --build; \
-	elif docker compose version > /dev/null 2>&1; then \
+	if docker compose version > /dev/null 2>&1; then \
 		docker compose down && docker compose up -d --build; \
+	elif command -v docker-compose > /dev/null 2>&1; then \
+		docker-compose down && docker-compose up -d --build; \
 	else \
 		echo "Error: docker-compose or docker compose not found"; \
 		exit 1; \
