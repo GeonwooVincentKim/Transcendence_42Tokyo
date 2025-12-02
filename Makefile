@@ -45,7 +45,7 @@ build:
 # Start development environment (without tester)
 dev:
 	@echo "Starting development environment..."
-	@cd srcs && DOCKER_BUILDKIT=1 COMPOSE_DOCKER_CLI_BUILD=1 ./docker-compose-wrapper.sh up --build --scale tester=0
+	@cd srcs && ./docker-compose-wrapper.sh up --build --scale tester=0
 
 # Start production environment
 prod:
