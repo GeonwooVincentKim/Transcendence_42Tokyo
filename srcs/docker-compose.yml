@@ -21,6 +21,9 @@ services:
       - .env
     # Environment variables are now loaded from .env file
     # See .env.example for required variables
+    environment:
+      - CORS_ALLOW_ALL=true
+      - NODE_ENV=development
     volumes:
       - pong_data:/app/data
     restart: unless-stopped
