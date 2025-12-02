@@ -35,6 +35,12 @@ else
     export COMPOSE_DOCKER_CLI_BUILD=0
 fi
 
+# Enable BuildKit for faster builds (if buildx version is sufficient)
+if [ -z "$DOCKER_BUILDKIT" ] || [ "$DOCKER_BUILDKIT" != "0" ]; then
+    export DOCKER_BUILDKIT=1
+    export COMPOSE_DOCKER_CLI_BUILD=1
+fi
+
 # Try docker compose (v2) first, then docker-compose (v1)
 if docker compose version > /dev/null 2>&1; then
     docker compose "$@"
