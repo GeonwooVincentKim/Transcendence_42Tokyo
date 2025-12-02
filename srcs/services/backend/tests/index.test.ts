@@ -1,7 +1,6 @@
 import request from 'supertest';
 import Fastify, { FastifyInstance } from 'fastify';
 import cors from '@fastify/cors';
-import fastifyWebsocket from '@fastify/websocket';
 
 /**
  * Test suite for Pong Game Backend Server
@@ -22,7 +21,6 @@ describe('Pong Game Backend Server', () => {
       origin: '*',
       credentials: true
     });
-    await server.register(fastifyWebsocket);
 
     // Register routes
     server.get('/', async (request: any, reply: any) => {
