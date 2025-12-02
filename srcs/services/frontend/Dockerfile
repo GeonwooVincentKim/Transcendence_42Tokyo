@@ -10,14 +10,11 @@ WORKDIR /app
 # Copy package files
 COPY package*.json ./
 
-# Clear npm cache and install dependencies with proper platform detection
+# Install dependencies with proper platform detection
 # Skip Cypress binary download in Docker (not needed for production build)
 ENV CYPRESS_INSTALL_BINARY=0
-RUN npm cache clean --force && \
-    rm -rf node_modules && \
-    npm install && \
-    npm rebuild esbuild && \
-    npx esbuild --version
+RUN npm install && \
+    npm rebuild esbuild
 
 # Copy source code
 COPY . .

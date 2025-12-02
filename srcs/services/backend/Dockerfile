@@ -14,7 +14,8 @@ WORKDIR /app
 COPY package*.json ./
 
 # Install dependencies and rebuild native modules
-RUN npm ci --include=dev && \
+# Use npm install instead of npm ci for better caching in development
+RUN npm install --include=dev && \
     npm rebuild better-sqlite3
 
 # Copy source code
