@@ -44,13 +44,6 @@
       loading = false;
     }
   }
-  
-  function clearHistory() {
-    if (confirm('Are you sure you want to clear all match history?')) {
-      MatchHistoryService.clearMatches();
-      loadMatchHistory();
-    }
-  }
 
   function formatDate(dateString: string): string {
     // Parse the date string as UTC and convert to local time
@@ -142,14 +135,6 @@
     <div class="flex justify-between items-center mb-6">
       <h2 class="text-2xl font-bold text-gray-800">{$_('matchhistory.title')}</h2>
       <div class="flex space-x-2">
-        {#if matches.length > 0}
-          <button
-            on:click={clearHistory}
-            class="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2"
-          >
-            Clear History
-          </button>
-        {/if}
         <button
           on:click={onBack}
           class="px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2"

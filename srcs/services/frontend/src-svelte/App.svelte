@@ -194,11 +194,27 @@
   const checkAuth = async () => {
     try {
       const storedAuth = AuthService.getStoredAuthData();
-      if (storedAuth && AuthService.isAuthenticated()) {
-        user = storedAuth.user;
-        isAuthenticated = true;
+      if (storedAuth) {
+        // Try to get valid token (will attempt refresh if expired)
+        const token = await AuthService.getTokenOrRefresh();
+        if (token) {
+          // Token is valid or was refreshed successfully
+          const updatedAuth = AuthService.getStoredAuthData();
+          if (updatedAuth) {
+            user = updatedAuth.user;
+            isAuthenticated = true;
+          } else {
+            user = storedAuth.user;
+            isAuthenticated = true;
+          }
+        } else {
+          // Token refresh failed or no token - user needs to login again
+          AuthService.clearAuthData();
+          user = null;
+          isAuthenticated = false;
+        }
       } else {
-        // Clear invalid auth data
+        // No stored auth data
         AuthService.clearAuthData();
         user = null;
         isAuthenticated = false;
@@ -544,9 +560,18 @@
               </div>
             {:else}
               <!-- Multiplayer Game -->
-              <MultiPlayerPong {roomId} {playerSide} {user} gameSpeed={gameSpeed} />
+              {#key roomId}
+                <MultiPlayerPong {roomId} {playerSide} {user} gameSpeed={gameSpeed} />
+              {/key}
               <button 
-                on:click={handleReturnToMenu}
+                on:click={() => {
+                  // If this is a tournament match, return to tournament view
+                  if (roomId.includes('tournament')) {
+                    setView('tournament');
+                  } else {
+                    handleReturnToMenu();
+                  }
+                }}
                 class="mt-4 px-4 py-2 bg-gray-600 rounded hover:bg-gray-700"
               >
                 {$_('button.backtomenu')}
