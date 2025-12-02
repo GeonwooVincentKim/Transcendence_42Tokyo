@@ -226,31 +226,113 @@ export class AuthService {
 
   /**
    * Get stored JWT token
-   * @returns string | null - Stored token or null if not found
+   * @returns string | null - Stored token or null if not found/expired
    */
   static getToken(): string | null {
     const token = localStorage.getItem('token');
     if (!token) {
-      console.warn('No JWT token found in localStorage');
       return null;
     }
     
-    // Check if token is expired (basic check)
+    // Check if token is expired
     try {
       const payload = JSON.parse(atob(token.split('.')[1]));
       const currentTime = Math.floor(Date.now() / 1000);
       if (payload.exp && payload.exp < currentTime) {
-        console.warn('JWT token has expired');
+        // Token is expired - clear it silently
+        // The caller should handle refresh or re-authentication
         this.clearAuthData();
         return null;
       }
     } catch (error) {
+      // Invalid token format - clear it
       console.error('Error parsing JWT token:', error);
       this.clearAuthData();
       return null;
     }
     
     return token;
+  }
+
+  /**
+   * Get token or attempt to refresh if expired
+   * This is an async version that can handle token refresh
+   * @returns Promise<string | null> - Valid token or null if refresh failed
+   */
+  static async getTokenOrRefresh(): Promise<string | null> {
+    let token = this.getToken();
+    
+    // If token exists and is valid, return it
+    if (token) {
+      return token;
+    }
+    
+    // Token is missing or expired, try to get stored token for refresh attempt
+    const storedToken = localStorage.getItem('token');
+    if (!storedToken) {
+      return null;
+    }
+    
+    // Try to refresh the expired token
+    try {
+      const authData = await this.refreshToken(storedToken);
+      this.storeAuthData(authData);
+      return authData.token;
+    } catch (error) {
+      // Refresh failed - clear auth data
+      console.error('Token refresh failed:', error);
+      this.clearAuthData();
+      return null;
+    }
+  }
+
+  /**
+   * Make an authenticated API request with automatic token refresh
+   * @param url - API endpoint URL
+   * @param options - Fetch options
+   * @returns Promise<Response> - Fetch response
+   */
+  static async authenticatedFetch(url: string, options: RequestInit = {}): Promise<Response> {
+    // Get valid token (will attempt refresh if expired)
+    let token = await this.getTokenOrRefresh();
+    
+    if (!token) {
+      throw new Error('Authentication required. Please login again.');
+    }
+    
+    // Add Authorization header
+    const headers = new Headers(options.headers);
+    headers.set('Authorization', `Bearer ${token}`);
+    
+    // Make the request
+    const response = await fetch(url, {
+      ...options,
+      headers
+    });
+    
+    // If token expired during request, try refresh and retry once
+    if (response.status === 401) {
+      const storedToken = localStorage.getItem('token');
+      if (storedToken) {
+        try {
+          const authData = await this.refreshToken(storedToken);
+          this.storeAuthData(authData);
+          
+          // Retry request with new token
+          headers.set('Authorization', `Bearer ${authData.token}`);
+          return fetch(url, {
+            ...options,
+            headers
+          });
+        } catch (error) {
+          // Refresh failed - clear auth data
+          console.error('Token refresh failed after 401:', error);
+          this.clearAuthData();
+        }
+      }
+    }
+    
+    return response;
   }
 
   /**
