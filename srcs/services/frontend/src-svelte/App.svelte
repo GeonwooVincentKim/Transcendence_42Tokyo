@@ -560,9 +560,18 @@
               </div>
             {:else}
               <!-- Multiplayer Game -->
-              <MultiPlayerPong {roomId} {playerSide} {user} gameSpeed={gameSpeed} />
+              {#key roomId}
+                <MultiPlayerPong {roomId} {playerSide} {user} gameSpeed={gameSpeed} />
+              {/key}
               <button 
-                on:click={handleReturnToMenu}
+                on:click={() => {
+                  // If this is a tournament match, return to tournament view
+                  if (roomId.includes('tournament')) {
+                    setView('tournament');
+                  } else {
+                    handleReturnToMenu();
+                  }
+                }}
                 class="mt-4 px-4 py-2 bg-gray-600 rounded hover:bg-gray-700"
               >
                 {$_('button.backtomenu')}

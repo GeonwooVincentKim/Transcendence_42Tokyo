@@ -168,6 +168,13 @@
     console.log('🔍 Using userId:', userId);
     console.log('🔍 User info:', user);
     
+    // Disconnect any existing connection before creating a new one
+    if (socketService) {
+      console.log('⚠️ Disconnecting existing socket service before reconnecting');
+      socketService.disconnect();
+      socketService = null;
+    }
+    
     socketService = new SocketIOService();
 
     // Initialize currentPlayerSide from prop
