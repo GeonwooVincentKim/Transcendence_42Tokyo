@@ -213,7 +213,7 @@ describe('TournamentService', () => {
         tournament_type: 'single_elimination'
       });
 
-      mockDatabaseService.all.mockResolvedValueOnce([
+      mockDatabaseService.query.mockResolvedValueOnce([
         { id: 1, user_id: 1, display_name: 'Player 1' },
         { id: 2, user_id: 2, display_name: 'Player 2' }
       ]);
@@ -236,7 +236,7 @@ describe('TournamentService', () => {
         tournament_type: 'single_elimination'
       });
 
-      mockDatabaseService.all.mockResolvedValueOnce([
+      mockDatabaseService.query.mockResolvedValueOnce([
         { id: 1, user_id: 1, display_name: 'Player 1' }
       ]);
 
